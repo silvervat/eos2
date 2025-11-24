@@ -1,0 +1,12 @@
+# Docker volumes and data
+docker/
+*.log
+
+# Environment overrides (keep .env template)
+.env.local
+.env.production
+
+# Temporary files
+*.tmp
+*.swp
+*~
