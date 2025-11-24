@@ -68,5 +68,5 @@ networks:
 
 volumes:
   teable-data: {}
-  teable-db: {} 
+  teable-db: {}
   teable-cache: {}

@@ -29,7 +29,6 @@ This is a standalone deployment of Teable using Docker Compose.
    ```bash
    docker compose logs -f teable
    ```
-   ```
 
 ## Access
 
