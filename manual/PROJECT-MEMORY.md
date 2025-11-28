@@ -1,11 +1,11 @@
 # RIVEST PLATFORM - PROJECT MEMORY
 > **Claude Code**: LOE SEE FAIL ESMALT! Kiire kontekst + viited detailidele.
 
-**Last Updated:** 2024-11-28 17:00
-**Session:** 1 (ACTUALLY COMPLETED)
-**Status:** Monorepo Setup Complete - Ready for SESSION 2
+**Last Updated:** 2024-11-28 18:30
+**Session:** 4 (COMPLETED)
+**Status:** CMS Foundation Complete - Ready for UI refinement
 **Branch:** claude/setup-rivest-platform-01DCqvSnPb6nkYDmYBkruVgi
-**Commit:** 9414739
+**Commit:** 43be683
 
 ---
 
@@ -13,24 +13,37 @@
 
 ```yaml
 COMPLETED:
-  ✅ SESSION 1: Monorepo (Turborepo + pnpm) - ACTUALLY BUILT!
-     - apps/web/ Next.js 14 with dashboard
+  ✅ SESSION 1: Monorepo (Turborepo + pnpm)
+     - apps/web/ Next.js 14 with App Router
      - packages/ui/ shadcn/ui components
      - packages/db/ Prisma schema
      - packages/types/ TypeScript types
-     - supabase/migrations/ (001_initial, 002_rls)
      - .github/workflows/ci.yml
 
-IN PROGRESS:
-  ⏳ SESSION 2: Database Connection
-     Phase: Connect to Supabase
-     Need: Supabase URL + Keys
+  ✅ SESSION 2: Supabase Client + Hooks
+     - lib/supabase/ (client, server, middleware)
+     - lib/providers.tsx (TanStack Query)
+     - lib/tenant-context.tsx
+     - hooks/use-feature.ts
+     - hooks/use-projects.ts
+
+  ✅ SESSION 3: Projects List (TanStack Table)
+     - components/projects/projects-table.tsx
+     - Sorting, filtering, pagination
+     - Mock data for demo
+
+  ✅ SESSION 4: CMS System Foundation
+     - supabase/migrations/003_cms_system.sql
+     - packages/types/src/cms.types.ts
+     - components/admin/cms/dynamic-fields-manager.tsx
+     - app/(dashboard)/admin/cms/page.tsx
+     - Admin sidebar navigation
 
 NEXT:
-  □ SESSION 3: Projects List (TanStack Table)
-  □ SESSION 4: CMS + Collaborative Docs
-  □ SESSION 5: Dynamic Fields UI
-  □ SESSION 6: Workflow Builder
+  □ SESSION 5: Dynamic Fields UI (dialogs, field renderer)
+  □ SESSION 6: Workflow Builder (visual editor)
+  □ SESSION 7: Collaborative Document Editor (Tiptap + Y.js)
+  □ SESSION 8: Supabase Connection (real data)
 ```
 
 ---
@@ -44,56 +57,73 @@ ehitusOS/
 │       ├── src/
 │       │   ├── app/
 │       │   │   ├── page.tsx           ✅ Landing page
-│       │   │   ├── layout.tsx         ✅ Root layout
+│       │   │   ├── layout.tsx         ✅ Root layout + Providers
 │       │   │   ├── globals.css        ✅ Tailwind + Rivest theme
 │       │   │   └── (dashboard)/
 │       │   │       ├── layout.tsx     ✅ Dashboard layout w/ sidebar
 │       │   │       ├── dashboard/     ✅ Stats page
-│       │   │       └── projects/      ✅ Projects table (mock data)
-│       │   └── components/
-│       ├── tailwind.config.ts         ✅ Configured
-│       └── package.json               ✅ Dependencies set
+│       │   │       ├── projects/      ✅ TanStack Table
+│       │   │       └── admin/cms/     ✅ CMS admin page
+│       │   ├── components/
+│       │   │   ├── projects/          ✅ ProjectsTable
+│       │   │   └── admin/cms/         ✅ DynamicFieldsManager
+│       │   ├── hooks/                 ✅ useProjects, useFeature
+│       │   └── lib/
+│       │       ├── supabase/          ✅ client, server, middleware
+│       │       ├── providers.tsx      ✅ TanStack Query
+│       │       └── tenant-context.tsx ✅ Tenant provider
+│       ├── middleware.ts              ✅ Auth middleware
+│       └── package.json
 ├── packages/
 │   ├── ui/                            ✅ @rivest/ui
-│   │   └── src/components/
-│   │       ├── button.tsx             ✅
-│   │       ├── card.tsx               ✅
-│   │       ├── input.tsx              ✅
-│   │       ├── label.tsx              ✅
-│   │       └── badge.tsx              ✅
+│   │   └── src/components/            Button, Card, Input, Label, Badge
 │   ├── db/                            ✅ @rivest/db
-│   │   ├── prisma/schema.prisma       ✅ Full schema
-│   │   └── src/client.ts              ✅ Prisma client
+│   │   └── prisma/schema.prisma       Full schema
 │   └── types/                         ✅ @rivest/types
-│       └── src/index.ts               ✅ All type definitions
+│       └── src/
+│           ├── index.ts               Core types
+│           └── cms.types.ts           ✅ CMS types
 ├── supabase/
 │   └── migrations/
-│       ├── 001_initial_schema.sql     ✅ All tables
-│       └── 002_rls_policies.sql       ✅ RLS policies
+│       ├── 001_initial_schema.sql     ✅ Core tables
+│       ├── 002_rls_policies.sql       ✅ RLS policies
+│       └── 003_cms_system.sql         ✅ CMS tables
 ├── .github/workflows/ci.yml           ✅ GitHub Actions
-├── turbo.json                         ✅ Turborepo config
-├── pnpm-workspace.yaml                ✅ Workspace config
-├── package.json                       ✅ Root package.json
-├── tsconfig.json                      ✅ Root TS config
-├── .env.example                       ✅ Env template
-├── .gitignore                         ✅ Configured
-└── README.md                          ✅ Updated
+└── manual/
+    ├── PROJECT-MEMORY.md              ⭐ This file
+    └── RIVEST-COMPLETE-GUIDE.md       📖 Full reference
 ```
 
 ---
 
-## 🗄️ DATABASE SCHEMA (Created in 001_initial_schema.sql)
+## 🗄️ DATABASE SCHEMA
 
+### Core Tables (001_initial_schema.sql) ✅
 ```sql
--- Core Tables ✅
-tenants              -- Multi-tenant core
-user_profiles        -- User accounts per tenant
-projects             -- Construction projects
-companies            -- Clients, suppliers, subcontractors
-invoices             -- Sales/purchase invoices
-employees            -- Employee records
-documents            -- File storage references
-audit_log            -- Activity tracking
+tenants, user_profiles, projects, companies, invoices,
+employees, documents, audit_log
+```
+
+### CMS Tables (003_cms_system.sql) ✅
+```sql
+-- Dynamic Fields
+dynamic_fields              -- Field definitions
+dynamic_field_values        -- Field values per entity
+
+-- Workflows
+workflows                   -- Workflow definitions
+workflow_history           -- Transition audit trail
+
+-- Notifications
+notification_rules         -- Trigger-based rules
+notification_log           -- Sent notifications
+
+-- Collaborative Docs
+documents_collaborative    -- Real-time docs
+document_versions         -- Version history
+document_comments         -- Comments + mentions
+document_collaborators    -- Permissions
+document_presence         -- Who's online
 ```
 
 ---
@@ -106,35 +136,34 @@ Frontend:     Next.js 14 App Router        ✅
 Database:     Supabase (PostgreSQL 15)     ⏳ Need connection
 ORM:          Prisma 5                     ✅ Schema ready
 UI:           shadcn/ui + Tailwind         ✅
-State:        TanStack Query 5 + Zustand   ✅ Added to deps
-Tables:       TanStack Table 8             ✅ Added to deps
+State:        TanStack Query 5 + Zustand   ✅
+Tables:       TanStack Table 8             ✅
 ```
 
 ---
 
 ## 📝 NEXT STEPS
 
-### **SESSION 2: Database Connection**
+### **SESSION 5: Dynamic Fields UI**
+- DynamicFieldDialog (add/edit field modal)
+- DynamicFieldRenderer (render field in forms)
+- Field type specific editors (select options, validation rules)
 
-**Need from user:**
-1. Supabase Project URL
-2. Supabase Anon Key
-3. Database URL (for Prisma)
+### **SESSION 6: Workflow Builder**
+- Visual state machine editor (ReactFlow)
+- State/Transition configuration
+- Action triggers
 
-**Files to update:**
-```bash
-# Create .env.local in apps/web/
-NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
-DATABASE_URL="postgresql://..."
-```
+### **SESSION 7: Document Editor**
+- Tiptap editor integration
+- Real-time collaboration (Y.js)
+- Comments and mentions
 
-**Then run:**
-```bash
-cd packages/db
-npx prisma generate
-npx prisma db push
-```
+### **SESSION 8: Supabase Connection**
+Need credentials:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `DATABASE_URL`
 
 ---
 
@@ -152,55 +181,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
 
 ---
 
-## 📋 CODING STANDARDS
-
-```typescript
-// Max lines
-File: 300 lines
-Function: 50 lines
-
-// Naming
-Components: PascalCase
-Files: kebab-case
-API: /api/resource/route.ts
-
-// TypeScript
-Strict: ON
-No 'any'
-
-// Database
-- ALWAYS: tenant_id in WHERE
-- ALWAYS: deleted_at IS NULL
-- Soft delete (never hard DELETE)
-```
-
----
-
-## 🚀 QUICK COMMANDS
-
-```bash
-# Dev (after pnpm install)
-pnpm dev                    # All apps
-pnpm --filter web dev       # Web only
-
-# Database
-npx prisma generate         # Generate types
-npx prisma db push          # Push to Supabase
-npx prisma studio           # DB GUI
-
-# Build
-pnpm build                  # Build all
-pnpm typecheck              # Type check all
-```
-
----
-
 ## 📝 COMMIT HISTORY
 
 ```
-9414739 - SESSION 1: Complete monorepo setup with Turborepo + pnpm (just now)
-ec79ff3 - Update and rename Rivest complete guide (previous)
-b36fe01 - Update PROJECT-MEMORY.md (previous)
+43be683 - SESSION 4: Add CMS system foundation
+af75997 - SESSION 3: Add TanStack Table for projects list
+12beeec - SESSION 2: Add Supabase client + TanStack Query setup
+561e556 - Update PROJECT-MEMORY.md with actual SESSION 1 status
+9414739 - SESSION 1: Complete monorepo setup with Turborepo + pnpm
 ```
 
 ---
@@ -209,21 +197,23 @@ b36fe01 - Update PROJECT-MEMORY.md (previous)
 
 1. **Landing Page** → `/` shows Rivest Platform intro
 2. **Dashboard** → `/dashboard` shows stats cards
-3. **Projects** → `/projects` shows table with mock data
-4. **UI Components** → Button, Card, Input, Label, Badge
-5. **Database Schema** → Ready in Prisma + SQL migrations
-6. **GitHub Actions** → CI/CD workflow ready
+3. **Projects** → `/projects` shows TanStack Table with mock data
+4. **CMS Admin** → `/admin/cms` shows dynamic fields manager
+5. **UI Components** → Button, Card, Input, Label, Badge
+6. **Database Schema** → 3 migrations ready for Supabase
+7. **GitHub Actions** → CI/CD workflow ready
 
 ---
 
-## 📖 FULL DOCUMENTATION
+## 📖 REFERENCE
 
 See `RIVEST-COMPLETE-GUIDE.md` for:
-- OSAS I: Architecture (chapters 1-5)
-- OSAS II: Security (chapters 6-9)
-- OSAS IX: CMS System (chapters 48-54)
+- **OSAS I:** Architecture (chapters 1-5)
+- **OSAS II:** Security (chapters 6-9)
+- **OSAS VIII:** Table Designer (chapters 42-47)
+- **OSAS IX:** CMS System (chapters 48-54) ⭐ Current focus
 
 ---
 
-**Last Updated:** 2024-11-28 17:00
-**Version:** 6.0 - After SESSION 1 actual implementation
+**Last Updated:** 2024-11-28 18:30
+**Version:** 7.0 - After SESSION 4 CMS foundation
