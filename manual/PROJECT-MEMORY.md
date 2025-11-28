@@ -1,11 +1,11 @@
 # RIVEST PLATFORM - PROJECT MEMORY
 > **Claude Code**: LOE SEE FAIL ESMALT! Kiire kontekst + viited detailidele.
 
-**Last Updated:** 2025-11-28 21:00
-**Session:** 7+ (All Pages Complete)
-**Status:** All UI pages complete with mock data - Ready for Supabase Connection
+**Last Updated:** 2025-11-28 21:30
+**Session:** 8 (Form Builder)
+**Status:** All UI pages + Form Builder complete - Ready for Supabase Connection
 **Branch:** claude/setup-rivest-platform-01DCqvSnPb6nkYDmYBkruVgi
-**Commit:** 039e907
+**Commit:** (pending)
 
 ---
 
@@ -60,8 +60,20 @@ COMPLETED:
      - Tables, images, links, headings support
      - Auto-save and version tracking ready
 
+  ✅ SESSION 8: Form Builder (JotForm style)
+     - components/admin/form-builder/ - Full form builder
+     - Drag-and-drop field palette (dnd-kit)
+     - Field types: text, email, phone, number, textarea
+     - Choice fields: select, radio, checkbox, multi-select
+     - Date/time fields: date, time, datetime
+     - Advanced: file upload, signature, rating, slider
+     - Display: heading, paragraph, divider
+     - Field properties panel with validation
+     - Form settings and theme customization
+     - CMS Admin "Vormid" tab integration
+
 NEXT:
-  □ SESSION 8: Supabase Connection (real data)
+  □ SESSION 9: Supabase Connection (real data)
 ```
 
 ---
@@ -86,7 +98,8 @@ ehitusOS/
 │       │   ├── components/
 │       │   │   ├── projects/          ✅ ProjectsTable
 │       │   │   ├── docs/              ✅ DocumentEditor with toolbar
-│       │   │   └── admin/cms/         ✅ DynamicFieldsManager, Dialog, Renderer, WorkflowBuilder
+│       │   │   ├── admin/cms/         ✅ DynamicFieldsManager, Dialog, Renderer, WorkflowBuilder
+│       │   │   └── admin/form-builder/ ✅ FormBuilder, FieldPalette, FieldProperties, FormCanvas
 │       │   ├── hooks/                 ✅ useProjects, useFeature
 │       │   └── lib/
 │       │       ├── supabase/          ✅ client, server, middleware
@@ -382,7 +395,56 @@ editor.chain().focus().insertTable({ rows: 3, cols: 3 }).run()
 editor.chain().focus().setImage({ src: url }).run()
 ```
 
+### Form Builder (SESSION 8)
+```typescript
+// Visual drag-and-drop form builder (JotForm style)
+import { DndContext, DragEndEvent, pointerWithin } from '@dnd-kit/core'
+import { SortableContext, useSortable } from '@dnd-kit/sortable'
+
+// Field Types (from types.ts)
+type FieldType =
+  | 'text' | 'email' | 'phone' | 'number' | 'url' | 'textarea'
+  | 'select' | 'radio' | 'checkbox' | 'multi_select'
+  | 'date' | 'time' | 'datetime'
+  | 'file_upload' | 'signature' | 'rating' | 'slider'
+  | 'heading' | 'paragraph' | 'divider'
+
+interface FormField {
+  id: string
+  type: FieldType
+  label: string
+  placeholder?: string
+  description?: string
+  required: boolean
+  validation?: ValidationRule[]
+  options?: FieldOption[]          // For select/radio/checkbox
+  width?: 'full' | 'half' | 'third'
+  settings?: Record<string, unknown>
+}
+
+interface FormTemplate {
+  id: string
+  name: string
+  fields: FormField[]
+  settings: FormSettings
+  theme: FormTheme
+}
+
+// Components structure
+// - FormBuilder: Main component with tabs (build/settings/theme)
+// - FieldPalette: Sidebar with draggable field types
+// - FormCanvas: Drop zone with sortable fields
+// - FieldProperties: Right panel for editing selected field
+
+// DnD setup
+<DndContext collisionDetection={pointerWithin} onDragEnd={handleDragEnd}>
+  <FieldPalette />
+  <FormCanvas fields={fields} selectedFieldId={selectedField?.id} />
+  <FieldProperties field={selectedField} onUpdate={handleFieldUpdate} />
+</DndContext>
+```
+
 ---
 
-**Last Updated:** 2024-11-28 19:45
-**Version:** 10.0 - Added Document Editor (SESSION 7)
+**Last Updated:** 2025-11-28 21:30
+**Version:** 11.0 - Added Form Builder (SESSION 8)

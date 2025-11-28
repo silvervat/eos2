@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { DynamicFieldsManager } from '@/components/admin/cms/dynamic-fields-manager'
 import { WorkflowBuilder } from '@/components/admin/cms/workflow-builder'
-import { Settings, Database, Bell, FileText, Workflow } from 'lucide-react'
+import { FormBuilder } from '@/components/admin/form-builder'
+import { Settings, Database, Bell, FileText, Workflow, FormInput } from 'lucide-react'
 
 const entities = [
   { id: 'projects', label: 'Projektid', icon: FileText },
@@ -15,6 +16,7 @@ const entities = [
 const tabs = [
   { id: 'fields', label: 'Dünaamilised väljad', icon: Database },
   { id: 'workflows', label: 'Töövood', icon: Workflow },
+  { id: 'forms', label: 'Vormid', icon: FormInput },
   { id: 'notifications', label: 'Teavitused', icon: Bell },
   { id: 'settings', label: 'Seaded', icon: Settings },
 ]
@@ -86,6 +88,10 @@ export default function CMSAdminPage() {
 
         {selectedTab === 'workflows' && (
           <WorkflowBuilder entityType={selectedEntity} />
+        )}
+
+        {selectedTab === 'forms' && (
+          <FormBuilder />
         )}
 
         {selectedTab === 'notifications' && (
