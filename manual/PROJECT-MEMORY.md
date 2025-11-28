@@ -221,5 +221,108 @@ See `RIVEST-COMPLETE-GUIDE.md` for:
 
 ---
 
-**Last Updated:** 2024-11-28 19:00
-**Version:** 8.0 - After SESSION 5 Dynamic Fields UI
+## 📜 PIIBEL KOKKUVÕTE (Key Patterns)
+
+### Workflow Builder (Chapter 52)
+```typescript
+// Use ReactFlow for visual workflow editor
+import ReactFlow, { Node, Edge, Controls, Background } from 'reactflow'
+
+// Workflow Types (from cms.types.ts)
+interface Workflow {
+  id: string
+  name: string
+  entityType: string  // 'projects' | 'invoices' | etc.
+  states: WorkflowState[]
+  transitions: WorkflowTransition[]
+  initialState: string
+  isActive: boolean
+}
+
+interface WorkflowState {
+  id: string
+  name: string        // 'draft', 'review', 'approved'
+  label: string       // 'Draft', 'In Review', 'Approved'
+  color: string       // '#279989'
+  canEdit: string[]   // ['admin', 'manager']
+  canTransition: string[]
+  onEnter?: WorkflowAction[]
+  onExit?: WorkflowAction[]
+}
+
+interface WorkflowTransition {
+  id: string
+  from: string        // State ID
+  to: string          // State ID
+  label: string       // 'Submit for Review'
+  allowedRoles: string[]
+  conditions?: TransitionCondition[]
+  actions?: WorkflowAction[]
+  requireComment: boolean
+  buttonVariant?: 'default' | 'destructive' | 'outline'
+}
+
+interface WorkflowAction {
+  type: 'update_field' | 'send_notification' | 'create_task' | 'webhook'
+  // ... action-specific fields
+}
+```
+
+### Status Manager Pattern
+```typescript
+class StatusManager {
+  // Get available next statuses for entity
+  getAvailableStatuses(entityType, currentStatus, userRole)
+
+  // Transition entity to new status
+  transitionStatus(entityType, entityId, fromStatus, toStatus, userId, comment?)
+
+  // Log to workflow_history table
+  logStatusTransition(data)
+}
+```
+
+### Default Workflow Example
+```typescript
+const projectWorkflow: Workflow = {
+  name: 'Project Lifecycle',
+  entityType: 'projects',
+  initialState: 'draft',
+  states: [
+    { id: 'draft', name: 'draft', label: 'Mustand', color: '#94a3b8' },
+    { id: 'active', name: 'active', label: 'Aktiivne', color: '#279989' },
+    { id: 'review', name: 'review', label: 'Ülevaatusel', color: '#eab308' },
+    { id: 'completed', name: 'completed', label: 'Lõpetatud', color: '#22c55e' },
+    { id: 'archived', name: 'archived', label: 'Arhiveeritud', color: '#6b7280' }
+  ],
+  transitions: [
+    { from: 'draft', to: 'active', label: 'Aktiveeri', allowedRoles: ['admin', 'manager'] },
+    { from: 'active', to: 'review', label: 'Saada ülevaatusele', allowedRoles: ['admin', 'manager'] },
+    { from: 'review', to: 'completed', label: 'Kinnita', allowedRoles: ['admin'] },
+    { from: 'review', to: 'active', label: 'Tagasi töösse', allowedRoles: ['admin'] },
+    { from: 'completed', to: 'archived', label: 'Arhiveeri', allowedRoles: ['admin'] }
+  ]
+}
+```
+
+### Notification Rules (Chapter 54)
+```typescript
+interface NotificationRule {
+  id: string
+  entityType: string
+  trigger: {
+    type: 'status_change' | 'field_update' | 'deadline' | 'custom'
+    conditions?: object
+    delay?: number  // minutes
+  }
+  channels: ('email' | 'sms' | 'in_app')[]
+  template: string
+  recipients: string[]  // User IDs or roles
+  isActive: boolean
+}
+```
+
+---
+
+**Last Updated:** 2024-11-28 19:15
+**Version:** 9.0 - Added Piibel patterns for Workflow Builder

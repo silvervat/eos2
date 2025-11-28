@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { DynamicFieldsManager } from '@/components/admin/cms/dynamic-fields-manager'
+import { WorkflowBuilder } from '@/components/admin/cms/workflow-builder'
 import { Settings, Database, Bell, FileText, Workflow } from 'lucide-react'
 
 const entities = [
@@ -84,15 +85,7 @@ export default function CMSAdminPage() {
         )}
 
         {selectedTab === 'workflows' && (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-            <Workflow className="h-12 w-12 mx-auto text-slate-400 mb-4" />
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">
-              Töövoo haldus
-            </h3>
-            <p className="text-slate-600">
-              Visuaalne töövoo ehitaja - tulemas peagi
-            </p>
-          </div>
+          <WorkflowBuilder entityType={selectedEntity} />
         )}
 
         {selectedTab === 'notifications' && (
