@@ -5,7 +5,7 @@
 **Session:** 7 (COMPLETED)
 **Status:** Document Editor Complete - Ready for Supabase Connection
 **Branch:** claude/setup-rivest-platform-01DCqvSnPb6nkYDmYBkruVgi
-**Commit:** (pending)
+**Commit:** 2674269
 
 ---
 
@@ -197,6 +197,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
 ## 📝 COMMIT HISTORY
 
 ```
+2674269 - SESSION 7: Add Document Editor with Tiptap
 8a5ef65 - SESSION 6: Add Workflow Builder with ReactFlow
 4438d5b - SESSION 5: Add Dynamic Fields UI components
 43be683 - SESSION 4: Add CMS system foundation
