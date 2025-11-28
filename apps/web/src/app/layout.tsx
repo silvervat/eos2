@@ -1,10 +1,7 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import { Providers } from '@/lib/providers'
 import { TenantProvider } from '@/lib/tenant-context'
 import './globals.css'
-
-const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Rivest Platform',
@@ -18,7 +15,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="et">
-      <body className={inter.className}>
+      <body className="font-sans antialiased">
         <Providers>
           <TenantProvider>
             {children}

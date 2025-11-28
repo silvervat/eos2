@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { Plus, Edit, Trash2, CheckCircle2, XCircle, GripVertical } from 'lucide-react'
-import type { DynamicField, FieldType } from '@rivest/types/cms.types'
+import type { DynamicField, FieldType } from '@rivest/types'
+import { DynamicFieldDialog } from './dynamic-field-dialog'
 
 // Mock data for demo
 const mockFields: DynamicField[] = [
@@ -125,6 +126,41 @@ export function DynamicFieldsManager({ entityType }: DynamicFieldsManagerProps) 
     setFields(fields.map(f =>
       f.id === fieldId ? { ...f, isActive: !f.isActive } : f
     ))
+  }
+
+  const handleSave = (fieldData: Partial<DynamicField>) => {
+    if (selectedField) {
+      // Update existing field
+      setFields(fields.map(f =>
+        f.id === selectedField.id
+          ? { ...f, ...fieldData, updatedAt: new Date().toISOString() }
+          : f
+      ))
+    } else {
+      // Create new field
+      const newField: DynamicField = {
+        id: crypto.randomUUID(),
+        tenantId: 'demo',
+        entityType,
+        key: fieldData.key || '',
+        label: fieldData.label || '',
+        type: fieldData.type || 'text',
+        config: fieldData.config || {},
+        required: fieldData.required || false,
+        validationRules: fieldData.validationRules || [],
+        sortOrder: fields.length + 1,
+        fieldGroup: fieldData.fieldGroup || 'Muu',
+        conditionalLogic: [],
+        canView: fieldData.canView || ['admin', 'manager', 'user'],
+        canEdit: fieldData.canEdit || ['admin', 'manager'],
+        isActive: fieldData.isActive !== undefined ? fieldData.isActive : true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      setFields([...fields, newField])
+    }
+    setIsDialogOpen(false)
+    setSelectedField(null)
   }
 
   return (
@@ -265,6 +301,18 @@ export function DynamicFieldsManager({ entityType }: DynamicFieldsManagerProps) 
           </button>
         </div>
       )}
+
+      {/* Dynamic Field Dialog */}
+      <DynamicFieldDialog
+        isOpen={isDialogOpen}
+        onClose={() => {
+          setIsDialogOpen(false)
+          setSelectedField(null)
+        }}
+        onSave={handleSave}
+        field={selectedField}
+        entityType={entityType}
+      />
     </div>
   )
 }
