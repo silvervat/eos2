@@ -1,11 +1,11 @@
 # RIVEST PLATFORM - PROJECT MEMORY
 > **Claude Code**: LOE SEE FAIL ESMALT! Kiire kontekst + viited detailidele.
 
-**Last Updated:** 2024-11-28 19:00
-**Session:** 5 (COMPLETED)
-**Status:** Dynamic Fields UI Complete - Ready for Workflow Builder
+**Last Updated:** 2024-11-28 19:30
+**Session:** 6 (COMPLETED)
+**Status:** Workflow Builder Complete - Ready for Document Editor
 **Branch:** claude/setup-rivest-platform-01DCqvSnPb6nkYDmYBkruVgi
-**Commit:** 4438d5b
+**Commit:** 8a5ef65
 
 ---
 
@@ -45,8 +45,14 @@ COMPLETED:
      - Dialog integration with DynamicFieldsManager
      - Field type editors (text, select, date, etc.)
 
+  ✅ SESSION 6: Workflow Builder
+     - components/admin/cms/workflow-builder.tsx
+     - ReactFlow visual state machine editor
+     - Custom StateNode component
+     - Mock workflows for projects/invoices
+     - Drag-to-connect transitions
+
 NEXT:
-  □ SESSION 6: Workflow Builder (visual editor with ReactFlow)
   □ SESSION 7: Collaborative Document Editor (Tiptap + Y.js)
   □ SESSION 8: Supabase Connection (real data)
 ```
@@ -143,22 +149,18 @@ ORM:          Prisma 5                     ✅ Schema ready
 UI:           shadcn/ui + Tailwind         ✅
 State:        TanStack Query 5 + Zustand   ✅
 Tables:       TanStack Table 8             ✅
+Workflows:    ReactFlow 11                 ✅
 ```
 
 ---
 
 ## 📝 NEXT STEPS
 
-### **SESSION 6: Workflow Builder** ⭐ NEXT
-- Visual state machine editor (ReactFlow)
-- State/Transition configuration
-- Action triggers
-- Workflow type definitions in types package
-
-### **SESSION 7: Document Editor**
+### **SESSION 7: Document Editor** ⭐ NEXT
 - Tiptap editor integration
 - Real-time collaboration (Y.js)
 - Comments and mentions
+- Version history
 
 ### **SESSION 8: Supabase Connection**
 Need credentials:
@@ -185,6 +187,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
 ## 📝 COMMIT HISTORY
 
 ```
+8a5ef65 - SESSION 6: Add Workflow Builder with ReactFlow
 4438d5b - SESSION 5: Add Dynamic Fields UI components
 43be683 - SESSION 4: Add CMS system foundation
 af75997 - SESSION 3: Add TanStack Table for projects list
@@ -200,10 +203,12 @@ af75997 - SESSION 3: Add TanStack Table for projects list
 1. **Landing Page** → `/` shows Rivest Platform intro
 2. **Dashboard** → `/dashboard` shows stats cards
 3. **Projects** → `/projects` shows TanStack Table with mock data
-4. **CMS Admin** → `/admin/cms` shows dynamic fields manager with:
-   - Add/Edit field dialog (full form with all field types)
-   - Field type specific options (select, multiselect, etc.)
-   - Permission configuration (canView, canEdit)
+4. **CMS Admin** → `/admin/cms` shows:
+   - **Dynamic Fields** - Add/Edit/Delete custom fields with full type support
+   - **Workflow Builder** - Visual state machine editor with ReactFlow
+     - Drag states to reposition
+     - Connect states to create transitions
+     - Mock workflows for projects and invoices
    - Field renderer for form display
 5. **UI Components** → Button, Card, Input, Label, Badge
 6. **Database Schema** → 3 migrations ready for Supabase
