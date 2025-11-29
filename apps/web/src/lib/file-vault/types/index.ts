@@ -27,13 +27,187 @@ export interface VaultConfig {
   allowPublicSharing: boolean
   requirePasswordForPublic: boolean
 
-  // Display
-  defaultView: 'grid' | 'list' | 'table'
+  // Display (Admin configurable per user group!)
+  defaultView: FileViewType
+  viewSettings: ViewSettings
   tableColumns: string[]           // Default columns to show
 
   // Storage
   storageProvider: 'supabase' | 's3' | 'r2'
   storageConfig: StorageProviderConfig
+
+  // User group configurations (Admin can customize per group)
+  groupConfigs?: Record<string, GroupViewConfig>
+}
+
+// =============================================
+// VIEW TYPES & CONFIGURATION
+// =============================================
+
+export type FileViewType =
+  | 'grid'       // Icon grid view (large icons)
+  | 'list'       // Compact list view
+  | 'table'      // Full table with columns
+  | 'gallery'    // Image gallery (thumbnails)
+  | 'timeline'   // Timeline view by date
+  | 'kanban'     // Kanban board by status
+
+export interface ViewSettings {
+  // Grid view settings
+  grid: GridViewSettings
+  // List view settings
+  list: ListViewSettings
+  // Table view settings
+  table: TableViewSettings
+  // Gallery view settings
+  gallery: GalleryViewSettings
+  // Timeline view settings
+  timeline: TimelineViewSettings
+  // Kanban view settings
+  kanban: KanbanViewSettings
+}
+
+export interface GridViewSettings {
+  iconSize: 'small' | 'medium' | 'large' | 'xlarge' // 48, 64, 96, 128px
+  showFileNames: boolean
+  showFileSize: boolean
+  showFileDate: boolean
+  showThumbnails: boolean
+  itemsPerRow: number         // Auto, 4, 6, 8
+  spacing: 'compact' | 'normal' | 'relaxed'
+}
+
+export interface ListViewSettings {
+  showIcon: boolean
+  showThumbnail: boolean
+  showFileSize: boolean
+  showModifiedDate: boolean
+  showOwner: boolean
+  showTags: boolean
+  compact: boolean
+}
+
+export interface TableViewSettings {
+  columns: TableColumnConfig[]
+  showHeaderFilters: boolean
+  rowHeight: 'compact' | 'normal' | 'comfortable'
+  enableSorting: boolean
+  enableColumnReorder: boolean
+  enableColumnResize: boolean
+  stickyHeader: boolean
+}
+
+export interface TableColumnConfig {
+  field: string
+  label: string
+  width?: number
+  minWidth?: number
+  visible: boolean
+  sortable: boolean
+  filterable: boolean
+  align: 'left' | 'center' | 'right'
+  format?: 'text' | 'date' | 'size' | 'user' | 'tags' | 'thumbnail'
+}
+
+export interface GalleryViewSettings {
+  thumbnailSize: 'small' | 'medium' | 'large' // 150, 250, 400px
+  showFileName: boolean
+  showOverlay: boolean           // Show info on hover
+  aspectRatio: '1:1' | '4:3' | '16:9' | 'auto'
+  enableLightbox: boolean
+  enableZoom: boolean
+  columnsCount: 2 | 3 | 4 | 5 | 6
+}
+
+export interface TimelineViewSettings {
+  groupBy: 'day' | 'week' | 'month' | 'year'
+  showThumbnails: boolean
+  showFileInfo: boolean
+}
+
+export interface KanbanViewSettings {
+  groupByField: string          // e.g., 'status', 'project', 'tag'
+  columns: KanbanColumn[]
+  cardFields: string[]          // Which fields to show on cards
+  showThumbnail: boolean
+}
+
+export interface KanbanColumn {
+  id: string
+  label: string
+  color: string
+  limit?: number               // WIP limit
+}
+
+// =============================================
+// USER GROUP VIEW CONFIGURATION (Admin Panel)
+// =============================================
+
+export interface GroupViewConfig {
+  groupId: string
+  groupName: string
+
+  // Allowed views for this group
+  allowedViews: FileViewType[]
+  defaultView: FileViewType
+
+  // View-specific overrides
+  viewSettings: Partial<ViewSettings>
+
+  // Permissions
+  canUpload: boolean
+  canDownload: boolean
+  canShare: boolean
+  canDelete: boolean
+  canCreateFolders: boolean
+  canBulkOperations: boolean
+
+  // UI Customization
+  showSidebar: boolean
+  showBreadcrumbs: boolean
+  showSearch: boolean
+  showFilters: boolean
+  showSortOptions: boolean
+  showViewSwitcher: boolean
+
+  // File type filters
+  visibleFileTypes: string[]    // Empty = all types
+  hiddenFolders: string[]       // Folder IDs to hide
+}
+
+// =============================================
+// ADMIN PANEL SETTINGS
+// =============================================
+
+export interface FileVaultAdminSettings {
+  // Global settings
+  globalDefaults: VaultConfig
+
+  // Per-tenant overrides
+  tenantOverrides?: Partial<VaultConfig>
+
+  // User group configurations
+  groupConfigs: GroupViewConfig[]
+
+  // Custom branding
+  branding: FileVaultBranding
+}
+
+export interface FileVaultBranding {
+  // Colors
+  primaryColor: string
+  secondaryColor: string
+  accentColor: string
+
+  // Icons
+  folderIcon: string            // Custom folder icon
+  fileIcons: Record<string, string>  // Extension -> icon mapping
+
+  // Labels (i18n)
+  labels: Record<string, string>
+
+  // Custom CSS
+  customCss?: string
 }
 
 export interface StorageProviderConfig {

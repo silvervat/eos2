@@ -48,6 +48,10 @@ model Tenant {
   ultraColumnConfigs UltraColumnTypeConfig[]
   userGroups         UserGroup[]
 
+  // File Vault Relations
+  fileVaults         FileVault[]
+  fileTeams          FileTeam[]
+
   @@map("tenants")
 }
 
@@ -600,17 +604,24 @@ model FileVault {
   quotaBytes  BigInt   @default(107374182400) @map("quota_bytes") // 100GB default
   usedBytes   BigInt   @default(0) @map("used_bytes")
 
-  // Timestamps
+  // Timestamps & Audit (PIIBEL standard)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdBy   String   @map("created_by") @db.Uuid
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  // Soft delete (PIIBEL standard)
+  deletedAt   DateTime? @map("deleted_at")
+  deletedBy   String?   @map("deleted_by") @db.Uuid
 
   // Relations
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   folders     FileFolder[]
   files       File[]
   shares      FileShare[]
 
   @@index([tenantId])
+  @@index([deletedAt])
   @@map("file_vaults")
 }
 
@@ -629,9 +640,15 @@ model FileFolder {
   isPublic    Boolean  @default(false) @map("is_public")
   ownerId     String   @map("owner_id") @db.Uuid
 
-  // Timestamps
+  // Timestamps & Audit (PIIBEL standard)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   String   @map("created_by") @db.Uuid
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  // Soft delete (PIIBEL standard)
+  deletedAt   DateTime? @map("deleted_at")
+  deletedBy   String?   @map("deleted_by") @db.Uuid
 
   // Relations
   vault       FileVault @relation(fields: [vaultId], references: [id], onDelete: Cascade)
@@ -645,6 +662,7 @@ model FileFolder {
   @@index([vaultId])
   @@index([parentId])
   @@index([ownerId])
+  @@index([deletedAt])
   @@map("file_folders")
 }
 
@@ -722,9 +740,15 @@ model File {
   // Search indexing
   indexedAt       DateTime? @map("indexed_at")
 
-  // Timestamps
+  // Timestamps & Audit (PIIBEL standard)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
+  createdBy       String   @map("created_by") @db.Uuid
+  updatedBy       String?  @map("updated_by") @db.Uuid
+
+  // Soft delete (PIIBEL standard)
+  deletedAt       DateTime? @map("deleted_at")
+  deletedBy       String?   @map("deleted_by") @db.Uuid
 
   // Relations
   vault           FileVault @relation(fields: [vaultId], references: [id], onDelete: Cascade)
@@ -744,6 +768,7 @@ model File {
   @@index([checksumMd5])
   @@index([indexedAt])
   @@index([createdAt])
+  @@index([deletedAt])
   @@map("files")
 }
 
@@ -966,15 +991,23 @@ model FileTeam {
   name        String
   description String?
 
-  // Timestamps
+  // Timestamps & Audit (PIIBEL standard)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   String   @map("created_by") @db.Uuid
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  // Soft delete (PIIBEL standard)
+  deletedAt   DateTime? @map("deleted_at")
+  deletedBy   String?   @map("deleted_by") @db.Uuid
 
   // Relations
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   members     FileTeamMember[]
   permissions FilePermission[]
 
   @@index([tenantId])
+  @@index([deletedAt])
   @@map("file_teams")
 }
 
