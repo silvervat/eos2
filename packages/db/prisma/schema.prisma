@@ -42,6 +42,12 @@ model Tenant {
   invoices Invoice[]
   employees Employee[]
 
+  // Ultra Table Relations
+  ultraTables        UltraTable[]
+  ultraDialogs       UltraDialog[]
+  ultraColumnConfigs UltraColumnTypeConfig[]
+  userGroups         UserGroup[]
+
   @@map("tenants")
 }
 
@@ -62,6 +68,11 @@ model UserProfile {
 
   // Relations
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Ultra Table Relations
+  groupMemberships    UserGroupMember[]
+  tablePermissions    UltraTablePermission[] @relation("UserTablePermissions")
+  columnPermissions   UltraColumnPermission[] @relation("UserColumnPermissions")
 
   @@index([tenantId])
   @@index([authUserId])
@@ -223,4 +234,326 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_log")
+}
+
+// =============================================
+// ULTRA TABLE SYSTEM - Rivest Dynamic Tables
+// =============================================
+
+// Enums for Ultra Table System
+enum ColumnPermissionType {
+  hidden // Column not visible
+  view   // Read-only
+  edit   // Can edit
+}
+
+enum RowPolicyType {
+  owner      // User is the owner (created_by)
+  assigned   // User is assigned
+  department // User in same department
+  manager    // User is manager
+  custom     // Custom condition
+}
+
+// Table configuration (metadata)
+model UltraTable {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  description String?
+
+  // Configuration (TableConfig JSON)
+  config      Json     @default("{}")
+
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   String   @map("created_by") @db.Uuid
+
+  // Relations
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  columns     UltraTableColumn[]
+  rows        UltraTableRow[]
+  views       UltraTableView[]
+  permissions UltraTablePermission[]
+  rowPolicies UltraRowPolicy[]
+
+  @@index([tenantId])
+  @@map("ultra_tables")
+}
+
+// Column definitions (55+ types)
+model UltraTableColumn {
+  id              String   @id @default(uuid()) @db.Uuid
+  tableId         String   @map("table_id") @db.Uuid
+
+  // Basic
+  name            String   // Display name
+  key             String   // Data key (slug)
+  type            String   // ColumnType enum (stored as string)
+
+  // Configuration
+  config          Json     @default("{}") // Type-specific config
+  formula         String?  // Formula expression
+  validation      Json?    // Validation rules
+
+  // Display
+  width           Int?     // Column width (px)
+  visible         Boolean  @default(true)
+  pinned          String?  // 'left' | 'right'
+  order           Int      @default(0) // Display order
+
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  table           UltraTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  columnPermissions UltraColumnPermission[]
+
+  @@unique([tableId, key])
+  @@index([tableId])
+  @@map("ultra_table_columns")
+}
+
+// Row data
+model UltraTableRow {
+  id              String   @id @default(uuid()) @db.Uuid
+  tableId         String   @map("table_id") @db.Uuid
+
+  // Hierarchical support (sub-rows)
+  parentId        String?  @map("parent_id") @db.Uuid
+  level           Int      @default(0)
+  order           Int      @default(0) // Display order
+
+  // Data storage (JSONB for flexibility)
+  data            Json     @default("{}")
+
+  // Metadata
+  height          Int?     // Custom row height (px)
+  expanded        Boolean  @default(false)
+
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdBy       String   @map("created_by") @db.Uuid
+
+  // Relations
+  table           UltraTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  parent          UltraTableRow? @relation("RowHierarchy", fields: [parentId], references: [id])
+  children        UltraTableRow[] @relation("RowHierarchy")
+
+  @@index([tableId])
+  @@index([parentId])
+  @@index([tableId, order])
+  @@map("ultra_table_rows")
+}
+
+// Table views (different configurations)
+model UltraTableView {
+  id              String   @id @default(uuid()) @db.Uuid
+  tableId         String   @map("table_id") @db.Uuid
+
+  name            String
+  description     String?
+
+  // View configuration (ViewConfig JSON)
+  config          Json     @default("{}")
+
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdBy       String   @map("created_by") @db.Uuid
+
+  // Relations
+  table           UltraTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([tableId])
+  @@map("ultra_table_views")
+}
+
+// Dialog configurations
+model UltraDialog {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  tableId         String?  @map("table_id") @db.Uuid
+
+  name            String
+  type            String   // 'create' | 'edit' | 'view' | 'custom'
+
+  // Visual designer configuration (DialogConfig JSON)
+  config          Json     @default("{}")
+
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdBy       String   @map("created_by") @db.Uuid
+
+  // Relations
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tableId])
+  @@map("ultra_dialogs")
+}
+
+// Column type configurations (dropdowns, tags, etc)
+model UltraColumnTypeConfig {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+
+  name            String   // e.g., "Project Status", "Priority Levels"
+  type            String   // 'dropdown' | 'tags' | 'status'
+
+  // Options (JSON array)
+  options         Json     @default("[]")
+
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("ultra_column_type_configs")
+}
+
+// =============================================
+// ULTRA TABLE PERMISSIONS SYSTEM
+// =============================================
+
+// User Groups
+model UserGroup {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  name            String
+  description     String?
+  isAdmin         Boolean  @default(false) @map("is_admin")
+
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members         UserGroupMember[]
+  tablePermissions UltraTablePermission[]
+  columnPermissions UltraColumnPermission[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("user_groups")
+}
+
+// User Group Members
+model UserGroupMember {
+  id              String    @id @default(uuid()) @db.Uuid
+  groupId         String    @map("group_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+
+  // Timestamps
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  group           UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user            UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("user_group_members")
+}
+
+// Table-level permissions
+model UltraTablePermission {
+  id              String    @id @default(uuid()) @db.Uuid
+  tableId         String    @map("table_id") @db.Uuid
+  groupId         String?   @map("group_id") @db.Uuid  // null = applies to all users
+  userId          String?   @map("user_id") @db.Uuid   // specific user override
+
+  // Permission flags
+  canView         Boolean   @default(false) @map("can_view")
+  canCreate       Boolean   @default(false) @map("can_create")
+  canEdit         Boolean   @default(false) @map("can_edit")
+  canDelete       Boolean   @default(false) @map("can_delete")
+  isAdmin         Boolean   @default(false) @map("is_admin")  // Full control
+
+  // Timestamps
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  table           UltraTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  group           UserGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user            UserProfile? @relation("UserTablePermissions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tableId, groupId, userId])
+  @@index([tableId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("ultra_table_permissions")
+}
+
+// Column-level permissions
+model UltraColumnPermission {
+  id              String    @id @default(uuid()) @db.Uuid
+  columnId        String    @map("column_id") @db.Uuid
+  groupId         String?   @map("group_id") @db.Uuid
+  userId          String?   @map("user_id") @db.Uuid
+
+  // Permission type
+  permission      ColumnPermissionType
+
+  // Timestamps
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  column          UltraTableColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  group           UserGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user            UserProfile? @relation("UserColumnPermissions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([columnId, groupId, userId])
+  @@index([columnId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("ultra_column_permissions")
+}
+
+// Row-level security policies
+model UltraRowPolicy {
+  id              String    @id @default(uuid()) @db.Uuid
+  tableId         String    @map("table_id") @db.Uuid
+  name            String
+  description     String?
+
+  // Policy type
+  type            RowPolicyType
+
+  // Condition (JSON)
+  // Examples:
+  // { "field": "created_by", "operator": "equals", "value": "{{current_user_id}}" }
+  // { "field": "department", "operator": "in", "value": "{{user_departments}}" }
+  condition       Json      @default("{}")
+
+  // What this policy allows
+  allowView       Boolean   @default(false) @map("allow_view")
+  allowEdit       Boolean   @default(false) @map("allow_edit")
+  allowDelete     Boolean   @default(false) @map("allow_delete")
+
+  // Priority (higher = evaluated first)
+  priority        Int       @default(0)
+  enabled         Boolean   @default(true)
+
+  // Timestamps
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  table           UltraTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([tableId])
+  @@index([tableId, enabled, priority])
+  @@map("ultra_row_policies")
 }
