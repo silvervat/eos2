@@ -1,6 +1,6 @@
 'use client'
 
-import { CalendarCog } from 'lucide-react'
+import { CalendarClock } from 'lucide-react'
 import { format, isValid } from 'date-fns'
 import { et } from 'date-fns/locale'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
@@ -10,7 +10,7 @@ export const ModifiedTimeColumn: ColumnTypeDefinition = {
   name: 'Modified Time',
   description: 'Auto-updated when row changes',
   category: 'datetime',
-  icon: CalendarCog,
+  icon: CalendarClock,
 
   defaultConfig: {
     date: {
