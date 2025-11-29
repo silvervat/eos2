@@ -1,7 +1,7 @@
 'use client'
 
 import { Star } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 export const RatingColumn: ColumnTypeDefinition = {

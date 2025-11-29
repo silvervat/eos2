@@ -10,7 +10,7 @@ import {
   getRivestExclusiveTypes
 } from '@/lib/ultra-table/column-types/registry'
 import { COLUMN_CATEGORIES } from '@/lib/ultra-table/column-types/types'
-import { cn } from '@/lib/utils'
+import { cn } from '@rivest/ui'
 import type { ColumnType } from '@/types/ultra-table'
 import type { ColumnCategory } from '@/lib/ultra-table/column-types/types'
 

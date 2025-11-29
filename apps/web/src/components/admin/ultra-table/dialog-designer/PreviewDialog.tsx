@@ -5,7 +5,7 @@ import { Button, Input, Label, Card, Checkbox, Switch, Textarea } from '@rivest/
 import { X } from 'lucide-react'
 import { getColumnType } from '@/lib/ultra-table/column-types/registry'
 import type { DialogConfig, DialogSection, DialogField } from './useDialogDesigner'
-import { cn } from '@/lib/utils'
+import { cn } from '@rivest/ui'
 
 interface PreviewDialogProps {
   config: DialogConfig

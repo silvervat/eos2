@@ -5,7 +5,7 @@ import { Card } from '@rivest/ui'
 import { getColumnType, getAllColumnTypes, getColumnTypesByCategory } from '@/lib/ultra-table/column-types/registry'
 import type { ColumnCategory } from '@/lib/ultra-table/column-types/types'
 import type { ColumnType } from '@/types/ultra-table'
-import { cn } from '@/lib/utils'
+import { cn } from '@rivest/ui'
 import { Minus, Type, AlignLeft, Layout, LayoutGrid } from 'lucide-react'
 
 const CATEGORY_LABELS: Record<string, string> = {

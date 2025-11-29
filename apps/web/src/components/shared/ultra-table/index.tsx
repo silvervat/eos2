@@ -10,7 +10,7 @@ import { TableFooter } from './TableFooter'
 import { useUltraTable, matchesFilter } from './useUltraTable'
 import { usePerformanceMonitor } from './usePerformanceMonitor'
 import type { UltraTableRow, UltraTableColumn } from '@/types/ultra-table'
-import { cn } from '@/lib/utils'
+import { cn } from '@rivest/ui'
 
 interface Filter {
   columnKey: string

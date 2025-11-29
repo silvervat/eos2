@@ -254,7 +254,7 @@ function ColumnTypeConfig({
               type="color"
               value={config.rating?.color ?? '#fbbf24'}
               onChange={(e) => onUpdate({
-                rating: { ...config.rating, color: e.target.value }
+                rating: { max: config.rating?.max ?? 5, ...config.rating, color: e.target.value }
               })}
             />
           </div>

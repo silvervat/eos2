@@ -101,12 +101,20 @@ export function useUltraTable(tableId: string, viewId?: string): UseUltraTableRe
             enableSort: true,
             enableSearch: true,
             enableGrouping: false,
+            enableColumnResize: true,
+            enableColumnReorder: true,
+            enableRowSelection: true,
+            enableBulkEdit: true,
             chunkSize: 1000,
             cacheSize: 10000,
             workerCount: 4,
             enableRealtime: true,
             showCursors: true,
             showChanges: true,
+            headerSticky: true,
+            footerSticky: false,
+            showRowNumbers: false,
+            defaultPermission: 'view',
           },
         }
 
@@ -170,8 +178,11 @@ export function useUltraTable(tableId: string, viewId?: string): UseUltraTableRe
       tableId,
       data,
       order: rows.length,
+      level: 0,
+      expanded: false,
       createdAt: new Date(),
       updatedAt: new Date(),
+      createdBy: 'current_user',
     }
 
     setRows(prev => [...prev, newRow])

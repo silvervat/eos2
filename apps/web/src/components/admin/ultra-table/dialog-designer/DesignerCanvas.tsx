@@ -3,7 +3,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import { Button, Card } from '@rivest/ui'
 import { Plus, Trash2, GripVertical } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@rivest/ui'
 import type { DialogConfig, DialogSection, DialogField } from './useDialogDesigner'
 
 interface DesignerCanvasProps {

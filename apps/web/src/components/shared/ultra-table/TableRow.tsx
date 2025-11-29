@@ -5,7 +5,7 @@ import { Checkbox } from '@rivest/ui'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import { DynamicCell } from './DynamicCell'
 import type { UltraTableColumn, UltraTableRow } from '@/types/ultra-table'
-import { cn } from '@/lib/utils'
+import { cn } from '@rivest/ui'
 
 interface TableRowProps {
   row: UltraTableRow

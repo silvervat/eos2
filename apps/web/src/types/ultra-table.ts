@@ -724,6 +724,7 @@ export interface UltraTableRow {
   data: Record<string, any>
   height?: number
   expanded: boolean
+  children?: UltraTableRow[]
   createdAt: Date
   updatedAt: Date
   createdBy: string

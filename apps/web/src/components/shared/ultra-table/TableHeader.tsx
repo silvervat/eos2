@@ -5,7 +5,7 @@ import { Checkbox } from '@rivest/ui'
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { getColumnType } from '@/lib/ultra-table/column-types/registry'
 import type { UltraTableColumn, ColumnType } from '@/types/ultra-table'
-import { cn } from '@/lib/utils'
+import { cn } from '@rivest/ui'
 
 interface TableHeaderProps {
   columns: UltraTableColumn[]

@@ -48,6 +48,10 @@ model Tenant {
   ultraColumnConfigs UltraColumnTypeConfig[]
   userGroups         UserGroup[]
 
+  // File Vault Relations
+  fileVaults         FileVault[]
+  fileTeams          FileTeam[]
+
   @@map("tenants")
 }
 
@@ -556,4 +560,471 @@ model UltraRowPolicy {
   @@index([tableId])
   @@index([tableId, enabled, priority])
   @@map("ultra_row_policies")
+}
+
+// =============================================
+// FILE VAULT SYSTEM - Enterprise File Management
+// =============================================
+
+// Enums for File Vault
+enum SharePermission {
+  view      // Can view only
+  download  // Can download
+  edit      // Can upload/edit
+}
+
+enum FileAction {
+  view
+  download
+  upload
+  delete
+  share
+  rename
+  move
+}
+
+enum UploadStatus {
+  in_progress
+  completed
+  failed
+  cancelled
+}
+
+// File Vault (Storage container)
+model FileVault {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  description String?
+
+  // Vault configuration (VaultConfig JSON)
+  config      Json     @default("{}")
+
+  // Storage quota (bytes)
+  quotaBytes  BigInt   @default(107374182400) @map("quota_bytes") // 100GB default
+  usedBytes   BigInt   @default(0) @map("used_bytes")
+
+  // Timestamps & Audit (PIIBEL standard)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   String   @map("created_by") @db.Uuid
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  // Soft delete (PIIBEL standard)
+  deletedAt   DateTime? @map("deleted_at")
+  deletedBy   String?   @map("deleted_by") @db.Uuid
+
+  // Relations
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  folders     FileFolder[]
+  files       File[]
+  shares      FileShare[]
+
+  @@index([tenantId])
+  @@index([deletedAt])
+  @@map("file_vaults")
+}
+
+// File Folder (Hierarchy)
+model FileFolder {
+  id          String   @id @default(uuid()) @db.Uuid
+  vaultId     String   @map("vault_id") @db.Uuid
+  parentId    String?  @map("parent_id") @db.Uuid
+
+  name        String
+  path        String   // Full path: /parent/child
+  color       String?  // Folder color
+  icon        String?  // Folder icon
+
+  // Permissions
+  isPublic    Boolean  @default(false) @map("is_public")
+  ownerId     String   @map("owner_id") @db.Uuid
+
+  // Timestamps & Audit (PIIBEL standard)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   String   @map("created_by") @db.Uuid
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  // Soft delete (PIIBEL standard)
+  deletedAt   DateTime? @map("deleted_at")
+  deletedBy   String?   @map("deleted_by") @db.Uuid
+
+  // Relations
+  vault       FileVault @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  parent      FileFolder? @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children    FileFolder[] @relation("FolderHierarchy")
+  files       File[]
+  shares      FileShare[]
+  permissions FilePermission[]
+
+  @@unique([vaultId, path])
+  @@index([vaultId])
+  @@index([parentId])
+  @@index([ownerId])
+  @@index([deletedAt])
+  @@map("file_folders")
+}
+
+// File (Core file entity)
+model File {
+  id              String   @id @default(uuid()) @db.Uuid
+  vaultId         String   @map("vault_id") @db.Uuid
+  folderId        String?  @map("folder_id") @db.Uuid
+
+  // File info
+  name            String
+  path            String   // Full path: /folder/subfolder/file.pdf
+
+  // Storage
+  storageProvider String   @default("supabase") @map("storage_provider")
+  storageBucket   String   @map("storage_bucket")
+  storagePath     String   @map("storage_path")
+  storageKey      String   @unique @map("storage_key")
+
+  // File metadata
+  mimeType        String   @map("mime_type")
+  sizeBytes       BigInt   @map("size_bytes")
+  extension       String
+
+  // Checksums
+  checksumMd5     String   @map("checksum_md5")
+  checksumSha256  String?  @map("checksum_sha256")
+
+  // Media metadata (images/videos)
+  width           Int?
+  height          Int?
+  duration        Int?     // Duration in seconds (for video/audio)
+
+  // EXIF metadata (for images)
+  exifData        Json?    @map("exif_data")        // Complete EXIF data
+  cameraMake      String?  @map("camera_make")      // "Canon"
+  cameraModel     String?  @map("camera_model")     // "EOS 5D Mark IV"
+  lens            String?                           // "EF 24-70mm f/2.8L"
+  iso             Int?                              // 800
+  aperture        String?                           // "f/2.8"
+  shutterSpeed    String?  @map("shutter_speed")    // "1/250"
+  focalLength     String?  @map("focal_length")     // "50mm"
+  takenAt         DateTime? @map("taken_at")        // When photo was taken
+
+  // GPS location (from EXIF)
+  gpsLatitude     Float?   @map("gps_latitude")     // 59.4370
+  gpsLongitude    Float?   @map("gps_longitude")    // 24.7536
+  gpsLocation     String?  @map("gps_location")     // "Tallinn, Estonia"
+
+  // Download source tracking
+  downloadUrl     String?  @map("download_url")     // Where file was downloaded from
+  downloadDate    DateTime? @map("download_date")   // When it was downloaded
+
+  // Thumbnails
+  thumbnailSmall  String?  @map("thumbnail_small")  // 150x150
+  thumbnailMedium String?  @map("thumbnail_medium") // 500x500
+  thumbnailLarge  String?  @map("thumbnail_large")  // 1000x1000
+
+  // Custom metadata (Ultra Table integration!)
+  metadata        Json     @default("{}")
+
+  // Versioning
+  version         Int      @default(1)
+  isLatest        Boolean  @default(true) @map("is_latest")
+  parentFileId    String?  @map("parent_file_id") @db.Uuid
+
+  // Security
+  isPublic        Boolean  @default(false) @map("is_public")
+  ownerId         String   @map("owner_id") @db.Uuid
+
+  // Virus scan
+  scannedAt       DateTime? @map("scanned_at")
+  isSafe          Boolean  @default(true) @map("is_safe")
+
+  // Search indexing
+  indexedAt       DateTime? @map("indexed_at")
+
+  // Timestamps & Audit (PIIBEL standard)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdBy       String   @map("created_by") @db.Uuid
+  updatedBy       String?  @map("updated_by") @db.Uuid
+
+  // Soft delete (PIIBEL standard)
+  deletedAt       DateTime? @map("deleted_at")
+  deletedBy       String?   @map("deleted_by") @db.Uuid
+
+  // Relations
+  vault           FileVault @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  folder          FileFolder? @relation(fields: [folderId], references: [id])
+  parentFile      File? @relation("FileVersions", fields: [parentFileId], references: [id])
+  versions        File[] @relation("FileVersions")
+  shares          FileShare[]
+  accesses        FileAccess[]
+  tags            FileTag[]
+  permissions     FilePermission[]
+
+  @@unique([vaultId, path])
+  @@index([vaultId])
+  @@index([folderId])
+  @@index([ownerId])
+  @@index([storageKey])
+  @@index([checksumMd5])
+  @@index([indexedAt])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("files")
+}
+
+// File Share (Sharing links)
+model FileShare {
+  id              String   @id @default(uuid()) @db.Uuid
+  vaultId         String   @map("vault_id") @db.Uuid
+  fileId          String?  @map("file_id") @db.Uuid
+  folderId        String?  @map("folder_id") @db.Uuid
+
+  // Share link
+  shortCode       String   @unique @map("short_code") // e.g., "abc123"
+
+  // Permissions
+  permission      SharePermission
+
+  // Security
+  passwordHash    String?  @map("password_hash")
+  requireEmail    Boolean  @default(false) @map("require_email")
+  allowedEmails   String[] @map("allowed_emails")
+
+  // Limits
+  expiresAt       DateTime? @map("expires_at")
+  maxDownloads    Int?     @map("max_downloads")
+  downloadCount   Int      @default(0) @map("download_count")
+
+  // Tracking
+  viewCount       Int      @default(0) @map("view_count")
+  lastAccessedAt  DateTime? @map("last_accessed_at")
+
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  createdBy       String   @map("created_by") @db.Uuid
+
+  // Relations
+  vault           FileVault @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  file            File? @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  folder          FileFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  accesses        FileAccess[]
+
+  @@index([vaultId])
+  @@index([fileId])
+  @@index([folderId])
+  @@index([shortCode])
+  @@index([expiresAt])
+  @@map("file_shares")
+}
+
+// File Access (Access logs)
+model FileAccess {
+  id              String   @id @default(uuid()) @db.Uuid
+  fileId          String?  @map("file_id") @db.Uuid
+  shareId         String?  @map("share_id") @db.Uuid
+
+  // Access details
+  action          FileAction
+  ipAddress       String   @map("ip_address")
+  userAgent       String?  @map("user_agent")
+  userId          String?  @map("user_id") @db.Uuid
+
+  // Bandwidth tracking
+  bytesTransferred BigInt? @map("bytes_transferred")
+
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  file            File? @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  share           FileShare? @relation(fields: [shareId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@index([shareId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("file_accesses")
+}
+
+// File Tag (Tagging system)
+model FileTag {
+  id              String   @id @default(uuid()) @db.Uuid
+  fileId          String   @map("file_id") @db.Uuid
+  tag             String
+
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  file            File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, tag])
+  @@index([tag])
+  @@map("file_tags")
+}
+
+// File Upload Session (Chunked uploads)
+model FileUploadSession {
+  id              String   @id @default(uuid()) @db.Uuid
+  vaultId         String   @map("vault_id") @db.Uuid
+
+  // File info
+  filename        String
+  sizeBytes       BigInt   @map("size_bytes")
+  mimeType        String   @map("mime_type")
+
+  // Upload progress
+  chunkSize       Int      @default(5242880) @map("chunk_size") // 5MB
+  totalChunks     Int      @map("total_chunks")
+  uploadedChunks  Int[]    @map("uploaded_chunks")
+
+  // Storage
+  storageProvider String   @map("storage_provider")
+  storageBucket   String   @map("storage_bucket")
+  storageKey      String   @map("storage_key")
+  uploadId        String?  @map("upload_id") // S3 multipart upload ID
+
+  // Metadata
+  metadata        Json     @default("{}")
+
+  // Status
+  status          UploadStatus @default(in_progress)
+  errorMessage    String?  @map("error_message")
+
+  // Resume token
+  resumeToken     String   @unique @map("resume_token")
+
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  expiresAt       DateTime @map("expires_at") // Auto-cleanup
+
+  @@index([vaultId])
+  @@index([resumeToken])
+  @@index([expiresAt])
+  @@map("file_upload_sessions")
+}
+
+// Storage Quota (Tracking)
+model StorageQuota {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @unique @map("tenant_id") @db.Uuid
+  userId          String?  @unique @map("user_id") @db.Uuid
+
+  // Limits
+  quotaBytes      BigInt   @map("quota_bytes")
+  usedBytes       BigInt   @default(0) @map("used_bytes")
+  fileCount       Int      @default(0) @map("file_count")
+
+  // Warnings
+  warningSentAt   DateTime? @map("warning_sent_at")
+  limitReachedAt  DateTime? @map("limit_reached_at")
+
+  // Timestamps
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([userId])
+  @@map("storage_quotas")
+}
+
+// =============================================
+// INTERNAL SHARING - Team & User Permissions
+// =============================================
+
+// Enum for permission types
+enum FilePermissionType {
+  view         // Can view only
+  comment      // Can view + comment
+  download     // Can view + download
+  edit         // Can view + download + edit metadata
+  manage       // Can view + download + edit + share + delete
+  owner        // Full control
+}
+
+enum TeamRole {
+  member
+  admin
+}
+
+// File Permission (Internal sharing with users/teams)
+model FilePermission {
+  id          String   @id @default(uuid()) @db.Uuid
+  fileId      String?  @map("file_id") @db.Uuid
+  folderId    String?  @map("folder_id") @db.Uuid
+
+  // WHO has access
+  userId      String?  @map("user_id") @db.Uuid    // Specific user
+  teamId      String?  @map("team_id") @db.Uuid    // Entire team
+  role        String?                               // Role-based (e.g., "admin")
+
+  // WHAT they can do
+  permission  FilePermissionType
+
+  // WHEN it expires
+  expiresAt   DateTime? @map("expires_at")
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdBy   String   @map("created_by") @db.Uuid
+
+  // Relations
+  file        File? @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  folder      FileFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  team        FileTeam? @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, userId])
+  @@unique([fileId, teamId])
+  @@unique([folderId, userId])
+  @@unique([folderId, teamId])
+  @@index([fileId])
+  @@index([folderId])
+  @@index([userId])
+  @@index([teamId])
+  @@map("file_permissions")
+}
+
+// Team for file sharing
+model FileTeam {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  description String?
+
+  // Timestamps & Audit (PIIBEL standard)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   String   @map("created_by") @db.Uuid
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  // Soft delete (PIIBEL standard)
+  deletedAt   DateTime? @map("deleted_at")
+  deletedBy   String?   @map("deleted_by") @db.Uuid
+
+  // Relations
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members     FileTeamMember[]
+  permissions FilePermission[]
+
+  @@index([tenantId])
+  @@index([deletedAt])
+  @@map("file_teams")
+}
+
+// Team membership
+model FileTeamMember {
+  id          String   @id @default(uuid()) @db.Uuid
+  teamId      String   @map("team_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  role        TeamRole @default(member)
+
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  team        FileTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@map("file_team_members")
 }

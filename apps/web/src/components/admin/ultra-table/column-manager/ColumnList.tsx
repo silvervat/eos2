@@ -2,10 +2,9 @@
 
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Button, Badge } from '@rivest/ui'
+import { Button, Badge, cn } from '@rivest/ui'
 import { GripVertical, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { getColumnType } from '@/lib/ultra-table/column-types/registry'
-import { cn } from '@/lib/utils'
 import type { UltraTableColumn } from '@/types/ultra-table'
 
 interface ColumnListProps {

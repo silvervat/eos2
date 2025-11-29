@@ -125,8 +125,8 @@ function SectionProperties({
             <Label>Layout Type</Label>
             <Select
               value={section.layout?.type || 'vertical'}
-              onValueChange={(value: 'vertical' | 'horizontal' | 'grid') =>
-                onUpdate({ layout: { ...section.layout, type: value } })
+              onValueChange={(value) =>
+                onUpdate({ layout: { ...section.layout, type: value as 'vertical' | 'horizontal' | 'grid' } })
               }
             >
               <SelectTrigger>
@@ -261,8 +261,8 @@ function FieldProperties({
             <Label>Width</Label>
             <Select
               value={field.width || 'full'}
-              onValueChange={(value: 'full' | 'half' | 'third') =>
-                onUpdate({ width: value })
+              onValueChange={(value) =>
+                onUpdate({ width: value as 'full' | 'half' | 'third' })
               }
             >
               <SelectTrigger>

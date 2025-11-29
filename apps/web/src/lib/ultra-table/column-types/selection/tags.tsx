@@ -51,8 +51,8 @@ export const TagsColumn: ColumnTypeDefinition = {
                 style={{
                   backgroundColor: opt.color,
                   color: getContrastColor(opt.color),
-                  ringColor: opt.color,
-                }}
+                  '--tw-ring-color': opt.color,
+                } as React.CSSProperties}
               >
                 {opt.icon && <span>{opt.icon}</span>}
                 {opt.label}
