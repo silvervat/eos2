@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # PostgreSQL (Development only - use Supabase in prod)
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: rivest
+      POSTGRES_PASSWORD: rivest123
+      POSTGRES_DB: rivest_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  
+  # ElasticSearch
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  # Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+  
+  # Kibana (ElasticSearch UI - Optional)
+  kibana:
+    image: kibana:8.11.0
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
+volumes:
+  postgres_data:
+  elasticsearch_data:
+  redis_data:
