@@ -18,6 +18,7 @@ import {
   BarChart3,
   Menu,
   X,
+  FileType,
 } from 'lucide-react'
 import { NotificationDropdown } from '@/components/notifications/notification-dropdown'
 
@@ -66,6 +67,7 @@ export default function DashboardLayout({
 
   const adminItems = [
     { href: '/admin/cms', label: 'CMS Haldus', icon: Database },
+    { href: '/admin/templates', label: 'PDF Mallid', icon: FileType },
     { href: '/notifications', label: 'Teavitused', icon: Bell },
     { href: '/settings', label: 'Seaded', icon: Settings },
   ]

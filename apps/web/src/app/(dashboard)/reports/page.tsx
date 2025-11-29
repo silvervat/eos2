@@ -576,7 +576,7 @@ function KPICard({
           className="w-10 h-10 rounded-lg flex items-center justify-center"
           style={{ backgroundColor: `${color}15` }}
         >
-          <Icon className="w-5 h-5" style={{ color }} />
+          <span style={{ color }}><Icon className="w-5 h-5" /></span>
         </div>
         <div className="flex items-center gap-1">
           {trend === 'up' && <TrendingUp className="h-4 w-4 text-green-500" />}

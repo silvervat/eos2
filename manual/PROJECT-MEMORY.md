@@ -1,11 +1,11 @@
 # RIVEST PLATFORM - PROJECT MEMORY
 > **Claude Code**: LOE SEE FAIL ESMALT! Kiire kontekst + viited detailidele.
 
-**Last Updated:** 2025-11-29 12:00
-**Session:** 9 (Forms, Notifications, Reports, Mobile, Tests)
-**Status:** All UI + Form Builder + Auth + Charts + Forms + Notifications + Reports + Mobile + Tests complete
+**Last Updated:** 2025-11-29 14:00
+**Session:** 10 (PDF Template Designer)
+**Status:** All UI + PDF Designer complete
 **Branch:** claude/review-guidelines-bible-018Tep17aEkc77kAqFKS8uFd
-**Commit:** 75dd1d5
+**Commit:** TBD
 
 ---
 
@@ -97,8 +97,20 @@ COMPLETED:
      - Jest + React Testing Library setup
      - Unit tests for components
 
+  ✅ SESSION 10: PDF Template Designer (pdfme)
+     - lib/pdf/types.ts - TypeScript types for templates
+     - lib/pdf/pdfme-config.ts - Plugin configuration
+     - lib/pdf/pdf-generator.ts - PDF generation service
+     - components/pdf-designer/pdf-designer.tsx - WYSIWYG designer
+     - components/pdf-designer/pdf-viewer.tsx - PDF preview viewer
+     - app/(dashboard)/admin/templates/page.tsx - Template management UI
+     - app/(dashboard)/admin/templates/new/page.tsx - Create new template
+     - app/(dashboard)/admin/templates/[id]/page.tsx - Edit template
+     - Demo templates: Invoice, Additional Work
+     - Admin sidebar "PDF Mallid" link
+
 NEXT:
-  □ SESSION 10: Supabase Connection (real data)
+  □ SESSION 11: Supabase Connection (real data)
 ```
 
 ---
@@ -134,16 +146,28 @@ ehitusOS/
 │       │   │       ├── reports/       ✅ Analytics + KPIs
 │       │   │       ├── notifications/ ✅ Notifications page
 │       │   │       ├── settings/      ✅ Settings tabs
-│       │   │       └── admin/cms/     ✅ CMS admin page
+│       │   │       └── admin/
+│       │   │           ├── cms/       ✅ CMS admin page
+│       │   │           └── templates/ ✅ PDF Templates admin
+│       │   │               ├── page.tsx     ✅ Templates list
+│       │   │               ├── new/         ✅ Create template
+│       │   │               └── [id]/        ✅ Edit template
 │       │   ├── components/
 │       │   │   ├── projects/          ✅ ProjectsTable
 │       │   │   ├── docs/              ✅ DocumentEditor with toolbar
 │       │   │   ├── notifications/     ✅ NotificationDropdown
+│       │   │   ├── pdf-designer/      ✅ PDF Designer (pdfme)
+│       │   │   │   ├── pdf-designer.tsx  ✅ WYSIWYG designer
+│       │   │   │   └── pdf-viewer.tsx    ✅ PDF preview viewer
 │       │   │   ├── admin/cms/         ✅ DynamicFieldsManager, Dialog, Renderer, WorkflowBuilder
 │       │   │   └── admin/form-builder/ ✅ FormBuilder, FieldPalette, FieldProperties, FormCanvas, FormPreview
 │       │   ├── hooks/                 ✅ useProjects, useFeature
 │       │   └── lib/
 │       │       ├── supabase/          ✅ client, server, middleware
+│       │       ├── pdf/               ✅ PDF module
+│       │       │   ├── types.ts       ✅ Template types
+│       │       │   ├── pdfme-config.ts ✅ Plugin config + demo templates
+│       │       │   └── pdf-generator.ts ✅ PDF generation service
 │       │       ├── providers.tsx      ✅ TanStack Query
 │       │       └── tenant-context.tsx ✅ Tenant provider
 │       ├── __tests__/                 ✅ Jest tests
@@ -220,6 +244,7 @@ Tables:       TanStack Table 8             ✅
 Workflows:    ReactFlow 11                 ✅
 Documents:    Tiptap 3                     ✅
 Charts:       Recharts 3                   ✅
+PDF:          pdfme 5                      ✅ Designer + Generator
 Testing:      Jest + React Testing Library ✅
 ```
 
@@ -227,7 +252,7 @@ Testing:      Jest + React Testing Library ✅
 
 ## 📝 NEXT STEPS
 
-### **SESSION 10: Supabase Connection** ⭐ NEXT
+### **SESSION 11: Supabase Connection** ⭐ NEXT
 Need credentials:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -416,5 +441,95 @@ pnpm --filter web test:coverage
 
 ---
 
-**Last Updated:** 2025-11-29 12:00
-**Version:** 13.0 - Added Forms, Notifications, Reports, Mobile, Tests (SESSION 9)
+## 📜 SESSION 10 ADDITIONS
+
+### PDF Template Designer (pdfme)
+```typescript
+// Using pdfme library for professional PDF generation
+// Features:
+// - WYSIWYG template designer
+// - Drag-and-drop elements
+// - Text, Image, Table, QR Code, Barcode support
+// - Automatic page breaks for tables
+// - Estonian locale support
+
+// Install
+pnpm add @pdfme/generator @pdfme/ui @pdfme/schemas @pdfme/common
+```
+
+### PDF Designer Component
+```typescript
+import { PDFDesigner } from '@/components/pdf-designer'
+
+<PDFDesigner
+  initialTemplate={template}
+  templateName="Arve mall"
+  category="invoice"
+  onSave={(template, name, category) => {
+    // Save template to database
+  }}
+  onPreview={(template) => {
+    // Show preview modal
+  }}
+/>
+```
+
+### PDF Generator Service
+```typescript
+import {
+  generatePDF,
+  downloadPDF,
+  prepareInvoiceInputs,
+  prepareAdditionalWorkInputs
+} from '@/lib/pdf'
+
+// Generate invoice PDF
+const invoiceData = {
+  invoiceNumber: 'INV-2024-001',
+  invoiceDate: new Date(),
+  dueDate: '2024-02-15',
+  companyName: 'Rivest OÜ',
+  clientName: 'Klient AS',
+  items: [
+    { description: 'Teenus', quantity: 10, unit: 'h', price: 50 }
+  ],
+  paymentInfo: 'IBAN: EE123456789'
+}
+
+const inputs = prepareInvoiceInputs(invoiceData)
+await downloadPDF({
+  template: invoiceTemplate,
+  inputs: [inputs],
+  fileName: 'arve-001.pdf'
+})
+```
+
+### Template Types
+```typescript
+export type PDFTemplateCategory =
+  | 'invoice'         // Arved
+  | 'quote'           // Hinnapakkumised
+  | 'contract'        // Lepingud
+  | 'additional_work' // Lisatööd
+  | 'timesheet'       // Tööajatabelid
+  | 'delivery'        // Saatelehed
+  | 'other'           // Muud
+
+export type SchemaType =
+  | 'text' | 'image' | 'table'
+  | 'qrcode' | 'barcode'
+  | 'line' | 'rectangle' | 'ellipse'
+  | 'date' | 'time' | 'dateTime'
+```
+
+### Admin UI
+```
+/admin/templates         - Template list with filters
+/admin/templates/new     - Create new template
+/admin/templates/[id]    - Edit existing template
+```
+
+---
+
+**Last Updated:** 2025-11-29 14:00
+**Version:** 14.0 - Added PDF Template Designer with pdfme (SESSION 10)
