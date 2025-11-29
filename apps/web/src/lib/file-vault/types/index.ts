@@ -1449,3 +1449,178 @@ export const DEFAULT_INDEXING_CONFIG: ContentIndexingConfig = {
   autoReindexOnUpdate: true,
   fullReindexSchedule: '0 2 * * 0',  // Sunday 2 AM
 }
+
+// =============================================
+// FILE CONFLICT RESOLUTION
+// =============================================
+
+/**
+ * What to do when uploading a file with existing name
+ */
+export type FileConflictStrategy =
+  | 'ask'           // Always ask user
+  | 'auto-rename'   // Auto add number: file (1).txt
+  | 'replace'       // Replace existing file
+  | 'skip'          // Skip upload
+  | 'keep-both'     // Keep both with auto-rename
+
+export interface FileConflictConfig {
+  // Default strategy
+  defaultStrategy: FileConflictStrategy
+
+  // Auto-rename format
+  renamePattern: string        // "{name} ({n})" or "{name}-{n}" or "{n}-{name}"
+
+  // When to ask (overrides default)
+  askWhenLargerThan: number    // Bytes - always ask for large files
+  askForTypes: string[]        // Always ask for these extensions
+
+  // Replace settings
+  createVersionOnReplace: boolean   // Create version instead of overwrite
+
+  // Batch upload settings
+  applyToAll: boolean          // Remember choice for batch upload
+}
+
+export interface FileConflict {
+  id: string
+  uploadFile: UploadConflictFile
+  existingFile: ExistingConflictFile
+  suggestedName: string        // Auto-generated suggestion
+  folder: {
+    id: string
+    path: string
+  }
+}
+
+export interface UploadConflictFile {
+  name: string
+  size: number
+  type: string
+  lastModified: Date
+}
+
+export interface ExistingConflictFile {
+  id: string
+  name: string
+  size: number
+  mimeType: string
+  createdAt: Date
+  updatedAt: Date
+  ownerId: string
+  ownerName: string
+}
+
+export interface FileConflictResolution {
+  conflictId: string
+  action: FileConflictAction
+  newName?: string             // If action is 'rename'
+  applyToAll?: boolean         // Apply same action to all conflicts
+}
+
+export type FileConflictAction =
+  | 'rename'       // Use custom name provided by user
+  | 'auto-rename'  // Use suggested name with number
+  | 'replace'      // Replace existing file
+  | 'skip'         // Don't upload this file
+  | 'keep-both'    // Keep both (auto-rename new)
+
+/**
+ * Dialog for resolving file conflicts
+ */
+export interface FileConflictDialogData {
+  conflicts: FileConflict[]
+  currentIndex: number
+  applyToAll: boolean
+  defaultAction: FileConflictAction
+}
+
+/**
+ * Generate unique filename with number
+ */
+export function generateUniqueFilename(
+  originalName: string,
+  existingNames: string[],
+  pattern: string = '{name} ({n})'
+): string {
+  // Extract name and extension
+  const lastDot = originalName.lastIndexOf('.')
+  const name = lastDot > 0 ? originalName.slice(0, lastDot) : originalName
+  const ext = lastDot > 0 ? originalName.slice(lastDot) : ''
+
+  // Check if original name is available
+  if (!existingNames.includes(originalName)) {
+    return originalName
+  }
+
+  // Find next available number
+  let n = 1
+  let newName: string
+
+  do {
+    newName = pattern
+      .replace('{name}', name)
+      .replace('{n}', String(n))
+    newName = newName + ext
+    n++
+  } while (existingNames.includes(newName) && n < 1000)
+
+  return newName
+}
+
+/**
+ * Default conflict configuration
+ */
+export const DEFAULT_CONFLICT_CONFIG: FileConflictConfig = {
+  defaultStrategy: 'ask',
+  renamePattern: '{name} ({n})',
+  askWhenLargerThan: 10485760,    // 10MB
+  askForTypes: ['exe', 'zip', 'rar', 'msi', 'dmg'],
+  createVersionOnReplace: true,
+  applyToAll: false,
+}
+
+// =============================================
+// BATCH UPLOAD WITH CONFLICT HANDLING
+// =============================================
+
+export interface BatchUploadState {
+  // Overall progress
+  totalFiles: number
+  uploadedFiles: number
+  failedFiles: number
+  skippedFiles: number
+
+  // Current file
+  currentFile?: {
+    name: string
+    progress: number
+    speed: number
+    remainingTime: number
+  }
+
+  // Pending conflicts
+  pendingConflicts: FileConflict[]
+  resolvedConflicts: FileConflictResolution[]
+
+  // Status
+  status: BatchUploadStatus
+  errors: BatchUploadError[]
+}
+
+export type BatchUploadStatus =
+  | 'idle'
+  | 'checking'       // Checking for conflicts
+  | 'waiting-user'   // Waiting for user to resolve conflicts
+  | 'uploading'
+  | 'paused'
+  | 'completed'
+  | 'cancelled'
+  | 'error'
+
+export interface BatchUploadError {
+  fileName: string
+  error: string
+  code: string
+  retryable: boolean
+}
