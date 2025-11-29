@@ -21,6 +21,7 @@ import {
   FileType,
   Trash2,
   FolderArchive,
+  Table2,
 } from 'lucide-react'
 import { NotificationDropdown } from '@/components/notifications/notification-dropdown'
 
@@ -70,6 +71,7 @@ export default function DashboardLayout({
 
   const adminItems = [
     { href: '/admin/cms', label: 'CMS Haldus', icon: Database },
+    { href: '/admin/tables', label: 'Tabelid', icon: Table2 },
     { href: '/admin/templates', label: 'PDF Mallid', icon: FileType },
     { href: '/trash', label: 'Prügikast', icon: Trash2 },
     { href: '/notifications', label: 'Teavitused', icon: Bell },
