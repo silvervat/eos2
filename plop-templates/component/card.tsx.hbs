@@ -1,0 +1,31 @@
+'use client'
+
+import { Card } from '@rivest/ui'
+
+interface {{name}}CardProps {
+  title: string
+  description?: string
+  children?: React.ReactNode
+  className?: string
+}
+
+export function {{name}}Card({
+  title,
+  description,
+  children,
+  className = '',
+}: {{name}}CardProps) {
+  return (
+    <Card className={`p-6 ${className}`}>
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+        {description && (
+          <p className="text-sm text-slate-500 mt-1">{description}</p>
+        )}
+      </div>
+      {children}
+    </Card>
+  )
+}
+
+export default {{name}}Card

@@ -1,0 +1,48 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+// Types
+interface {{properCase name}}Data {
+  id: string
+  name: string
+}
+
+{{#if (includes methods "GET")}}
+// GET - Fetch all {{name}}
+export async function GET(request: NextRequest) {
+  try {
+    // TODO: Fetch from database
+    const data: {{properCase name}}Data[] = []
+
+    return NextResponse.json(data)
+  } catch (error) {
+    console.error('GET {{name}} error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+{{/if}}
+
+{{#if (includes methods "POST")}}
+// POST - Create new {{name}}
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+
+    // TODO: Validate and save to database
+    const newItem: {{properCase name}}Data = {
+      id: crypto.randomUUID(),
+      ...body,
+    }
+
+    return NextResponse.json(newItem, { status: 201 })
+  } catch (error) {
+    console.error('POST {{name}} error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+{{/if}}

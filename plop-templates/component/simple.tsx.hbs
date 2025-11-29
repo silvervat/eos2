@@ -1,0 +1,17 @@
+'use client'
+
+import { useState } from 'react'
+
+interface {{name}}Props {
+  className?: string
+}
+
+export function {{name}}({ className = '' }: {{name}}Props) {
+  return (
+    <div className={`{{kebabCase name}} ${className}`}>
+      <p>{{name}} komponent</p>
+    </div>
+  )
+}
+
+export default {{name}}
