@@ -1,11 +1,11 @@
 # RIVEST PLATFORM - PROJECT MEMORY
 > **Claude Code**: LOE SEE FAIL ESMALT! Kiire kontekst + viited detailidele.
 
-**Last Updated:** 2025-11-28 22:30
-**Session:** 8++ (Dashboard Charts)
-**Status:** All UI + Form Builder + Auth + Charts complete
-**Branch:** claude/setup-rivest-platform-01DCqvSnPb6nkYDmYBkruVgi
-**Commit:** f2d5dd5
+**Last Updated:** 2025-11-29 16:00
+**Session:** 12 (Supabase Connection)
+**Status:** All Bible features complete - Supabase connected
+**Branch:** claude/review-guidelines-bible-018Tep17aEkc77kAqFKS8uFd
+**Commit:** 2660a5d
 
 ---
 
@@ -88,8 +88,45 @@ COMPLETED:
      - Color-coded activity items by type
      - Estonian language labels
 
-NEXT:
-  □ SESSION 9: Supabase Connection (real data)
+  ✅ SESSION 9: Forms, Notifications, Reports, Mobile, Tests
+     - Form Preview/Render component
+     - Public form pages (/forms, /forms/[id])
+     - Notification dropdown + full page
+     - Reports/Analytics page with KPIs
+     - Mobile responsive sidebar
+     - Jest + React Testing Library setup
+     - Unit tests for components
+
+  ✅ SESSION 10: PDF Template Designer (pdfme)
+     - lib/pdf/types.ts - TypeScript types for templates
+     - lib/pdf/pdfme-config.ts - Plugin configuration
+     - lib/pdf/pdf-generator.ts - PDF generation service
+     - components/pdf-designer/pdf-designer.tsx - WYSIWYG designer
+     - components/pdf-designer/pdf-viewer.tsx - PDF preview viewer
+     - app/(dashboard)/admin/templates/page.tsx - Template management UI
+     - app/(dashboard)/admin/templates/new/page.tsx - Create new template
+     - app/(dashboard)/admin/templates/[id]/page.tsx - Edit template
+     - Demo templates: Invoice, Additional Work
+     - Admin sidebar "PDF Mallid" link
+
+  ✅ SESSION 11: Import/Export, UI Components, Trash, Plop
+     - lib/import-export/ - XLSX + CSV services
+     - components/import-export/ - ImportPreview, ExportDialog
+     - components/ui/stepper.tsx - Multi-step wizard
+     - components/ui/confirmation-dialog.tsx - Confirmation modals
+     - app/(dashboard)/trash/ - Prügikast (Soft delete UI)
+     - plopfile.js + plop-templates/ - Code generators
+     - Admin sidebar "Prügikast" link
+
+  ✅ SESSION 12: Supabase Connection
+     - apps/web/.env.local - Supabase credentials (gitignored)
+     - packages/db/.env - Database URL for Prisma (gitignored)
+     - lib/supabase/admin.ts - Service role client for elevated ops
+     - Prisma schema with directUrl for migrations
+     - Supabase Auth connection verified
+
+DONE:
+  ✓ All Bible features implemented!
 ```
 
 ---
@@ -110,24 +147,52 @@ ehitusOS/
 │       │   │   │   ├── login/         ✅ Login page
 │       │   │   │   ├── register/      ✅ Register page
 │       │   │   │   └── forgot-password/ ✅ Password reset
+│       │   │   ├── (public)/
+│       │   │   │   └── forms/         ✅ Public form pages
+│       │   │   │       ├── layout.tsx ✅ Forms layout
+│       │   │   │       ├── page.tsx   ✅ Forms list
+│       │   │   │       └── [id]/      ✅ Form fill page
 │       │   │   └── (dashboard)/
-│       │   │       ├── layout.tsx     ✅ Dashboard layout w/ sidebar
-│       │   │       ├── dashboard/     ✅ Stats page
+│       │   │       ├── layout.tsx     ✅ Dashboard layout (mobile responsive)
+│       │   │       ├── dashboard/     ✅ Stats + Charts
 │       │   │       ├── projects/      ✅ TanStack Table
-│       │   │       └── admin/cms/     ✅ CMS admin page
-│       │   │       └── documents/     ✅ Documents list + editor
+│       │   │       ├── invoices/      ✅ Invoice management
+│       │   │       ├── employees/     ✅ Employee list
+│       │   │       ├── documents/     ✅ Documents list + editor
+│       │   │       ├── reports/       ✅ Analytics + KPIs
+│       │   │       ├── notifications/ ✅ Notifications page
+│       │   │       ├── settings/      ✅ Settings tabs
+│       │   │       └── admin/
+│       │   │           ├── cms/       ✅ CMS admin page
+│       │   │           └── templates/ ✅ PDF Templates admin
+│       │   │               ├── page.tsx     ✅ Templates list
+│       │   │               ├── new/         ✅ Create template
+│       │   │               └── [id]/        ✅ Edit template
 │       │   ├── components/
 │       │   │   ├── projects/          ✅ ProjectsTable
 │       │   │   ├── docs/              ✅ DocumentEditor with toolbar
+│       │   │   ├── notifications/     ✅ NotificationDropdown
+│       │   │   ├── pdf-designer/      ✅ PDF Designer (pdfme)
+│       │   │   │   ├── pdf-designer.tsx  ✅ WYSIWYG designer
+│       │   │   │   └── pdf-viewer.tsx    ✅ PDF preview viewer
 │       │   │   ├── admin/cms/         ✅ DynamicFieldsManager, Dialog, Renderer, WorkflowBuilder
-│       │   │   └── admin/form-builder/ ✅ FormBuilder, FieldPalette, FieldProperties, FormCanvas
+│       │   │   └── admin/form-builder/ ✅ FormBuilder, FieldPalette, FieldProperties, FormCanvas, FormPreview
 │       │   ├── hooks/                 ✅ useProjects, useFeature
 │       │   └── lib/
 │       │       ├── supabase/          ✅ client, server, middleware
+│       │       ├── pdf/               ✅ PDF module
+│       │       │   ├── types.ts       ✅ Template types
+│       │       │   ├── pdfme-config.ts ✅ Plugin config + demo templates
+│       │       │   └── pdf-generator.ts ✅ PDF generation service
 │       │       ├── providers.tsx      ✅ TanStack Query
 │       │       └── tenant-context.tsx ✅ Tenant provider
+│       ├── __tests__/                 ✅ Jest tests
+│       │   ├── components/            ✅ Component tests
+│       │   └── utils/                 ✅ Utility tests
+│       ├── jest.config.js             ✅ Jest configuration
+│       ├── jest.setup.js              ✅ Jest setup with mocks
 │       ├── middleware.ts              ✅ Auth middleware
-│       └── package.json
+│       └── package.json               ✅ With test scripts
 ├── packages/
 │   ├── ui/                            ✅ @rivest/ui
 │   │   └── src/components/            Button, Card, Input, Label, Badge
@@ -187,50 +252,54 @@ document_presence         -- Who's online
 ```yaml
 Monorepo:     Turborepo 2 + pnpm 9        ✅
 Frontend:     Next.js 14 App Router        ✅
-Database:     Supabase (PostgreSQL 15)     ⏳ Need connection
+Database:     Supabase (PostgreSQL 15)     ✅ Connected!
 ORM:          Prisma 5                     ✅ Schema ready
 UI:           shadcn/ui + Tailwind         ✅
 State:        TanStack Query 5 + Zustand   ✅
 Tables:       TanStack Table 8             ✅
 Workflows:    ReactFlow 11                 ✅
 Documents:    Tiptap 3                     ✅
+Charts:       Recharts 3                   ✅
+PDF:          pdfme 5                      ✅ Designer + Generator
+Testing:      Jest + React Testing Library ✅
 ```
 
 ---
 
 ## 📝 NEXT STEPS
 
-### **SESSION 8: Supabase Connection** ⭐ NEXT
-Need credentials:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `DATABASE_URL`
-
-Tasks:
-- Connect to real Supabase database
-- Run migrations
-- Replace mock data with real queries
-- Add authentication
+### **Deploy & Production** ⭐ SUGGESTED
+- Run Prisma migrations locally: `pnpm db:push`
+- Deploy to Vercel
+- Set environment variables in Vercel
+- Run migrations on production database
 
 ---
 
-## 🔧 ENVIRONMENT NEEDED
+## 🔧 ENVIRONMENT (Configured)
 
 ```bash
-# .env.local (apps/web/)
-DATABASE_URL="postgresql://postgres:pass@host/db"
-NEXT_PUBLIC_SUPABASE_URL="https://xyz.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
+# apps/web/.env.local ✅ CONFIGURED
+NEXT_PUBLIC_SUPABASE_URL="https://cohhjvtmmchrttntoizw.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="sb_publishable_..."
+SUPABASE_SERVICE_ROLE_KEY="sb_secret_..."
+DATABASE_URL="postgresql://...@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
+DIRECT_URL="postgresql://...@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+
+# packages/db/.env ✅ CONFIGURED
+DATABASE_URL="postgresql://...@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
+DIRECT_URL="postgresql://...@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
 ```
 
 **GitHub Repo:** github.com/silvervat/ehitusOS
-**Branch:** claude/setup-rivest-platform-01DCqvSnPb6nkYDmYBkruVgi
+**Branch:** claude/review-guidelines-bible-018Tep17aEkc77kAqFKS8uFd
 
 ---
 
 ## 📝 COMMIT HISTORY
 
 ```
+75dd1d5 - SESSION 9: Add Forms, Notifications, Reports, Mobile, Tests
 039e907 - Add Invoices, Employees, and Settings pages
 2674269 - SESSION 7: Add Document Editor with Tiptap
 8a5ef65 - SESSION 6: Add Workflow Builder with ReactFlow
@@ -247,7 +316,7 @@ af75997 - SESSION 3: Add TanStack Table for projects list
 ## 🎯 WHAT'S WORKING NOW
 
 1. **Landing Page** → `/` shows Rivest Platform intro
-2. **Dashboard** → `/dashboard` shows stats cards
+2. **Dashboard** → `/dashboard` shows stats cards + charts
 3. **Projects** → `/projects` shows TanStack Table with mock data
 4. **Invoices** → `/invoices` shows:
    - Invoice list with TanStack Table
@@ -266,8 +335,25 @@ af75997 - SESSION 3: Add TanStack Table for projects list
 8. **CMS Admin** → `/admin/cms` shows:
    - **Dynamic Fields** - Add/Edit/Delete custom fields
    - **Workflow Builder** - Visual state machine editor
-9. **Database Schema** → 3 migrations ready for Supabase
-10. **GitHub Actions** → CI/CD workflow ready
+   - **Form Builder** - Visual form builder with preview
+9. **Reports** → `/reports` shows:
+   - KPI cards with trends
+   - Financial charts (revenue, expenses, profit)
+   - Project statistics (by type, status)
+   - Employee performance table
+   - Year-over-year comparison
+10. **Notifications** → `/notifications` shows:
+    - Full notifications list with filters
+    - Mark as read / delete functionality
+    - Type badges and date grouping
+11. **Forms** → `/forms` shows:
+    - Public form list
+    - Form fill page with validation
+    - Success message after submission
+12. **Mobile** → Responsive sidebar with hamburger menu
+13. **Database Schema** → 3 migrations ready for Supabase
+14. **GitHub Actions** → CI/CD workflow ready
+15. **Testing** → Jest + React Testing Library configured
 
 ---
 
@@ -277,195 +363,244 @@ See `RIVEST-COMPLETE-GUIDE.md` for:
 - **OSAS I:** Architecture (chapters 1-5)
 - **OSAS II:** Security (chapters 6-9)
 - **OSAS VIII:** Table Designer (chapters 42-47)
-- **OSAS IX:** CMS System (chapters 48-54) ⭐ Current focus
+- **OSAS IX:** CMS System (chapters 48-54)
 
 ---
 
-## 📜 PIIBEL KOKKUVÕTE (Key Patterns)
+## 📜 SESSION 9 ADDITIONS
 
-### Workflow Builder (Chapter 52)
+### Form Preview Component
 ```typescript
-// Use ReactFlow for visual workflow editor
-import ReactFlow, { Node, Edge, Controls, Background } from 'reactflow'
+// Form preview with validation
+import { FormPreview } from '@/components/admin/form-builder/form-preview'
 
-// Workflow Types (from cms.types.ts)
-interface Workflow {
-  id: string
-  name: string
-  entityType: string  // 'projects' | 'invoices' | etc.
-  states: WorkflowState[]
-  transitions: WorkflowTransition[]
-  initialState: string
-  isActive: boolean
-}
+<FormPreview
+  fields={fields}
+  settings={settings}
+  theme={theme}
+  onSubmit={handleSubmit}
+  isPreview={false}
+/>
 
-interface WorkflowState {
-  id: string
-  name: string        // 'draft', 'review', 'approved'
-  label: string       // 'Draft', 'In Review', 'Approved'
-  color: string       // '#279989'
-  canEdit: string[]   // ['admin', 'manager']
-  canTransition: string[]
-  onEnter?: WorkflowAction[]
-  onExit?: WorkflowAction[]
-}
-
-interface WorkflowTransition {
-  id: string
-  from: string        // State ID
-  to: string          // State ID
-  label: string       // 'Submit for Review'
-  allowedRoles: string[]
-  conditions?: TransitionCondition[]
-  actions?: WorkflowAction[]
-  requireComment: boolean
-  buttonVariant?: 'default' | 'destructive' | 'outline'
-}
-
-interface WorkflowAction {
-  type: 'update_field' | 'send_notification' | 'create_task' | 'webhook'
-  // ... action-specific fields
-}
+// Validates: required, email, phone, url, number min/max
+// Supports all field types from Form Builder
 ```
 
-### Status Manager Pattern
+### Notification System
 ```typescript
-class StatusManager {
-  // Get available next statuses for entity
-  getAvailableStatuses(entityType, currentStatus, userRole)
+// Notification dropdown for header
+import { NotificationDropdown } from '@/components/notifications/notification-dropdown'
 
-  // Transition entity to new status
-  transitionStatus(entityType, entityId, fromStatus, toStatus, userId, comment?)
+// Notification types
+type NotificationType = 'project' | 'invoice' | 'document' | 'comment' | 'alert' | 'employee' | 'deadline'
 
-  // Log to workflow_history table
-  logStatusTransition(data)
-}
+// Features:
+// - Unread count badge
+// - Mark as read / mark all as read
+// - Remove individual notifications
+// - Link to full notifications page
 ```
 
-### Default Workflow Example
+### Reports Page
 ```typescript
-const projectWorkflow: Workflow = {
-  name: 'Project Lifecycle',
-  entityType: 'projects',
-  initialState: 'draft',
-  states: [
-    { id: 'draft', name: 'draft', label: 'Mustand', color: '#94a3b8' },
-    { id: 'active', name: 'active', label: 'Aktiivne', color: '#279989' },
-    { id: 'review', name: 'review', label: 'Ülevaatusel', color: '#eab308' },
-    { id: 'completed', name: 'completed', label: 'Lõpetatud', color: '#22c55e' },
-    { id: 'archived', name: 'archived', label: 'Arhiveeritud', color: '#6b7280' }
+// KPI Cards with trends
+<KPICard
+  title="Aasta käive"
+  value="792 000 €"
+  change="+18%"
+  trend="up"
+  icon={Euro}
+  color="#279989"
+/>
+
+// Charts:
+// - ComposedChart (revenue, expenses, profit)
+// - PieChart (projects by type, status, invoices)
+// - LineChart (year-over-year comparison)
+// - BarChart (weekly activity)
+// - Employee performance table
+```
+
+### Mobile Responsive Layout
+```typescript
+// Dashboard layout with mobile sidebar
+const [sidebarOpen, setSidebarOpen] = useState(false)
+
+// Mobile overlay
+{sidebarOpen && (
+  <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" />
+)}
+
+// Sidebar transforms
+<aside className={`
+  fixed lg:static inset-y-0 left-0 z-50
+  transform transition-transform duration-200
+  ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+`}>
+```
+
+### Testing Setup
+```typescript
+// Jest configuration
+// jest.config.js + jest.setup.js
+
+// Run tests
+pnpm --filter web test
+pnpm --filter web test:watch
+pnpm --filter web test:coverage
+
+// Test files:
+// - __tests__/components/form-preview.test.tsx
+// - __tests__/components/notification-dropdown.test.tsx
+// - __tests__/utils/form-types.test.ts
+```
+
+---
+
+## 📜 SESSION 10 ADDITIONS
+
+### PDF Template Designer (pdfme)
+```typescript
+// Using pdfme library for professional PDF generation
+// Features:
+// - WYSIWYG template designer
+// - Drag-and-drop elements
+// - Text, Image, Table, QR Code, Barcode support
+// - Automatic page breaks for tables
+// - Estonian locale support
+
+// Install
+pnpm add @pdfme/generator @pdfme/ui @pdfme/schemas @pdfme/common
+```
+
+### PDF Designer Component
+```typescript
+import { PDFDesigner } from '@/components/pdf-designer'
+
+<PDFDesigner
+  initialTemplate={template}
+  templateName="Arve mall"
+  category="invoice"
+  onSave={(template, name, category) => {
+    // Save template to database
+  }}
+  onPreview={(template) => {
+    // Show preview modal
+  }}
+/>
+```
+
+### PDF Generator Service
+```typescript
+import {
+  generatePDF,
+  downloadPDF,
+  prepareInvoiceInputs,
+  prepareAdditionalWorkInputs
+} from '@/lib/pdf'
+
+// Generate invoice PDF
+const invoiceData = {
+  invoiceNumber: 'INV-2024-001',
+  invoiceDate: new Date(),
+  dueDate: '2024-02-15',
+  companyName: 'Rivest OÜ',
+  clientName: 'Klient AS',
+  items: [
+    { description: 'Teenus', quantity: 10, unit: 'h', price: 50 }
   ],
-  transitions: [
-    { from: 'draft', to: 'active', label: 'Aktiveeri', allowedRoles: ['admin', 'manager'] },
-    { from: 'active', to: 'review', label: 'Saada ülevaatusele', allowedRoles: ['admin', 'manager'] },
-    { from: 'review', to: 'completed', label: 'Kinnita', allowedRoles: ['admin'] },
-    { from: 'review', to: 'active', label: 'Tagasi töösse', allowedRoles: ['admin'] },
-    { from: 'completed', to: 'archived', label: 'Arhiveeri', allowedRoles: ['admin'] }
-  ]
+  paymentInfo: 'IBAN: EE123456789'
 }
-```
 
-### Notification Rules (Chapter 54)
-```typescript
-interface NotificationRule {
-  id: string
-  entityType: string
-  trigger: {
-    type: 'status_change' | 'field_update' | 'deadline' | 'custom'
-    conditions?: object
-    delay?: number  // minutes
-  }
-  channels: ('email' | 'sms' | 'in_app')[]
-  template: string
-  recipients: string[]  // User IDs or roles
-  isActive: boolean
-}
-```
-
-### Document Editor (SESSION 7)
-```typescript
-// Tiptap rich text editor with extensions
-import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
-import Link from '@tiptap/extension-link'
-import Image from '@tiptap/extension-image'
-import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
-
-// Editor setup
-const editor = useEditor({
-  extensions: [
-    StarterKit,
-    Placeholder.configure({ placeholder: 'Alusta kirjutamist...' }),
-    Link.configure({ openOnClick: false }),
-    Image.configure({ inline: true, allowBase64: true }),
-    Table.configure({ resizable: true }),
-    TableRow, TableHeader, TableCell,
-  ],
-  content: document.content,
-  onUpdate: ({ editor }) => {
-    // Auto-save to database
-    saveDocument(documentId, editor.getJSON())
-  },
+const inputs = prepareInvoiceInputs(invoiceData)
+await downloadPDF({
+  template: invoiceTemplate,
+  inputs: [inputs],
+  fileName: 'arve-001.pdf'
 })
-
-// Toolbar commands
-editor.chain().focus().toggleBold().run()
-editor.chain().focus().toggleHeading({ level: 1 }).run()
-editor.chain().focus().insertTable({ rows: 3, cols: 3 }).run()
-editor.chain().focus().setImage({ src: url }).run()
 ```
 
-### Form Builder (SESSION 8)
+### Template Types
 ```typescript
-// Visual drag-and-drop form builder (JotForm style)
-import { DndContext, DragEndEvent, pointerWithin } from '@dnd-kit/core'
-import { SortableContext, useSortable } from '@dnd-kit/sortable'
+export type PDFTemplateCategory =
+  | 'invoice'         // Arved
+  | 'quote'           // Hinnapakkumised
+  | 'contract'        // Lepingud
+  | 'additional_work' // Lisatööd
+  | 'timesheet'       // Tööajatabelid
+  | 'delivery'        // Saatelehed
+  | 'other'           // Muud
 
-// Field Types (from types.ts)
-type FieldType =
-  | 'text' | 'email' | 'phone' | 'number' | 'url' | 'textarea'
-  | 'select' | 'radio' | 'checkbox' | 'multi_select'
-  | 'date' | 'time' | 'datetime'
-  | 'file_upload' | 'signature' | 'rating' | 'slider'
-  | 'heading' | 'paragraph' | 'divider'
+export type SchemaType =
+  | 'text' | 'image' | 'table'
+  | 'qrcode' | 'barcode'
+  | 'line' | 'rectangle' | 'ellipse'
+  | 'date' | 'time' | 'dateTime'
+```
 
-interface FormField {
-  id: string
-  type: FieldType
-  label: string
-  placeholder?: string
-  description?: string
-  required: boolean
-  validation?: ValidationRule[]
-  options?: FieldOption[]          // For select/radio/checkbox
-  width?: 'full' | 'half' | 'third'
-  settings?: Record<string, unknown>
-}
-
-interface FormTemplate {
-  id: string
-  name: string
-  fields: FormField[]
-  settings: FormSettings
-  theme: FormTheme
-}
-
-// Components structure
-// - FormBuilder: Main component with tabs (build/settings/theme)
-// - FieldPalette: Sidebar with draggable field types
-// - FormCanvas: Drop zone with sortable fields
-// - FieldProperties: Right panel for editing selected field
-
-// DnD setup
-<DndContext collisionDetection={pointerWithin} onDragEnd={handleDragEnd}>
-  <FieldPalette />
-  <FormCanvas fields={fields} selectedFieldId={selectedField?.id} />
-  <FieldProperties field={selectedField} onUpdate={handleFieldUpdate} />
-</DndContext>
+### Admin UI
+```
+/admin/templates         - Template list with filters
+/admin/templates/new     - Create new template
+/admin/templates/[id]    - Edit existing template
 ```
 
 ---
 
-**Last Updated:** 2025-11-28 22:00
-**Version:** 12.0 - Added Auth UI pages (SESSION 8+)
+---
+
+## 📜 SESSION 12 ADDITIONS
+
+### Supabase Connection
+```typescript
+// Environment files configured (gitignored):
+// - apps/web/.env.local
+// - packages/db/.env
+
+// Supabase project details:
+// Project ID: cohhjvtmmchrttntoizw
+// Region: EU Central 1 (Frankfurt)
+// Database: PostgreSQL with PgBouncer
+
+// Admin client for elevated operations (server-side only)
+import { supabaseAdmin } from '@/lib/supabase/admin'
+
+// Use service_role key to bypass RLS
+const { data } = await supabaseAdmin.from('tenants').select('*')
+
+// Browser client (uses publishable key)
+import { createBrowserSupabaseClient } from '@/lib/supabase/client'
+const supabase = createBrowserSupabaseClient()
+
+// Server client (for SSR/API routes)
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+const supabase = createServerSupabaseClient()
+```
+
+### Prisma with Supabase
+```typescript
+// schema.prisma now includes directUrl for migrations
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")     // PgBouncer (port 6543)
+  directUrl = env("DIRECT_URL")       // Direct (port 5432) for migrations
+}
+
+// Run migrations locally:
+pnpm db:push     // Push schema to database
+pnpm db:generate // Generate Prisma client
+pnpm db:studio   // Open Prisma Studio
+```
+
+### Files Created
+```
+apps/web/.env.local           # Supabase credentials
+apps/web/src/lib/supabase/admin.ts  # Service role client
+packages/db/.env              # Database URLs for Prisma
+packages/db/prisma/schema.prisma    # Updated with directUrl
+```
+
+---
+
+**Last Updated:** 2025-11-29 16:00
+**Version:** 15.0 - Added Supabase Connection (SESSION 12)

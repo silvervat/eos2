@@ -1,0 +1,44 @@
+'use client'
+
+import { useState } from 'react'
+import { Button, Card, Input } from '@rivest/ui'
+import { Plus, Search } from 'lucide-react'
+
+export default function {{properCase name}}Page() {
+  const [searchQuery, setSearchQuery] = useState('')
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">{{properCase name}}</h1>
+          <p className="text-slate-500 mt-1">Halda {{lowerCase name}}</p>
+        </div>
+        <Button className="gap-2 bg-[#279989] hover:bg-[#1e7a6d]">
+          <Plus className="w-4 h-4" />
+          Lisa uus
+        </Button>
+      </div>
+
+      {/* Search */}
+      <div className="mb-6">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Input
+            type="search"
+            placeholder="Otsi..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
+      {/* Content */}
+      <Card className="p-6">
+        <p className="text-slate-500">Andmed laetakse...</p>
+      </Card>
+    </div>
+  )
+}

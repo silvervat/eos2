@@ -1,0 +1,76 @@
+'use client'
+
+import { useState } from 'react'
+import { Button, Card, Input, Label } from '@rivest/ui'
+import { Loader2 } from 'lucide-react'
+
+interface {{name}}FormProps {
+  initialData?: Partial<{{name}}Data>
+  onSubmit: (data: {{name}}Data) => void | Promise<void>
+  onCancel?: () => void
+  loading?: boolean
+}
+
+interface {{name}}Data {
+  name: string
+  // Add more fields here
+}
+
+export function {{name}}Form({
+  initialData,
+  onSubmit,
+  onCancel,
+  loading = false,
+}: {{name}}FormProps) {
+  const [formData, setFormData] = useState<{{name}}Data>({
+    name: initialData?.name || '',
+  })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await onSubmit(formData)
+  }
+
+  return (
+    <Card className="p-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <Label htmlFor="name">Nimi</Label>
+          <Input
+            id="name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="Sisesta nimi"
+            required
+          />
+        </div>
+
+        {/* Add more form fields here */}
+
+        <div className="flex items-center gap-3 justify-end pt-4 border-t">
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Tühista
+            </Button>
+          )}
+          <Button
+            type="submit"
+            disabled={loading}
+            className="bg-[#279989] hover:bg-[#1e7a6d]"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Salvestamine...
+              </>
+            ) : (
+              'Salvesta'
+            )}
+          </Button>
+        </div>
+      </form>
+    </Card>
+  )
+}
+
+export default {{name}}Form

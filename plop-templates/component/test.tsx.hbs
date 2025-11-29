@@ -1,0 +1,9 @@
+import { render, screen } from '@testing-library/react'
+import { {{name}} } from '@/components/{{kebabCase name}}'
+
+describe('{{name}}', () => {
+  it('renders successfully', () => {
+    render(<{{name}} />)
+    expect(screen.getByText(/{{name}}/i)).toBeInTheDocument()
+  })
+})

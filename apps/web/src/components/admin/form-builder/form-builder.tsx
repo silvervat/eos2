@@ -12,10 +12,11 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import { Save, Eye, EyeOff, FileText, Settings, Palette } from 'lucide-react'
+import { Save, Eye, EyeOff, FileText, Settings, Palette, ExternalLink } from 'lucide-react'
 import { FieldPalette } from './field-palette'
 import { FormCanvas } from './form-canvas'
 import { FieldProperties } from './field-properties'
+import { FormPreview } from './form-preview'
 import {
   FormField,
   FormTemplate,
@@ -232,7 +233,7 @@ export function FormBuilder({ templateId, onSave }: FormBuilderProps) {
       </div>
 
       {/* Main content */}
-      {activeTab === 'build' && (
+      {activeTab === 'build' && !previewMode && (
         <DndContext
           sensors={sensors}
           collisionDetection={pointerWithin}
@@ -240,7 +241,7 @@ export function FormBuilder({ templateId, onSave }: FormBuilderProps) {
           onDragEnd={handleDragEnd}
         >
           <div className="flex flex-1 overflow-hidden">
-            {!previewMode && <FieldPalette />}
+            <FieldPalette />
 
             <FormCanvas
               fields={fields}
@@ -249,7 +250,7 @@ export function FormBuilder({ templateId, onSave }: FormBuilderProps) {
               onDeleteField={handleDeleteField}
             />
 
-            {!previewMode && selectedField && (
+            {selectedField && (
               <FieldProperties
                 field={selectedField}
                 onUpdate={handleFieldUpdate}
@@ -266,6 +267,39 @@ export function FormBuilder({ templateId, onSave }: FormBuilderProps) {
             )}
           </DragOverlay>
         </DndContext>
+      )}
+
+      {/* Preview Mode */}
+      {activeTab === 'build' && previewMode && (
+        <div className="flex-1 p-6 overflow-y-auto bg-slate-100">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div
+                className="px-6 py-8 text-center"
+                style={{ backgroundColor: `${theme.primaryColor}10` }}
+              >
+                <h1 className="text-2xl font-bold text-slate-900 mb-2">{formName}</h1>
+                {formDescription && (
+                  <p className="text-slate-600">{formDescription}</p>
+                )}
+              </div>
+              <div className="p-6">
+                {fields.length === 0 ? (
+                  <div className="text-center py-12 text-slate-500">
+                    <p>Lisa välju, et näha eelvaadet</p>
+                  </div>
+                ) : (
+                  <FormPreview
+                    fields={fields}
+                    settings={settings}
+                    theme={theme}
+                    isPreview={true}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {activeTab === 'settings' && (

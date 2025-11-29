@@ -1,0 +1,22 @@
+import { useState, useCallback } from 'react'
+
+export function use{{properCase name}}() {
+  const [state, setState] = useState<unknown>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+
+  const execute = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      // Add your logic here
+      setState(null)
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Unknown error'))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  return { state, loading, error, execute }
+}

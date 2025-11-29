@@ -1,0 +1,97 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+
+// Types
+interface {{properCase name}}Data {
+  id: string
+  name: string
+  // Add more fields
+}
+
+// Query keys
+export const {{camelCase name}}Keys = {
+  all: ['{{camelCase name}}'] as const,
+  lists: () => [...{{camelCase name}}Keys.all, 'list'] as const,
+  list: (filters: Record<string, unknown>) => [...{{camelCase name}}Keys.lists(), filters] as const,
+  details: () => [...{{camelCase name}}Keys.all, 'detail'] as const,
+  detail: (id: string) => [...{{camelCase name}}Keys.details(), id] as const,
+}
+
+// Fetch all
+async function fetch{{properCase name}}List(): Promise<{{properCase name}}Data[]> {
+  // TODO: Replace with actual API call
+  return []
+}
+
+// Fetch single
+async function fetch{{properCase name}}(id: string): Promise<{{properCase name}}Data> {
+  // TODO: Replace with actual API call
+  throw new Error('Not implemented')
+}
+
+// Create
+async function create{{properCase name}}(data: Omit<{{properCase name}}Data, 'id'>): Promise<{{properCase name}}Data> {
+  // TODO: Replace with actual API call
+  throw new Error('Not implemented')
+}
+
+// Update
+async function update{{properCase name}}(id: string, data: Partial<{{properCase name}}Data>): Promise<{{properCase name}}Data> {
+  // TODO: Replace with actual API call
+  throw new Error('Not implemented')
+}
+
+// Delete
+async function delete{{properCase name}}(id: string): Promise<void> {
+  // TODO: Replace with actual API call
+}
+
+// Hooks
+export function use{{properCase name}}List() {
+  return useQuery({
+    queryKey: {{camelCase name}}Keys.lists(),
+    queryFn: fetch{{properCase name}}List,
+  })
+}
+
+export function use{{properCase name}}(id: string) {
+  return useQuery({
+    queryKey: {{camelCase name}}Keys.detail(id),
+    queryFn: () => fetch{{properCase name}}(id),
+    enabled: !!id,
+  })
+}
+
+export function useCreate{{properCase name}}() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: create{{properCase name}},
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}Keys.lists() })
+    },
+  })
+}
+
+export function useUpdate{{properCase name}}() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<{{properCase name}}Data> }) =>
+      update{{properCase name}}(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}Keys.detail(id) })
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}Keys.lists() })
+    },
+  })
+}
+
+export function useDelete{{properCase name}}() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: delete{{properCase name}},
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}Keys.lists() })
+    },
+  })
+}

@@ -1,0 +1,31 @@
+'use client'
+
+import { useParams } from 'next/navigation'
+import { Button, Card } from '@rivest/ui'
+import { ArrowLeft } from 'lucide-react'
+import Link from 'next/link'
+
+export default function {{properCase name}}DetailPage() {
+  const params = useParams()
+  const id = params.id as string
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* Back button */}
+      <Link href="/{{name}}" className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-6">
+        <ArrowLeft className="w-4 h-4" />
+        Tagasi
+      </Link>
+
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">{{properCase name}} #{id}</h1>
+      </div>
+
+      {/* Content */}
+      <Card className="p-6">
+        <p className="text-slate-500">Detailid ID-ga: {id}</p>
+      </Card>
+    </div>
+  )
+}
