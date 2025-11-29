@@ -1,11 +1,11 @@
 # RIVEST PLATFORM - PROJECT MEMORY
 > **Claude Code**: LOE SEE FAIL ESMALT! Kiire kontekst + viited detailidele.
 
-**Last Updated:** 2025-11-29 15:30
-**Session:** 11 (Import/Export, UI Components, Trash, Plop)
-**Status:** All Bible features complete except Supabase connection
+**Last Updated:** 2025-11-29 16:00
+**Session:** 12 (Supabase Connection)
+**Status:** All Bible features complete - Supabase connected
 **Branch:** claude/review-guidelines-bible-018Tep17aEkc77kAqFKS8uFd
-**Commit:** 43423e5
+**Commit:** pending
 
 ---
 
@@ -118,8 +118,15 @@ COMPLETED:
      - plopfile.js + plop-templates/ - Code generators
      - Admin sidebar "Prügikast" link
 
-NEXT:
-  □ SESSION 12: Supabase Connection (real data)
+  ✅ SESSION 12: Supabase Connection
+     - apps/web/.env.local - Supabase credentials (gitignored)
+     - packages/db/.env - Database URL for Prisma (gitignored)
+     - lib/supabase/admin.ts - Service role client for elevated ops
+     - Prisma schema with directUrl for migrations
+     - Supabase Auth connection verified
+
+DONE:
+  ✓ All Bible features implemented!
 ```
 
 ---
@@ -245,7 +252,7 @@ document_presence         -- Who's online
 ```yaml
 Monorepo:     Turborepo 2 + pnpm 9        ✅
 Frontend:     Next.js 14 App Router        ✅
-Database:     Supabase (PostgreSQL 15)     ⏳ Need connection
+Database:     Supabase (PostgreSQL 15)     ✅ Connected!
 ORM:          Prisma 5                     ✅ Schema ready
 UI:           shadcn/ui + Tailwind         ✅
 State:        TanStack Query 5 + Zustand   ✅
@@ -261,27 +268,27 @@ Testing:      Jest + React Testing Library ✅
 
 ## 📝 NEXT STEPS
 
-### **SESSION 11: Supabase Connection** ⭐ NEXT
-Need credentials:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `DATABASE_URL`
-
-Tasks:
-- Connect to real Supabase database
-- Run migrations
-- Replace mock data with real queries
-- Add authentication
+### **Deploy & Production** ⭐ SUGGESTED
+- Run Prisma migrations locally: `pnpm db:push`
+- Deploy to Vercel
+- Set environment variables in Vercel
+- Run migrations on production database
 
 ---
 
-## 🔧 ENVIRONMENT NEEDED
+## 🔧 ENVIRONMENT (Configured)
 
 ```bash
-# .env.local (apps/web/)
-DATABASE_URL="postgresql://postgres:pass@host/db"
-NEXT_PUBLIC_SUPABASE_URL="https://xyz.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
+# apps/web/.env.local ✅ CONFIGURED
+NEXT_PUBLIC_SUPABASE_URL="https://cohhjvtmmchrttntoizw.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="sb_publishable_..."
+SUPABASE_SERVICE_ROLE_KEY="sb_secret_..."
+DATABASE_URL="postgresql://...@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
+DIRECT_URL="postgresql://...@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+
+# packages/db/.env ✅ CONFIGURED
+DATABASE_URL="postgresql://...@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
+DIRECT_URL="postgresql://...@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
 ```
 
 **GitHub Repo:** github.com/silvervat/ehitusOS
@@ -540,5 +547,60 @@ export type SchemaType =
 
 ---
 
-**Last Updated:** 2025-11-29 14:00
-**Version:** 14.0 - Added PDF Template Designer with pdfme (SESSION 10)
+---
+
+## 📜 SESSION 12 ADDITIONS
+
+### Supabase Connection
+```typescript
+// Environment files configured (gitignored):
+// - apps/web/.env.local
+// - packages/db/.env
+
+// Supabase project details:
+// Project ID: cohhjvtmmchrttntoizw
+// Region: EU Central 1 (Frankfurt)
+// Database: PostgreSQL with PgBouncer
+
+// Admin client for elevated operations (server-side only)
+import { supabaseAdmin } from '@/lib/supabase/admin'
+
+// Use service_role key to bypass RLS
+const { data } = await supabaseAdmin.from('tenants').select('*')
+
+// Browser client (uses publishable key)
+import { createBrowserSupabaseClient } from '@/lib/supabase/client'
+const supabase = createBrowserSupabaseClient()
+
+// Server client (for SSR/API routes)
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+const supabase = createServerSupabaseClient()
+```
+
+### Prisma with Supabase
+```typescript
+// schema.prisma now includes directUrl for migrations
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")     // PgBouncer (port 6543)
+  directUrl = env("DIRECT_URL")       // Direct (port 5432) for migrations
+}
+
+// Run migrations locally:
+pnpm db:push     // Push schema to database
+pnpm db:generate // Generate Prisma client
+pnpm db:studio   // Open Prisma Studio
+```
+
+### Files Created
+```
+apps/web/.env.local           # Supabase credentials
+apps/web/src/lib/supabase/admin.ts  # Service role client
+packages/db/.env              # Database URLs for Prisma
+packages/db/prisma/schema.prisma    # Updated with directUrl
+```
+
+---
+
+**Last Updated:** 2025-11-29 16:00
+**Version:** 15.0 - Added Supabase Connection (SESSION 12)
