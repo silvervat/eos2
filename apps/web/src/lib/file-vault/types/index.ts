@@ -376,6 +376,8 @@ export interface FileRecord {
 
 export type SharePermission = 'view' | 'download' | 'edit'
 
+export type FilePermissionType = 'view' | 'comment' | 'download' | 'edit' | 'manage' | 'owner'
+
 export interface ShareLink {
   id: string
   shortCode: string
