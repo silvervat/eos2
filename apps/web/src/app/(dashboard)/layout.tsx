@@ -20,6 +20,7 @@ import {
   X,
   FileType,
   Trash2,
+  FolderArchive,
 } from 'lucide-react'
 import { NotificationDropdown } from '@/components/notifications/notification-dropdown'
 
@@ -63,6 +64,7 @@ export default function DashboardLayout({
     { href: '/invoices', label: 'Arved', icon: FileText },
     { href: '/employees', label: 'Töötajad', icon: Users },
     { href: '/documents', label: 'Dokumendid', icon: File },
+    { href: '/file-vault', label: 'Failihaldus', icon: FolderArchive },
     { href: '/reports', label: 'Aruanded', icon: BarChart3 },
   ]
 
