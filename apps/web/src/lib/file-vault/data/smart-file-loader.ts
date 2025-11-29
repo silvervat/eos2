@@ -17,10 +17,26 @@ import { getFileMetadataCache } from '../cache/file-metadata-cache'
 interface PrismaClient {
   file: {
     findMany(params: {
-      where: { id: { in: string[] } }
+      where: Record<string, unknown>
       include?: Record<string, boolean>
-    }): Promise<FileRecord[]>
+    }): Promise<DbFileRecord[]>
   }
+}
+
+// Database file record (with tag relations)
+interface DbFileRecord extends Omit<FileRecord, 'tags'> {
+  tags?: Array<{ tag: string }> | string[]
+}
+
+// Helper to normalize tags from DB format to string array
+function normalizeTags(tags?: Array<{ tag: string }> | string[]): string[] {
+  if (!tags) return []
+  if (tags.length === 0) return []
+  // Check if first element is string or object
+  if (typeof tags[0] === 'string') {
+    return tags as string[]
+  }
+  return (tags as Array<{ tag: string }>).map(t => t.tag)
 }
 
 export class SmartFileLoader {
@@ -69,7 +85,7 @@ export class SmartFileLoader {
         await cache.setMany(
           dbFiles.map((file) => ({
             ...file,
-            tags: file.tags?.map((t: { tag: string }) => t.tag) || [],
+            tags: normalizeTags(file.tags),
           }))
         )
       }
@@ -85,7 +101,7 @@ export class SmartFileLoader {
         if (db) {
           return {
             ...db,
-            tags: db.tags?.map((t: { tag: string }) => t.tag) || [],
+            tags: normalizeTags(db.tags),
           }
         }
 
@@ -151,7 +167,7 @@ export class SmartFileLoader {
 
     const processedFiles = files.map((file) => ({
       ...file,
-      tags: file.tags?.map((t: { tag: string }) => t.tag) || [],
+      tags: normalizeTags(file.tags),
     }))
 
     const page = params.page || 0
@@ -259,7 +275,7 @@ export class SmartFileLoader {
           await cache.setMany(
             files.map((file) => ({
               ...file,
-              tags: file.tags?.map((t: { tag: string }) => t.tag) || [],
+              tags: normalizeTags(file.tags),
             }))
           )
         }
@@ -293,7 +309,7 @@ export class SmartFileLoader {
 
     const file = {
       ...files[0],
-      tags: files[0].tags?.map((t: { tag: string }) => t.tag) || [],
+      tags: normalizeTags(files[0].tags),
     }
 
     // Cache for next time
@@ -331,7 +347,7 @@ export class SmartFileLoader {
 
     const file = {
       ...files[0],
-      tags: files[0].tags?.map((t: { tag: string }) => t.tag) || [],
+      tags: normalizeTags(files[0].tags),
     }
 
     // Update both cache and search index
