@@ -1,7 +1,7 @@
 'use client'
 
 import { Vote } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 export const VoteColumn: ColumnTypeDefinition = {

@@ -1,7 +1,7 @@
 'use client'
 
 import { Euro } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+import { Input } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 const CURRENCY_SYMBOLS: Record<string, string> = {

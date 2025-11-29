@@ -1,7 +1,7 @@
 'use client'
 
 import { ListChecks } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 export const MultiSelectColumn: ColumnTypeDefinition = {

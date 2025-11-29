@@ -1,13 +1,7 @@
 'use client'
 
 import { Flag } from 'lucide-react'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 const DEFAULT_PRIORITIES = [

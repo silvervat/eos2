@@ -1,7 +1,7 @@
 'use client'
 
 import { Link2 } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+import { Input } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 export const UrlColumn: ColumnTypeDefinition = {

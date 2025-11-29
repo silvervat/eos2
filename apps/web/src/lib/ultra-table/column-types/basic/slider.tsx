@@ -1,7 +1,7 @@
 'use client'
 
 import { Sliders } from 'lucide-react'
-import { Slider } from '@/components/ui/slider'
+import { Slider } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 export const SliderColumn: ColumnTypeDefinition = {

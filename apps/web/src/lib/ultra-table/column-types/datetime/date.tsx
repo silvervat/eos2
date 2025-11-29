@@ -1,7 +1,7 @@
 'use client'
 
 import { Calendar } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+import { Input } from '@rivest/ui'
 import { format, parseISO, isValid } from 'date-fns'
 import { et } from 'date-fns/locale'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'

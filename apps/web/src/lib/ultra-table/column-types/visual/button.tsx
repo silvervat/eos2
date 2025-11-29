@@ -1,7 +1,7 @@
 'use client'
 
 import { MousePointer2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 export const ButtonColumn: ColumnTypeDefinition = {

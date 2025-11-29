@@ -1,7 +1,7 @@
 'use client'
 
 import { CheckSquare } from 'lucide-react'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Checkbox } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 export const CheckboxColumn: ColumnTypeDefinition = {

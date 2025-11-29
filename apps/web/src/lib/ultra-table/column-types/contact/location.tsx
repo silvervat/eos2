@@ -1,7 +1,7 @@
 'use client'
 
 import { MapPin } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+import { Input } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 export const LocationColumn: ColumnTypeDefinition = {

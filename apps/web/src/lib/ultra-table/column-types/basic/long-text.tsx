@@ -1,7 +1,7 @@
 'use client'
 
 import { AlignLeft } from 'lucide-react'
-import { Textarea } from '@/components/ui/textarea'
+import { Textarea } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 export const LongTextColumn: ColumnTypeDefinition = {

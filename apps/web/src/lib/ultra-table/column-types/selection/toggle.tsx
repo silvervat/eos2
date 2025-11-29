@@ -1,7 +1,7 @@
 'use client'
 
 import { ToggleLeft } from 'lucide-react'
-import { Switch } from '@/components/ui/switch'
+import { Switch } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 export const ToggleColumn: ColumnTypeDefinition = {

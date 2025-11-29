@@ -1,7 +1,7 @@
 'use client'
 
 import { UserCheck } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps } from '../types'
 
 export const CollaboratorColumn: ColumnTypeDefinition = {

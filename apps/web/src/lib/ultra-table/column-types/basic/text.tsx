@@ -1,7 +1,7 @@
 'use client'
 
 import { Type } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+import { Input } from '@rivest/ui'
 import type { ColumnTypeDefinition, CellRendererProps, TEXT_FILTER_OPERATORS } from '../types'
 
 export const TextColumn: ColumnTypeDefinition = {
