@@ -38,6 +38,7 @@ export class FileMetadataCache {
 
     try {
       // Dynamic import to avoid errors when not installed
+      // @ts-ignore - ioredis is an optional dependency
       const { default: Redis } = await import('ioredis')
       this.redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
       console.log('[FileMetadataCache] Connected to Redis')

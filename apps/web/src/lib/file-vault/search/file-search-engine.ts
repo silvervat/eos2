@@ -41,6 +41,7 @@ export class FileSearchEngine {
 
     try {
       // Dynamic import to avoid errors when not installed
+      // @ts-ignore - @elastic/elasticsearch is an optional dependency
       const { Client } = await import('@elastic/elasticsearch')
       this.client = new Client({
         node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
