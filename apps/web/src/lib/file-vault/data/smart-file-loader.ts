@@ -72,7 +72,7 @@ export class SmartFileLoader {
 
     // Step 3: Load missing files from database
     const missingIds = fileIds.filter((id) => !cachedFiles[id])
-    let dbFiles: FileRecord[] = []
+    let dbFiles: DbFileRecord[] = []
 
     if (missingIds.length > 0) {
       dbFiles = await this.db.file.findMany({
