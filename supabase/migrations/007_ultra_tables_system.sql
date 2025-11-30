@@ -129,16 +129,16 @@ ALTER TABLE ultra_records ENABLE ROW LEVEL SECURITY;
 
 -- Ultra Tables RLS Policies
 CREATE POLICY "ultra_tables_select" ON ultra_tables FOR SELECT
-  USING (tenant_id = get_current_tenant_id());
+  USING (tenant_id = get_user_tenant_id());
 
 CREATE POLICY "ultra_tables_insert" ON ultra_tables FOR INSERT
-  WITH CHECK (tenant_id = get_current_tenant_id());
+  WITH CHECK (tenant_id = get_user_tenant_id());
 
 CREATE POLICY "ultra_tables_update" ON ultra_tables FOR UPDATE
-  USING (tenant_id = get_current_tenant_id());
+  USING (tenant_id = get_user_tenant_id());
 
 CREATE POLICY "ultra_tables_delete" ON ultra_tables FOR DELETE
-  USING (tenant_id = get_current_tenant_id());
+  USING (tenant_id = get_user_tenant_id());
 
 -- Ultra Columns RLS Policies
 CREATE POLICY "ultra_columns_select" ON ultra_columns FOR SELECT
@@ -146,7 +146,7 @@ CREATE POLICY "ultra_columns_select" ON ultra_columns FOR SELECT
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_columns.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
@@ -155,7 +155,7 @@ CREATE POLICY "ultra_columns_insert" ON ultra_columns FOR INSERT
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_columns.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
@@ -164,7 +164,7 @@ CREATE POLICY "ultra_columns_update" ON ultra_columns FOR UPDATE
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_columns.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
@@ -173,7 +173,7 @@ CREATE POLICY "ultra_columns_delete" ON ultra_columns FOR DELETE
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_columns.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
@@ -183,7 +183,7 @@ CREATE POLICY "ultra_views_select" ON ultra_views FOR SELECT
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_views.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
@@ -192,7 +192,7 @@ CREATE POLICY "ultra_views_insert" ON ultra_views FOR INSERT
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_views.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
@@ -201,7 +201,7 @@ CREATE POLICY "ultra_views_update" ON ultra_views FOR UPDATE
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_views.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
@@ -210,7 +210,7 @@ CREATE POLICY "ultra_views_delete" ON ultra_views FOR DELETE
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_views.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
@@ -220,7 +220,7 @@ CREATE POLICY "ultra_records_select" ON ultra_records FOR SELECT
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_records.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
@@ -229,7 +229,7 @@ CREATE POLICY "ultra_records_insert" ON ultra_records FOR INSERT
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_records.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
@@ -238,7 +238,7 @@ CREATE POLICY "ultra_records_update" ON ultra_records FOR UPDATE
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_records.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
@@ -247,7 +247,7 @@ CREATE POLICY "ultra_records_delete" ON ultra_records FOR DELETE
     EXISTS (
       SELECT 1 FROM ultra_tables
       WHERE ultra_tables.id = ultra_records.table_id
-      AND ultra_tables.tenant_id = get_current_tenant_id()
+      AND ultra_tables.tenant_id = get_user_tenant_id()
     )
   );
 
