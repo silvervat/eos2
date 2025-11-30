@@ -47,7 +47,7 @@ Sisaldab KÕIKE:
 **📋 Eesmärk:** Valmis kood kõigile komponentidele  
 
 Copy-paste valmis:
-- VirtualTable.tsx (virtual scrolling)
+- VirtualTable.tsx (virtual scrolling + infinite scroll)
 - TableSettings.tsx (tabeli seaded)
 - ViewsManager.tsx (vaadete haldus)
 - Menu Management Page (menüü haldus)
@@ -63,38 +63,80 @@ Selgitab:
 - Lõplik projekti struktuur
 - Checklist kasutajale
 
+### 6️⃣ FILE-VAULT-INTEGRATION.md
+**⏱️ Lugemisaeg: 12 min**  
+**📋 Eesmärk:** File Vault integratsioon  
+
+Automaatne failide haldus:
+- Struktureeritud kaustad (TABELITE failid/tabel/rida)
+- File upload komponent
+- Automaatne cleanup
+- File Vault UI integratsioon
+
+### 7️⃣ SUPABASE-SETUP.md
+**⏱️ Lugemisaeg: 8 min**  
+**📋 Eesmärk:** Automaatne Supabase setup  
+
+Claude Code teeb KÕIK ise:
+- Migration'id käivituvad automaatselt
+- Ei vaja Supabase UI'd
+- Migration tracking
+- Rollback support
+
+### 8️⃣ UPDATES.md
+**⏱️ Lugemisaeg: 5 min**  
+**📋 Eesmärk:** Muudatuste kokkuvõte  
+
+Uued funktsioonid:
+- Infinite scroll
+- File Vault integratsioon
+- Dependencies nimekiri
+
 ---
 
 ## 🚀 KUIDAS ALUSTADA
 
-### Variant 1: Kiire Start (Claude Code'ga)
+### Variant 1: Kiire Start (Claude Code'ga) - SOOVITATAV
 
 ```bash
-# 1. Kopeeri failid manual/tables kausta
-mkdir -p manual/tables
-cp TABLES-*.md manual/tables/
-cp FILES-TO-COPY.md manual/tables/
-cp COMPLETE-COMPONENTS.md manual/tables/
-cp SUMMARY.md manual/tables/
+# 1. Setup Supabase credentials
+# Loo fail .env.local ja lisa Supabase andmed (vt SUPABASE-SETUP.md)
 
-# 2. Kopeeri SQL migration TABLES-IMPLEMENTATION-GUIDE.md failist
-# → manual/tables/006_ultra_tables_system.sql
+# 2. Kopeeri failid manual/tables kausta
+mkdir -p manual/tables
+cp *.md manual/tables/
 
 # 3. Commit
 git add manual/tables/
 git commit -m "Add Ultra Tables implementation guides"
 
 # 4. Kirjuta Claude Code'le:
-"Palun implementeeri Ultra Tables süsteem järgides manual/tables/TABLES-QUICKSTART.md"
+```
+
+**Claude Code'le:**
+```
+Tere Claude Code!
+
+Implementeeri Ultra Tables süsteem järgides manual/tables/ juhendeid.
+
+OLULINE:
+1. Loe SUPABASE-SETUP.md - käivita migration'id automaatselt
+2. Järgi TABLES-QUICKSTART.md - 5 sammu
+3. Kasuta COMPLETE-COMPONENTS.md - valmis kood
+
+.env.local peab sisaldama Supabase credentials!
+
+Alusta!
 ```
 
 ### Variant 2: Käsitsi Implementeerimine
 
-1. Loe **SUMMARY.md** (3 min) - saa ülevaade
-2. Loe **TABLES-QUICKSTART.md** (5 min) - saa sammud
-3. Kasuta **TABLES-IMPLEMENTATION-GUIDE.md** detailideks
-4. Kopeeri kood **COMPLETE-COMPONENTS.md** failist
-5. Kontrolli failide struktuuri **FILES-TO-COPY.md** abil
+1. Loe **SUPABASE-SETUP.md** (8 min) - setup automaatika
+2. Loe **SUMMARY.md** (3 min) - saa ülevaade
+3. Loe **TABLES-QUICKSTART.md** (5 min) - saa sammud
+4. Kasuta **TABLES-IMPLEMENTATION-GUIDE.md** detailideks
+5. Kopeeri kood **COMPLETE-COMPONENTS.md** failist
+6. Kontrolli failide struktuuri **FILES-TO-COPY.md** abil
 
 ---
 

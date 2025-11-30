@@ -9,7 +9,13 @@ Kopeeri need failid `/home/claude/` kataloogist `manual/tables/` kataloogi:
 manual/tables/
 ├── TABLES-IMPLEMENTATION-GUIDE.md  ✅ Põhiline implementeerimise juhend
 ├── TABLES-QUICKSTART.md            ✅ Kiire alustamise juhend
-└── FILES-TO-COPY.md                ✅ See fail
+├── COMPLETE-COMPONENTS.md          ✅ Valmis kood kõigile komponentidele
+├── FILE-VAULT-INTEGRATION.md       ✅ File Vault integratsioon
+├── SUPABASE-SETUP.md               ✅ Automaatne Supabase setup
+├── FILES-TO-COPY.md                ✅ See fail
+├── SUMMARY.md                      ✅ Kokkuvõte
+├── UPDATES.md                      ✅ Muudatuste nimekiri
+└── README.md                       ✅ Ülevaade
 ```
 
 ### 2. SQL Migratsioon

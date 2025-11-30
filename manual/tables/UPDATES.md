@@ -56,6 +56,35 @@ File Vault/
 - ✅ Link tagasi tabelisse File Vault UI's
 - ✅ Kõik media tüübid: file, files, image, images, video, audio, attachment
 
+### 3. Supabase Automaatika (✅ Lisatud)
+
+**Probleem:** Kasutaja peab käsitsi Supabase UI's migration'id käivitama.
+
+**Lahendus:** Claude Code käivitab kõik migration'id automaatselt skriptide abil.
+
+**Uued failid:**
+- ✅ `/scripts/migrate.js` - migration'ide käivitaja
+- ✅ `/scripts/migrate-direct.js` - alternatiivne variant PostgreSQL kliendiga
+- ✅ `/scripts/db-status.js` - andmebaasi staatuse kontroll
+- ✅ Migration tracking table
+- ✅ Automaatne rollback
+
+**Features:**
+- ✅ Ei vaja Supabase UI'd
+- ✅ Migration'id käivituvad `pnpm db:migrate` käsuga
+- ✅ Tracking - teab, millised migration'id on käivitatud
+- ✅ 2 varianti: Supabase RPC või PostgreSQL client
+
+**Package.json scripts:**
+```json
+{
+  "scripts": {
+    "db:migrate": "node scripts/migrate.js",
+    "db:status": "node scripts/db-status.js"
+  }
+}
+```
+
 ## 📋 FAILIDE NIMEKIRI (UUENDATUD)
 
 ### Põhijuhendid (juba loodud)
@@ -68,7 +97,8 @@ File Vault/
 
 ### Uued juhendid
 7. ✅ `FILE-VAULT-INTEGRATION.md` - File Vault integratsioon
-8. ✅ `UPDATES.md` - See fail (muudatuste kokkuvõte)
+8. ✅ `SUPABASE-SETUP.md` - Automaatne Supabase setup
+9. ✅ `UPDATES.md` - See fail (muudatuste kokkuvõte)
 
 ## 🔄 MUUDETUD KOMPONENDID
 
@@ -163,10 +193,17 @@ eos2-main/
 │   ├── SUMMARY.md                         ✅
 │   ├── README.md                          ✅
 │   ├── FILE-VAULT-INTEGRATION.md          🆕
+│   ├── SUPABASE-SETUP.md                  🆕
 │   ├── UPDATES.md                         🆕
 │   └── 006_ultra_tables_system.sql        ⚠️ (kopeeri guide'ist)
 │
+├── scripts/                               🆕 (Supabase automaatika)
+│   ├── migrate.js                         🆕
+│   ├── migrate-direct.js                  🆕
+│   └── db-status.js                       🆕
+│
 ├── supabase/migrations/
+│   ├── 000_setup.sql                      🆕 (exec_sql function)
 │   ├── 006_ultra_tables_system.sql        🆕 Claude Code loob
 │   └── 007_table_files_storage.sql        🆕 Claude Code loob
 │
@@ -185,18 +222,25 @@ eos2-main/
 │   │   └── export.ts                      🆕 (valikuline)
 │   │
 │   └── ... (rest of structure)
+│
+├── .env.local                             ⚠️ (kasutaja loob)
+├── .env.local.example                     🆕 (Git'i)
+└── package.json                           🔄 (lisatakse scripts)
 ```
 
 ## ✅ UUENDATUD CHECKLIST
 
 ### Kasutaja (enne Claude Code'i)
-- [ ] Kopeeri 8 guide faili manual/tables/
+- [ ] Kopeeri 9 guide faili manual/tables/
+- [ ] Loo .env.local fail Supabase credentials'itega
 - [ ] Kopeeri SQL migrations
-- [ ] Commit Git'i
+- [ ] Commit .env.local.example Git'i
 
 ### Claude Code (implementeerimine)
+- [ ] Migration 000 (setup - exec_sql)
 - [ ] Migration 006 (tabelid)
 - [ ] Migration 007 (file storage)
+- [ ] Scripts kausta (migrate.js, db-status.js)
 - [ ] 4 API route faili
 - [ ] 6 UI komponenti (VirtualTable, TableDataView, FileUpload, CreateTableDialog, TableSettings, ViewsManager)
 - [ ] TableFileHandler klass
@@ -204,6 +248,7 @@ eos2-main/
 - [ ] 2 page faili
 - [ ] Menüü update
 - [ ] Dependencies install
+- [ ] Run: pnpm db:migrate
 
 ### Testimine
 - [ ] Infinite scroll töötab
@@ -212,6 +257,7 @@ eos2-main/
 - [ ] Kaustade struktuur õige
 - [ ] Cleanup rea kustutamisel
 - [ ] 1000+ ridaga smooth scroll
+- [ ] Migration'id töötavad automaatselt
 
 ## 🎯 UUED FEATURES KOKKU
 
@@ -248,6 +294,40 @@ eos2-main/
 1. Näed kausta "TABELITE failid"
 2. Alamkaustades kõik tabelite failid
 3. Link "Ava tabelis" viib tagasi rea juurde
+```
+
+### Supabase Automaatika
+```bash
+# Claude Code käivitab:
+pnpm install
+pnpm db:migrate    # Käivitab kõik migration'id
+pnpm db:status     # Kontrollib andmebaasi
+```
+
+## 📝 CLAUDE CODE'LE JUHISED
+
+```
+Tere Claude Code!
+
+Implementeeri Ultra Tables süsteem järgides manual/tables/ juhendeid.
+
+OLULINE - 3 uut funktsiooni:
+1. INFINITE SCROLL - vaata COMPLETE-COMPONENTS.md
+2. FILE VAULT - vaata FILE-VAULT-INTEGRATION.md
+3. SUPABASE AUTO - vaata SUPABASE-SETUP.md
+
+Workflow:
+1. Loe SUPABASE-SETUP.md
+2. Install: pnpm install
+3. Migrate: pnpm db:migrate (või node scripts/migrate-direct.js)
+4. Verify: pnpm db:status
+5. Implementeeri komponendid COMPLETE-COMPONENTS.md'st
+6. Loo file-handler.ts ja FileUpload.tsx
+7. Uuenda DynamicCell.tsx
+
+.env.local peab sisaldama Supabase credentials!
+
+Alusta!
 ```
 
 ## 📝 MIGRATE EXISTING DATA
