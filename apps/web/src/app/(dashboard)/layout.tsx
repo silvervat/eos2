@@ -27,6 +27,7 @@ import {
   Wrench,
   Table,
   Menu as MenuIcon,
+  HardDrive,
 } from 'lucide-react'
 import { NotificationDropdown } from '@/components/notifications/notification-dropdown'
 
@@ -87,6 +88,7 @@ export default function DashboardLayout({
     { href: '/admin/cms', label: 'CMS Haldus', icon: Database },
     { href: '/admin/templates', label: 'PDF Mallid', icon: FileType },
     { href: '/admin/ultra-tables', label: 'Tabelid', icon: Table },
+    { href: '/admin/migrations', label: 'Migratsioonid', icon: HardDrive },
     { href: '/admin/menu', label: 'Menüü', icon: MenuIcon },
     { href: '/trash', label: 'Prügikast', icon: Trash2 },
     { href: '/notifications', label: 'Teavitused', icon: Bell },
