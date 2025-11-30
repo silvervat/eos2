@@ -43,8 +43,7 @@ export async function GET(request: NextRequest) {
         *,
         category:asset_categories(id, name, path),
         warehouse:warehouses(id, name, code),
-        assigned_user:user_profiles(id, full_name, email),
-        assigned_project:projects(id, name, code)
+        assigned_user:user_profiles(id, full_name, email)
       `, { count: 'exact' })
       .is('deleted_at', null);
 
