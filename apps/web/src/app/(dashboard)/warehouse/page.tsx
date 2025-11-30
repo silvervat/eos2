@@ -3,6 +3,7 @@
 import { Plus, QrCode, ArrowRightLeft, Package, Download, Wrench, AlertTriangle } from 'lucide-react';
 import { WarehouseStats } from '@/components/warehouse/WarehouseStats';
 import { AssetsTable } from '@/components/warehouse/AssetsTable';
+import { LowStockAlerts } from '@/components/warehouse/LowStockAlerts';
 import Link from 'next/link';
 
 export default function WarehousePage() {
@@ -86,15 +87,23 @@ export default function WarehousePage() {
         </Link>
       </div>
 
-      {/* Assets Table */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-slate-900">Viimased varad</h2>
-          <Link href="/warehouse/assets" className="text-sm text-primary hover:underline">
-            Vaata kõiki →
-          </Link>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Assets Table */}
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-slate-900">Viimased varad</h2>
+            <Link href="/warehouse/assets" className="text-sm text-primary hover:underline">
+              Vaata kõiki →
+            </Link>
+          </div>
+          <AssetsTable />
         </div>
-        <AssetsTable />
+
+        {/* Low Stock Alerts */}
+        <div className="lg:col-span-1">
+          <LowStockAlerts limit={5} compact />
+        </div>
       </div>
     </div>
   );

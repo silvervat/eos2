@@ -3,8 +3,10 @@
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@rivest/ui';
-import { ArrowLeft, Edit, Trash2, ArrowRightLeft, Wrench, QrCode, Package, MapPin, User, FolderKanban, Calendar, FileText } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, ArrowRightLeft, Wrench, QrCode, Package, MapPin, User, FolderKanban, Calendar, FileText, ImageIcon, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
+import { StockMovements } from '@/components/warehouse/StockMovements';
+import { PhotoGallery } from '@/components/warehouse/PhotoGallery';
 
 export default function AssetDetailPage() {
   const params = useParams();
@@ -55,6 +57,8 @@ export default function AssetDetailPage() {
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Ülevaade</TabsTrigger>
+          <TabsTrigger value="photos">Fotod</TabsTrigger>
+          {asset.is_consumable && <TabsTrigger value="stock">Laoseis</TabsTrigger>}
           <TabsTrigger value="history">Ajalugu</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4">
@@ -64,9 +68,23 @@ export default function AssetDetailPage() {
               <div><span className="text-slate-500">Ladu:</span> {asset.warehouse?.name || '-'}</div>
               <div><span className="text-slate-500">Staatus:</span> {asset.status}</div>
               <div><span className="text-slate-500">Seisukord:</span> {asset.condition}</div>
+              {asset.is_consumable && (
+                <>
+                  <div><span className="text-slate-500">Saadaval:</span> {asset.quantity_available || 0}</div>
+                  <div><span className="text-slate-500">Miinimum:</span> {asset.min_quantity || 0}</div>
+                </>
+              )}
             </div>
           </div>
         </TabsContent>
+        <TabsContent value="photos" className="mt-4">
+          <PhotoGallery assetId={assetId} />
+        </TabsContent>
+        {asset.is_consumable && (
+          <TabsContent value="stock" className="mt-4">
+            <StockMovements assetId={assetId} isConsumable={asset.is_consumable} />
+          </TabsContent>
+        )}
         <TabsContent value="history" className="mt-4">
           <div className="bg-white rounded-xl border p-6 text-center text-slate-500">
             Ajalugu pole veel saadaval
