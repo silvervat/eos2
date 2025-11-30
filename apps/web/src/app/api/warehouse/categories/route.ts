@@ -12,6 +12,9 @@ const categorySchema = z.object({
   requires_maintenance: z.boolean().default(false),
   maintenance_interval_days: z.number().optional().nullable(),
   is_consumable: z.boolean().default(false),
+  min_stock_quantity: z.number().optional().nullable(),
+  reorder_point: z.number().optional().nullable(),
+  unit_of_measure: z.string().optional(),
 });
 
 // GET /api/warehouse/categories
@@ -22,6 +25,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const parent_id = searchParams.get('parent_id');
     const flat = searchParams.get('flat') === 'true';
+    const withStock = searchParams.get('with_stock') === 'true';
 
     let query = supabase
       .from('asset_categories')
@@ -42,6 +46,52 @@ export async function GET(request: NextRequest) {
     if (error) {
       console.error('Categories API error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // If stock info requested, get stock summaries
+    if (withStock && data) {
+      const categoryIds = data.map(c => c.id);
+
+      // Get stock counts per category
+      const { data: stockData } = await supabase
+        .from('assets')
+        .select('category_id, current_quantity')
+        .in('category_id', categoryIds)
+        .is('deleted_at', null);
+
+      // Calculate stock per category
+      const stockByCategory = new Map<string, { total: number; count: number }>();
+      stockData?.forEach(asset => {
+        if (asset.category_id) {
+          const current = stockByCategory.get(asset.category_id) || { total: 0, count: 0 };
+          current.total += asset.current_quantity || 0;
+          current.count += 1;
+          stockByCategory.set(asset.category_id, current);
+        }
+      });
+
+      // Merge stock data into categories
+      const dataWithStock = data.map(category => {
+        const stock = stockByCategory.get(category.id) || { total: 0, count: 0 };
+        const minStock = category.min_stock_quantity || 0;
+        const reorderPoint = category.reorder_point || 0;
+
+        let stockStatus = 'ok';
+        if (category.is_consumable && minStock > 0 && stock.total < minStock) {
+          stockStatus = 'critical';
+        } else if (category.is_consumable && reorderPoint > 0 && stock.total < reorderPoint) {
+          stockStatus = 'low';
+        }
+
+        return {
+          ...category,
+          total_stock: stock.total,
+          asset_count: stock.count,
+          stock_status: stockStatus,
+        };
+      });
+
+      return NextResponse.json({ data: dataWithStock });
     }
 
     return NextResponse.json({ data });
