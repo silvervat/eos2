@@ -325,6 +325,3 @@ registerModal({
   isForm: true,
   features: ['drag-drop', 'file-upload', 'xlsx-import', 'csv-import', 'validation', 'preview-table', 'pagination'],
 })
-
-// Export for use in CMS
-export type { ModalRegistryEntry }
