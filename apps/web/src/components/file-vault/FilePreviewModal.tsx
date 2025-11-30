@@ -40,8 +40,16 @@ interface FileItem {
   thumbnailMedium?: string
   thumbnailLarge?: string
   storageKey?: string
+  isStarred?: boolean
   createdAt: string
   updatedAt: string
+  tags: string[]
+  commentCount?: number
+  folder?: {
+    id: string
+    name: string
+    path: string
+  }
 }
 
 interface Comment {

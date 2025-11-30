@@ -30,11 +30,19 @@ interface FileItem {
   sizeBytes: number
   extension: string
   thumbnailSmall?: string
+  thumbnailMedium?: string
+  thumbnailLarge?: string
+  storageKey?: string
   isStarred?: boolean
   createdAt: string
   updatedAt: string
   tags: string[]
   commentCount?: number
+  folder?: {
+    id: string
+    name: string
+    path: string
+  }
 }
 
 interface FolderItem {
