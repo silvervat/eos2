@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         from_warehouse:warehouses!from_warehouse_id(id, name, code),
-        to_project:projects!to_project_id(id, name, project_number),
+        to_project:projects!to_project_id(id, name, code),
         to_warehouse:warehouses!to_warehouse_id(id, name, code),
         to_user:user_profiles!to_user_id(id, full_name),
         created_by_user:user_profiles!created_by(id, full_name)
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
       .select(`
         *,
         from_warehouse:warehouses!from_warehouse_id(id, name, code),
-        to_project:projects!to_project_id(id, name, project_number),
+        to_project:projects!to_project_id(id, name, code),
         to_warehouse:warehouses!to_warehouse_id(id, name, code),
         to_user:user_profiles!to_user_id(id, full_name)
       `)
@@ -197,7 +197,7 @@ export async function PATCH(request: NextRequest) {
       .select(`
         *,
         from_warehouse:warehouses!from_warehouse_id(id, name, code),
-        to_project:projects!to_project_id(id, name, project_number),
+        to_project:projects!to_project_id(id, name, code),
         to_warehouse:warehouses!to_warehouse_id(id, name, code),
         to_user:user_profiles!to_user_id(id, full_name)
       `)

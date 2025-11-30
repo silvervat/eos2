@@ -32,7 +32,7 @@ export interface TransferBasket {
   completed_at: string | null;
   // Joined data
   from_warehouse?: { id: string; name: string; code: string } | null;
-  to_project?: { id: string; name: string; project_number: string } | null;
+  to_project?: { id: string; name: string; code: string } | null;
   to_warehouse?: { id: string; name: string; code: string } | null;
   to_user?: { id: string; full_name: string } | null;
 }

@@ -43,7 +43,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .select(`
         *,
         from_warehouse:warehouses!from_warehouse_id(id, name, code, type),
-        to_project:projects!to_project_id(id, name, project_number),
+        to_project:projects!to_project_id(id, name, code),
         to_warehouse:warehouses!to_warehouse_id(id, name, code, type),
         to_user:user_profiles!to_user_id(id, full_name, email),
         created_by_user:user_profiles!created_by(id, full_name, email)
@@ -110,7 +110,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .select(`
         *,
         from_warehouse:warehouses!from_warehouse_id(id, name, code),
-        to_project:projects!to_project_id(id, name, project_number),
+        to_project:projects!to_project_id(id, name, code),
         to_warehouse:warehouses!to_warehouse_id(id, name, code),
         to_user:user_profiles!to_user_id(id, full_name)
       `)
