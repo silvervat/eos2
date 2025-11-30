@@ -1,16 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronUp, ChevronDown, Minus, Plus, Trash2, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { ChevronUp, ChevronDown, Minus, Plus, Trash2, AlertTriangle, CheckCircle, Loader2, Camera, X } from 'lucide-react';
 import { useTransferBasket, TransferBasketItem } from '@/hooks/use-transfer-basket';
+import { CapturedPhoto } from './FastScanner';
 
 interface BasketPreviewProps {
   basketId: string;
   onComplete: () => void;
+  photos?: CapturedPhoto[];
+  onRemovePhoto?: (photoId: string) => void;
 }
 
-export function BasketPreview({ basketId, onComplete }: BasketPreviewProps) {
+export function BasketPreview({ basketId, onComplete, photos = [], onRemovePhoto }: BasketPreviewProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
 
   const {
     basket,
@@ -30,13 +34,45 @@ export function BasketPreview({ basketId, onComplete }: BasketPreviewProps) {
   const handleComplete = async () => {
     if (!canComplete) return;
 
+    const photoInfo = photos.length > 0 ? ` ja lisada ${photos.length} fotot` : '';
     const confirmed = window.confirm(
-      `Kas oled kindel, et tahad üle viia ${totalItems} toodet (${totalQuantity} tk)?`
+      `Kas oled kindel, et tahad üle viia ${totalItems} toodet (${totalQuantity} tk)${photoInfo}?`
     );
 
     if (confirmed) {
-      await completeTransfer();
-      onComplete();
+      try {
+        // Complete the transfer first
+        const result = await completeTransfer();
+
+        // Upload photos to the created transfers
+        if (photos.length > 0 && result?.data?.transfers?.length > 0) {
+          setIsUploadingPhotos(true);
+          const transferId = result.data.transfers[0].id;
+
+          // Upload each photo
+          for (const photo of photos) {
+            try {
+              const formData = new FormData();
+              formData.append('file', photo.file);
+              formData.append('isPhoto', 'true');
+
+              await fetch(`/api/warehouse/transfers/${transferId}/attachments`, {
+                method: 'POST',
+                body: formData,
+              });
+            } catch (photoErr) {
+              console.error('Failed to upload photo:', photoErr);
+              // Continue with other photos even if one fails
+            }
+          }
+          setIsUploadingPhotos(false);
+        }
+
+        onComplete();
+      } catch (err) {
+        console.error('Complete transfer error:', err);
+        setIsUploadingPhotos(false);
+      }
     }
   };
 
@@ -97,6 +133,14 @@ export function BasketPreview({ basketId, onComplete }: BasketPreviewProps) {
             <span>Mõned tooted pole saadaval</span>
           </div>
         )}
+
+        {/* Photo count indicator */}
+        {photos.length > 0 && (
+          <div className="flex items-center gap-1 text-[#279989] text-sm mt-1">
+            <Camera className="h-4 w-4" />
+            <span>{photos.length} fotot lisatud</span>
+          </div>
+        )}
       </div>
 
       {/* Items list (expanded view) */}
@@ -121,6 +165,37 @@ export function BasketPreview({ basketId, onComplete }: BasketPreviewProps) {
               ))}
             </div>
           )}
+
+          {/* Photos section */}
+          {photos.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-2 mb-3">
+                <Camera className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">
+                  Fotod ({photos.length})
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {photos.map((photo) => (
+                  <div key={photo.id} className="relative aspect-square">
+                    <img
+                      src={photo.dataUrl}
+                      alt="Foto"
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                    {onRemovePhoto && (
+                      <button
+                        onClick={() => onRemovePhoto(photo.id)}
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -128,9 +203,9 @@ export function BasketPreview({ basketId, onComplete }: BasketPreviewProps) {
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200">
         <button
           onClick={handleComplete}
-          disabled={!canComplete || isCompleting}
+          disabled={!canComplete || isCompleting || isUploadingPhotos}
           className={`w-full py-4 rounded-xl text-lg font-semibold flex items-center justify-center gap-2 transition-colors ${
-            canComplete && !isCompleting
+            canComplete && !isCompleting && !isUploadingPhotos
               ? 'bg-[#279989] text-white hover:bg-[#1f7a6d]'
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
@@ -140,10 +215,15 @@ export function BasketPreview({ basketId, onComplete }: BasketPreviewProps) {
               <Loader2 className="h-5 w-5 animate-spin" />
               Ülekande tegemisel...
             </>
+          ) : isUploadingPhotos ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Fotode üleslaadimine...
+            </>
           ) : (
             <>
               <CheckCircle className="h-5 w-5" />
-              Kinnita ülekanne ({totalItems} toodet)
+              Kinnita ülekanne ({totalItems} toodet{photos.length > 0 ? ` + ${photos.length} fotot` : ''})
             </>
           )}
         </button>

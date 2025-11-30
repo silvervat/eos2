@@ -2,9 +2,16 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { X, Camera, CameraOff, Volume2, VolumeX, Vibrate } from 'lucide-react';
-import { useTransferBasket, TransferBasketItem } from '@/hooks/use-transfer-basket';
+import { X, Camera, CameraOff, Volume2, VolumeX, Vibrate, ImagePlus } from 'lucide-react';
+import { useTransferBasket } from '@/hooks/use-transfer-basket';
 import { BasketPreview } from './BasketPreview';
+
+export interface CapturedPhoto {
+  id: string;
+  dataUrl: string;
+  file: File;
+  timestamp: number;
+}
 
 interface FastScannerProps {
   basketId: string;
@@ -21,10 +28,12 @@ export function FastScanner({ basketId, onClose, onComplete }: FastScannerProps)
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [flashColor, setFlashColor] = useState<'green' | 'red' | null>(null);
   const [scanFeedback, setScanFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [capturedPhotos, setCapturedPhotos] = useState<CapturedPhoto[]>([]);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const { basket, items, addItem, isAddingItem, error, clearError } = useTransferBasket(basketId);
 
@@ -184,6 +193,44 @@ export function FastScanner({ basketId, onClose, onComplete }: FastScannerProps)
     onClose();
   }, [stopScanner, onClose]);
 
+  // Handle photo capture
+  const handlePhotoCapture = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      const newPhoto: CapturedPhoto = {
+        id: `photo-${Date.now()}`,
+        dataUrl,
+        file,
+        timestamp: Date.now(),
+      };
+      setCapturedPhotos(prev => [...prev, newPhoto]);
+
+      // Feedback
+      playBeep(600, 80);
+      vibrate(30);
+      setScanFeedback({
+        message: `Foto lisatud (${capturedPhotos.length + 1})`,
+        type: 'success',
+      });
+      setTimeout(() => setScanFeedback(null), 1500);
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input to allow same file selection
+    if (photoInputRef.current) {
+      photoInputRef.current.value = '';
+    }
+  }, [capturedPhotos.length, playBeep, vibrate]);
+
+  // Remove photo
+  const removePhoto = useCallback((photoId: string) => {
+    setCapturedPhotos(prev => prev.filter(p => p.id !== photoId));
+  }, []);
+
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col" ref={containerRef}>
       {/* Flash overlay */}
@@ -206,7 +253,20 @@ export function FastScanner({ basketId, onClose, onComplete }: FastScannerProps)
             <span>Sulge</span>
           </button>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Photo button */}
+            <button
+              onClick={() => photoInputRef.current?.click()}
+              className="p-2 rounded-full bg-[#279989] relative"
+            >
+              <ImagePlus className="h-5 w-5" />
+              {capturedPhotos.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-white text-[#279989] text-xs font-bold rounded-full flex items-center justify-center">
+                  {capturedPhotos.length}
+                </span>
+              )}
+            </button>
+
             {/* Sound toggle */}
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
@@ -223,6 +283,16 @@ export function FastScanner({ basketId, onClose, onComplete }: FastScannerProps)
               <Vibrate className={`h-5 w-5 ${vibrationEnabled ? '' : 'opacity-50'}`} />
             </button>
           </div>
+
+          {/* Hidden photo input */}
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoCapture}
+            className="hidden"
+          />
 
           <div className="text-sm">
             Korvis: <span className="font-bold">{items.length}</span> toodet
@@ -302,6 +372,8 @@ export function FastScanner({ basketId, onClose, onComplete }: FastScannerProps)
       <BasketPreview
         basketId={basketId}
         onComplete={onComplete}
+        photos={capturedPhotos}
+        onRemovePhoto={removePhoto}
       />
     </div>
   );

@@ -25,6 +25,8 @@ export default function MigrationsPage() {
     { name: '006_ultra_tables.sql', path: 'supabase/migrations/006_ultra_tables.sql' },
     { name: '007_user_profiles_tenant_id.sql', path: 'supabase/migrations/007_user_profiles_tenant_id.sql' },
     { name: '008_transfer_baskets.sql', path: 'supabase/migrations/008_transfer_baskets.sql' },
+    { name: '009_category_min_stock.sql', path: 'supabase/migrations/009_category_min_stock.sql' },
+    { name: '010_transfer_attachments.sql', path: 'supabase/migrations/010_transfer_attachments.sql' },
   ];
 
   useEffect(() => {
@@ -49,9 +51,13 @@ export default function MigrationsPage() {
       // Ignore, use fallback
     }
 
-    // Fallback: show the 008 migration content directly (most common need)
+    // Fallback: show hardcoded migration content
     if (migrationPath.includes('008_transfer_baskets')) {
       setSqlContent(transferBasketsMigration);
+    } else if (migrationPath.includes('009_category_min_stock')) {
+      setSqlContent(categoryMinStockMigration);
+    } else if (migrationPath.includes('010_transfer_attachments')) {
+      setSqlContent(transferAttachmentsMigration);
     } else {
       setSqlContent(`-- Migration: ${migrationPath}\n-- Content not available. Please check the file in your repository.`);
     }
@@ -356,4 +362,192 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON warehouse_transfer_baskets TO authentica
 
 -- =============================================
 -- END OF TRANSFER BASKETS MIGRATION
+-- =============================================`;
+
+const categoryMinStockMigration = `-- =============================================
+-- CATEGORY MINIMUM STOCK LEVELS
+-- =============================================
+-- Version: 1.0.0
+-- Date: 2025-11-30
+-- Description: Add minimum stock quantity field to asset_categories
+-- for consumable items low stock warnings
+-- =============================================
+
+-- Add min_stock_quantity column to asset_categories
+ALTER TABLE asset_categories
+  ADD COLUMN IF NOT EXISTS min_stock_quantity INTEGER DEFAULT 0;
+
+-- Add reorder_point for advanced inventory management
+ALTER TABLE asset_categories
+  ADD COLUMN IF NOT EXISTS reorder_point INTEGER DEFAULT 0;
+
+-- Add preferred_supplier for reordering
+ALTER TABLE asset_categories
+  ADD COLUMN IF NOT EXISTS preferred_supplier TEXT;
+
+-- Add unit of measure
+ALTER TABLE asset_categories
+  ADD COLUMN IF NOT EXISTS unit_of_measure TEXT DEFAULT 'tk';
+
+-- Comments
+COMMENT ON COLUMN asset_categories.min_stock_quantity IS 'Minimum stock quantity - below this shows warning';
+COMMENT ON COLUMN asset_categories.reorder_point IS 'Stock level at which to trigger reorder';
+COMMENT ON COLUMN asset_categories.preferred_supplier IS 'Default supplier for this category';
+COMMENT ON COLUMN asset_categories.unit_of_measure IS 'Unit of measure (tk, m, kg, l, etc.)';
+
+-- =============================================
+-- VIEW: Category stock summary with warnings
+-- =============================================
+CREATE OR REPLACE VIEW category_stock_summary AS
+SELECT
+  c.id AS category_id,
+  c.tenant_id,
+  c.code,
+  c.name,
+  c.path,
+  c.is_consumable,
+  c.min_stock_quantity,
+  c.reorder_point,
+  c.unit_of_measure,
+  COALESCE(SUM(a.current_quantity), 0) AS total_stock,
+  COUNT(DISTINCT a.id) AS asset_count,
+  CASE
+    WHEN c.is_consumable AND c.min_stock_quantity > 0 AND COALESCE(SUM(a.current_quantity), 0) < c.min_stock_quantity THEN 'critical'
+    WHEN c.is_consumable AND c.reorder_point > 0 AND COALESCE(SUM(a.current_quantity), 0) < c.reorder_point THEN 'low'
+    ELSE 'ok'
+  END AS stock_status
+FROM asset_categories c
+LEFT JOIN assets a ON a.category_id = c.id AND a.deleted_at IS NULL
+WHERE c.deleted_at IS NULL
+GROUP BY c.id, c.tenant_id, c.code, c.name, c.path, c.is_consumable,
+         c.min_stock_quantity, c.reorder_point, c.unit_of_measure;
+
+-- Grant access
+GRANT SELECT ON category_stock_summary TO authenticated;
+
+-- =============================================
+-- END OF MIGRATION
+-- =============================================`;
+
+const transferAttachmentsMigration = `-- =============================================
+-- TRANSFER ATTACHMENTS
+-- =============================================
+-- Version: 1.0.0
+-- Date: 2025-11-30
+-- Description: Add photo and file attachments to transfers
+-- for documenting transferred items visually
+-- =============================================
+
+-- Create transfer_attachments table
+CREATE TABLE IF NOT EXISTS transfer_attachments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  transfer_id UUID NOT NULL REFERENCES asset_transfers(id) ON DELETE CASCADE,
+
+  -- File information
+  file_name TEXT NOT NULL,
+  file_type TEXT NOT NULL, -- mime type
+  file_size INTEGER NOT NULL,
+  storage_path TEXT NOT NULL, -- path in storage bucket
+
+  -- Photo specific
+  is_photo BOOLEAN DEFAULT false,
+  caption TEXT,
+
+  -- Metadata
+  uploaded_by UUID REFERENCES user_profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+
+  -- Index for fast lookups
+  CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_transfer_attachments_transfer
+  ON transfer_attachments(transfer_id);
+CREATE INDEX IF NOT EXISTS idx_transfer_attachments_tenant
+  ON transfer_attachments(tenant_id);
+
+-- RLS Policies
+ALTER TABLE transfer_attachments ENABLE ROW LEVEL SECURITY;
+
+-- View policy - users can see attachments for transfers in their tenant
+CREATE POLICY "Users can view transfer attachments in their tenant"
+  ON transfer_attachments FOR SELECT
+  USING (
+    tenant_id IN (
+      SELECT tenant_id FROM user_profiles
+      WHERE auth_user_id = auth.uid()
+    )
+  );
+
+-- Insert policy - users can add attachments to transfers in their tenant
+CREATE POLICY "Users can add transfer attachments in their tenant"
+  ON transfer_attachments FOR INSERT
+  WITH CHECK (
+    tenant_id IN (
+      SELECT tenant_id FROM user_profiles
+      WHERE auth_user_id = auth.uid()
+    )
+  );
+
+-- Delete policy - users can delete their own attachments
+CREATE POLICY "Users can delete their own attachments"
+  ON transfer_attachments FOR DELETE
+  USING (
+    uploaded_by IN (
+      SELECT id FROM user_profiles
+      WHERE auth_user_id = auth.uid()
+    )
+  );
+
+-- Grant access
+GRANT ALL ON transfer_attachments TO authenticated;
+
+-- Comments
+COMMENT ON TABLE transfer_attachments IS 'Photos and files attached to asset transfers';
+COMMENT ON COLUMN transfer_attachments.storage_path IS 'Path to file in Supabase storage bucket';
+COMMENT ON COLUMN transfer_attachments.is_photo IS 'True if attachment is a photo taken during transfer';
+
+-- =============================================
+-- Add attachments count to transfers view
+-- =============================================
+
+-- Add column to track if transfer has attachments (for quick filtering)
+ALTER TABLE asset_transfers
+  ADD COLUMN IF NOT EXISTS has_attachments BOOLEAN DEFAULT false;
+
+COMMENT ON COLUMN asset_transfers.has_attachments IS 'Quick flag to indicate if transfer has attachments';
+
+-- Function to update has_attachments flag
+CREATE OR REPLACE FUNCTION update_transfer_has_attachments()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    UPDATE asset_transfers
+    SET has_attachments = true
+    WHERE id = NEW.transfer_id;
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE asset_transfers
+    SET has_attachments = EXISTS(
+      SELECT 1 FROM transfer_attachments
+      WHERE transfer_id = OLD.transfer_id
+    )
+    WHERE id = OLD.transfer_id;
+    RETURN OLD;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to automatically update has_attachments
+DROP TRIGGER IF EXISTS trigger_update_transfer_attachments ON transfer_attachments;
+CREATE TRIGGER trigger_update_transfer_attachments
+  AFTER INSERT OR DELETE ON transfer_attachments
+  FOR EACH ROW
+  EXECUTE FUNCTION update_transfer_has_attachments();
+
+-- =============================================
+-- END OF MIGRATION
 -- =============================================`;
