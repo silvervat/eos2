@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
         to_warehouse:warehouses!to_warehouse_id(id, name),
         from_user:user_profiles!from_user_id(id, full_name),
         to_user:user_profiles!to_user_id(id, full_name),
+        to_project:projects!to_project_id(id, name, code),
         requested_by:user_profiles!requested_by_user_id(id, full_name)
       `, { count: 'exact' })
       .is('deleted_at', null);
