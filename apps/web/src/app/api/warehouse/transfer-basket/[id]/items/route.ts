@@ -266,12 +266,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       });
     } else {
       // Add new item
-      const warehouse = asset.current_warehouse as { id: string; name: string } | null;
+      // Handle Supabase join result - can be object, array, or null
+      const warehouseData = asset.current_warehouse;
+      const warehouse = Array.isArray(warehouseData)
+        ? warehouseData[0] as { id: string; name: string } | undefined
+        : warehouseData as { id: string; name: string } | null;
       const newItem: TransferBasketItem = {
         assetId: asset.id,
         assetName: asset.name,
         qrCode: asset.qr_code || asset.barcode || asset.asset_code || '',
-        currentWarehouse: warehouse?.name || null,
+        currentWarehouse: warehouse?.name ?? null,
         currentStock: asset.is_consumable ? (asset.quantity_available || 0) : 1,
         requestedQuantity: quantity,
         availableQuantity,
