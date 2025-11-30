@@ -77,6 +77,7 @@ export default function DashboardLayout({
 
   const warehouseItems = [
     { href: '/warehouse', label: 'Ülevaade', icon: LayoutDashboard },
+    { href: '/warehouse/warehouses', label: 'Laod', icon: Warehouse },
     { href: '/warehouse/assets', label: 'Varad', icon: Package },
     { href: '/warehouse/transfers', label: 'Ülekanded', icon: ArrowRightLeft },
     { href: '/warehouse/maintenance', label: 'Hooldused', icon: Wrench },
