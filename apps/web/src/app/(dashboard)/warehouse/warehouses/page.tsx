@@ -47,15 +47,25 @@ export default function WarehousesPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    code: string;
+    name: string;
+    type: 'main' | 'mobile' | 'external' | 'vehicle';
+    location: string;
+    address: string;
+    capacity_m3: string;
+    temperature_controlled: boolean;
+    security_level: 'low' | 'standard' | 'high' | 'maximum';
+    notes: string;
+  }>({
     code: '',
     name: '',
-    type: 'main' as const,
+    type: 'main',
     location: '',
     address: '',
     capacity_m3: '',
     temperature_controlled: false,
-    security_level: 'standard' as const,
+    security_level: 'standard',
     notes: '',
   });
 
