@@ -110,5 +110,3 @@ export function useModalByKey(key: string) {
   const { modals } = useModalRegistry()
   return modals.find((modal) => modal.key === key)
 }
-
-export type { ModalRegistryEntry }
