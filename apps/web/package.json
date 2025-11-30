@@ -58,7 +58,8 @@
     "react-window": "^1.8.10",
     "react-window-infinite-loader": "^1.0.9",
     "@hello-pangea/dnd": "^16.6.0",
-    "idb": "^8.0.0"
+    "idb": "^8.0.0",
+    "html5-qrcode": "^2.3.8"
   },
   "devDependencies": {
     "@types/file-saver": "^2.0.7",
