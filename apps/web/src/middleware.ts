@@ -26,11 +26,18 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Create supabase client to check auth
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  // Skip auth checks if Supabase is not configured
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    // Supabase not configured, allow all routes
+    return response
+  }
+
+  try {
+    // Create supabase client to check auth
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
         get(name: string) {
           return request.cookies.get(name)?.value
@@ -38,31 +45,34 @@ export async function middleware(request: NextRequest) {
         set() {},
         remove() {},
       },
+    })
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    // Check if route is protected
+    const isProtectedRoute = protectedRoutes.some(
+      (route) => pathname.startsWith(route) || pathname === route
+    )
+
+    // Check if route is auth route
+    const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route))
+
+    // Redirect to login if accessing protected route without auth
+    if (isProtectedRoute && !user) {
+      const loginUrl = new URL('/login', request.url)
+      loginUrl.searchParams.set('redirect', pathname)
+      return NextResponse.redirect(loginUrl)
     }
-  )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  // Check if route is protected
-  const isProtectedRoute = protectedRoutes.some(
-    (route) => pathname.startsWith(route) || pathname === route
-  )
-
-  // Check if route is auth route
-  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route))
-
-  // Redirect to login if accessing protected route without auth
-  if (isProtectedRoute && !user) {
-    const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('redirect', pathname)
-    return NextResponse.redirect(loginUrl)
-  }
-
-  // Redirect to dashboard if accessing auth routes while authenticated
-  if (isAuthRoute && user) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    // Redirect to dashboard if accessing auth routes while authenticated
+    if (isAuthRoute && user) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
+  } catch (error) {
+    // Log error but don't fail the request
+    console.error('Middleware auth check error:', error)
   }
 
   return response
