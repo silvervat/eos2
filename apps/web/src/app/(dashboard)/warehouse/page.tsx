@@ -1,12 +1,17 @@
 'use client';
 
-import { Plus, QrCode, ArrowRightLeft, Package, Download, Wrench, AlertTriangle } from 'lucide-react';
+import { Plus, QrCode, ArrowRightLeft, Package, Download, Wrench, AlertTriangle, FolderTree, Settings } from 'lucide-react';
 import { WarehouseStats } from '@/components/warehouse/WarehouseStats';
 import { AssetsTable } from '@/components/warehouse/AssetsTable';
 import { LowStockAlerts } from '@/components/warehouse/LowStockAlerts';
 import Link from 'next/link';
 
 export default function WarehousePage() {
+  const handleExport = () => {
+    // Download CSV export
+    window.location.href = '/api/warehouse/assets/export?format=csv';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -38,7 +43,10 @@ export default function WarehousePage() {
             <ArrowRightLeft className="h-4 w-4" />
             Loo ülekanne
           </Link>
-          <button className="inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50">
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+          >
             <Download className="h-4 w-4" />
             Ekspordi
           </button>
@@ -49,7 +57,7 @@ export default function WarehousePage() {
       <WarehouseStats />
 
       {/* Quick Links */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Link
           href="/warehouse/assets"
           className="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-shadow"
@@ -75,6 +83,15 @@ export default function WarehousePage() {
           <Wrench className="h-8 w-8 mb-2 text-yellow-600" />
           <h3 className="font-semibold text-slate-900">Hooldused</h3>
           <p className="text-sm text-slate-600">Hoolduste kalender</p>
+        </Link>
+
+        <Link
+          href="/warehouse/categories"
+          className="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-shadow"
+        >
+          <FolderTree className="h-8 w-8 mb-2 text-teal-600" />
+          <h3 className="font-semibold text-slate-900">Kategooriad</h3>
+          <p className="text-sm text-slate-600">Kategooriate haldus</p>
         </Link>
 
         <Link
