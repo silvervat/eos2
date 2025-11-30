@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { ArrowLeft, Save, Wrench, AlertCircle } from 'lucide-react';
@@ -21,6 +21,14 @@ interface FormData {
 }
 
 export default function NewMaintenancePage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
+      <NewMaintenanceContent />
+    </Suspense>
+  );
+}
+
+function NewMaintenanceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedAssetId = searchParams.get('asset_id');
