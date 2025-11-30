@@ -2,32 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Button, Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@rivest/ui';
 import {
   Search,
   MoreVertical,
@@ -39,6 +14,7 @@ import {
   Wrench,
   Download,
   Package,
+  ChevronDown,
 } from 'lucide-react';
 import { useDebounce } from '@/hooks/use-debounce';
 import Link from 'next/link';
@@ -70,11 +46,6 @@ interface Asset {
     name: string;
   };
   next_maintenance_date?: string;
-  photos?: Array<{
-    id: string;
-    thumbnail_url: string;
-    is_primary: boolean;
-  }>;
 }
 
 interface AssetsTableProps {
@@ -97,6 +68,7 @@ export function AssetsTable({
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -176,54 +148,35 @@ export function AssetsTable({
 
   // Status badge styling
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant?: 'default' | 'outline' | 'destructive'; className?: string }> = {
-      available: { className: 'bg-green-500 hover:bg-green-600' },
-      in_use: { className: 'bg-blue-500 hover:bg-blue-600' },
-      maintenance: { className: 'bg-yellow-500 hover:bg-yellow-600' },
-      rented: { className: 'bg-purple-500 hover:bg-purple-600' },
-      retired: { variant: 'outline' },
-      lost: { variant: 'destructive' },
-      damaged: { variant: 'destructive' },
+    const config: Record<string, { label: string; className: string }> = {
+      available: { label: 'Saadaval', className: 'bg-green-100 text-green-700' },
+      in_use: { label: 'Kasutuses', className: 'bg-blue-100 text-blue-700' },
+      maintenance: { label: 'Hoolduses', className: 'bg-yellow-100 text-yellow-700' },
+      rented: { label: 'Rendis', className: 'bg-purple-100 text-purple-700' },
+      retired: { label: 'Välja arvatud', className: 'bg-gray-100 text-gray-700' },
+      lost: { label: 'Kadunud', className: 'bg-red-100 text-red-700' },
+      damaged: { label: 'Kahjustatud', className: 'bg-red-100 text-red-700' },
     };
-
-    const config = variants[status] || { variant: 'outline' };
-    const labels: Record<string, string> = {
-      available: 'Saadaval',
-      in_use: 'Kasutuses',
-      maintenance: 'Hoolduses',
-      rented: 'Rendis',
-      retired: 'Välja arvatud',
-      lost: 'Kadunud',
-      damaged: 'Kahjustatud',
-    };
-
+    const statusConfig = config[status] || { label: status, className: 'bg-gray-100 text-gray-700' };
     return (
-      <Badge variant={config.variant} className={config.className}>
-        {labels[status] || status}
-      </Badge>
+      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusConfig.className}`}>
+        {statusConfig.label}
+      </span>
     );
   };
 
   const getConditionBadge = (condition: string) => {
-    const variants: Record<string, { variant?: 'default' | 'outline' | 'destructive'; className?: string }> = {
-      excellent: { className: 'bg-green-600 hover:bg-green-700' },
-      good: { className: 'bg-green-500 hover:bg-green-600' },
-      fair: { className: 'bg-yellow-500 hover:bg-yellow-600' },
-      poor: { variant: 'destructive' },
+    const config: Record<string, { label: string; className: string }> = {
+      excellent: { label: 'Suurepärane', className: 'bg-green-100 text-green-700' },
+      good: { label: 'Hea', className: 'bg-green-50 text-green-600' },
+      fair: { label: 'Rahuldav', className: 'bg-yellow-100 text-yellow-700' },
+      poor: { label: 'Halb', className: 'bg-red-100 text-red-700' },
     };
-
-    const config = variants[condition] || { variant: 'outline' };
-    const labels: Record<string, string> = {
-      excellent: 'Suurepärane',
-      good: 'Hea',
-      fair: 'Rahuldav',
-      poor: 'Halb',
-    };
-
+    const condConfig = config[condition] || { label: condition, className: 'bg-gray-100 text-gray-700' };
     return (
-      <Badge variant={config.variant} className={`text-xs ${config.className || ''}`}>
-        {labels[condition] || condition}
-      </Badge>
+      <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${condConfig.className}`}>
+        {condConfig.label}
+      </span>
     );
   };
 
@@ -240,279 +193,275 @@ export function AssetsTable({
       {/* Filters & Search */}
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
             placeholder="Otsi vara (nimi, kood, seerianumber)..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
           />
         </div>
 
-        <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Ladu" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Kõik laod</SelectItem>
-            {warehouses?.map((w: { id: string; name: string }) => (
-              <SelectItem key={w.id} value={w.id}>
-                {w.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <select
+          value={warehouseFilter}
+          onChange={(e) => setWarehouseFilter(e.target.value)}
+          className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+        >
+          <option value="all">Kõik laod</option>
+          {warehouses?.map((w: { id: string; name: string }) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Staatus" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Kõik staatused</SelectItem>
-            <SelectItem value="available">Saadaval</SelectItem>
-            <SelectItem value="in_use">Kasutuses</SelectItem>
-            <SelectItem value="maintenance">Hoolduses</SelectItem>
-            <SelectItem value="rented">Rendis</SelectItem>
-          </SelectContent>
-        </Select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+        >
+          <option value="all">Kõik staatused</option>
+          <option value="available">Saadaval</option>
+          <option value="in_use">Kasutuses</option>
+          <option value="maintenance">Hoolduses</option>
+          <option value="rented">Rendis</option>
+        </select>
 
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Tüüp" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Kõik tüübid</SelectItem>
-            <SelectItem value="asset">Varad</SelectItem>
-            <SelectItem value="consumable">Tükikaubad</SelectItem>
-          </SelectContent>
-        </Select>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+        >
+          <option value="all">Kõik tüübid</option>
+          <option value="asset">Varad</option>
+          <option value="consumable">Tükikaubad</option>
+        </select>
       </div>
 
       {/* Bulk Actions */}
       {selectedAssets.length > 0 && (
-        <div className="flex items-center gap-2 p-4 bg-muted rounded-lg">
+        <div className="flex items-center gap-2 p-4 bg-slate-100 rounded-lg">
           <span className="text-sm font-medium">
             {selectedAssets.length} vara valitud
           </span>
           <div className="flex gap-2 ml-auto">
-            <Button
-              size="sm"
-              variant="outline"
+            <button
               onClick={() => handleBulkAction('transfer')}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-white"
             >
-              <ArrowRightLeft className="h-4 w-4 mr-2" />
+              <ArrowRightLeft className="h-4 w-4" />
               Loo ülekanne
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
+            </button>
+            <button
               onClick={() => handleBulkAction('qr')}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-white"
             >
-              <QrCode className="h-4 w-4 mr-2" />
+              <QrCode className="h-4 w-4" />
               Prindi QR
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
+            </button>
+            <button
               onClick={() => handleBulkAction('export')}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-white"
             >
-              <Download className="h-4 w-4 mr-2" />
+              <Download className="h-4 w-4" />
               Ekspordi
-            </Button>
+            </button>
           </div>
         </div>
       )}
 
       {/* Table */}
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="w-12 px-4 py-3">
                 <input
                   type="checkbox"
                   checked={data?.data?.length > 0 && selectedAssets.length === data?.data?.length}
                   onChange={toggleSelectAll}
-                  className="rounded"
+                  className="rounded border-slate-300"
                 />
-              </TableHead>
-              <TableHead>Kood</TableHead>
-              <TableHead>Nimi</TableHead>
-              <TableHead>Kategooria</TableHead>
-              <TableHead>Ladu</TableHead>
-              <TableHead>Staatus</TableHead>
-              <TableHead>Seisukord</TableHead>
-              <TableHead>Kogus</TableHead>
-              <TableHead>Kasutaja/Projekt</TableHead>
-              <TableHead className="w-12"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+              </th>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Kood</th>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Nimi</th>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Kategooria</th>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Ladu</th>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Staatus</th>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Seisukord</th>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Kogus</th>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Kasutaja/Projekt</th>
+              <th className="w-12 px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
             {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={10} className="text-center py-8">
-                  Laadimine...
-                </TableCell>
-              </TableRow>
+              <tr>
+                <td colSpan={10} className="text-center py-8">
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                    <span className="ml-3 text-slate-600">Laadimine...</span>
+                  </div>
+                </td>
+              </tr>
             ) : !data?.data || data?.data?.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+              <tr>
+                <td colSpan={10} className="text-center py-8 text-slate-500">
                   <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>Varasid ei leitud</p>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ) : (
               data?.data?.map((asset: Asset) => (
-                <TableRow
-                  key={asset.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                >
-                  <TableCell onClick={(e) => e.stopPropagation()}>
+                <tr key={asset.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedAssets.includes(asset.id)}
                       onChange={() => toggleAssetSelection(asset.id)}
-                      className="rounded"
+                      className="rounded border-slate-300"
                     />
-                  </TableCell>
+                  </td>
 
-                  <TableCell className="font-mono text-sm">
-                    <Link href={`/warehouse/assets/${asset.id}`} className="hover:underline">
+                  <td className="px-4 py-3 font-mono text-sm text-slate-600">
+                    <Link href={`/warehouse/assets/${asset.id}`} className="hover:underline hover:text-primary">
                       {asset.asset_code}
                     </Link>
-                  </TableCell>
+                  </td>
 
-                  <TableCell className="font-medium">
-                    <Link href={`/warehouse/assets/${asset.id}`} className="hover:underline">
+                  <td className="px-4 py-3 font-medium text-slate-900">
+                    <Link href={`/warehouse/assets/${asset.id}`} className="hover:underline hover:text-primary">
                       {asset.name}
                     </Link>
-                  </TableCell>
+                  </td>
 
-                  <TableCell>
+                  <td className="px-4 py-3 text-sm text-slate-600">
                     {asset.category?.name || '-'}
-                  </TableCell>
+                  </td>
 
-                  <TableCell>
+                  <td className="px-4 py-3 text-sm text-slate-600">
                     {asset.warehouse?.name || '-'}
-                  </TableCell>
+                  </td>
 
-                  <TableCell>
+                  <td className="px-4 py-3">
                     {getStatusBadge(asset.status)}
-                  </TableCell>
+                  </td>
 
-                  <TableCell>
+                  <td className="px-4 py-3">
                     {getConditionBadge(asset.condition)}
-                  </TableCell>
+                  </td>
 
-                  <TableCell>
+                  <td className="px-4 py-3 text-sm text-slate-600">
                     {asset.is_consumable ? (
-                      <span className="text-sm">
-                        {asset.quantity_available} {asset.quantity_unit}
-                      </span>
+                      <span>{asset.quantity_available} {asset.quantity_unit}</span>
                     ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
+                      <span className="text-slate-400">-</span>
                     )}
-                  </TableCell>
+                  </td>
 
-                  <TableCell>
+                  <td className="px-4 py-3 text-sm text-slate-600">
                     {asset.assigned_user ? (
-                      <div className="text-sm">
-                        <div className="font-medium">{asset.assigned_user.full_name}</div>
-                      </div>
+                      <span className="font-medium">{asset.assigned_user.full_name}</span>
                     ) : asset.assigned_project ? (
-                      <div className="text-sm">
-                        <div className="font-medium">{asset.assigned_project.name}</div>
-                      </div>
+                      <span className="font-medium">{asset.assigned_project.name}</span>
                     ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
+                      <span className="text-slate-400">-</span>
                     )}
-                  </TableCell>
+                  </td>
 
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Tegevused</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-
-                        <DropdownMenuItem asChild>
-                          <Link href={`/warehouse/assets/${asset.id}`}>
-                            <Eye className="h-4 w-4 mr-2" />
+                  <td className="px-4 py-3 relative">
+                    <button
+                      onClick={() => setOpenDropdown(openDropdown === asset.id ? null : asset.id)}
+                      className="p-1 rounded hover:bg-slate-200"
+                    >
+                      <MoreVertical className="h-4 w-4 text-slate-500" />
+                    </button>
+                    {openDropdown === asset.id && (
+                      <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-10">
+                        <div className="py-1">
+                          <Link
+                            href={`/warehouse/assets/${asset.id}`}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          >
+                            <Eye className="h-4 w-4" />
                             Vaata
                           </Link>
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Redigeeri
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem onClick={() => onCreateTransfer?.(asset.id)}>
-                          <ArrowRightLeft className="h-4 w-4 mr-2" />
-                          Loo ülekanne
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem onClick={() => onScheduleMaintenance?.(asset.id)}>
-                          <Wrench className="h-4 w-4 mr-2" />
-                          Lisa hooldus
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem>
-                          <QrCode className="h-4 w-4 mr-2" />
-                          Prindi QR kood
-                        </DropdownMenuItem>
-
-                        <DropdownMenuSeparator />
-
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => handleDelete(asset.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Kustuta
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
+                          <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                            <Edit className="h-4 w-4" />
+                            Redigeeri
+                          </button>
+                          <button
+                            onClick={() => {
+                              onCreateTransfer?.(asset.id);
+                              setOpenDropdown(null);
+                            }}
+                            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          >
+                            <ArrowRightLeft className="h-4 w-4" />
+                            Loo ülekanne
+                          </button>
+                          <button
+                            onClick={() => {
+                              onScheduleMaintenance?.(asset.id);
+                              setOpenDropdown(null);
+                            }}
+                            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          >
+                            <Wrench className="h-4 w-4" />
+                            Lisa hooldus
+                          </button>
+                          <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                            <QrCode className="h-4 w-4" />
+                            Prindi QR kood
+                          </button>
+                          <hr className="my-1" />
+                          <button
+                            onClick={() => {
+                              handleDelete(asset.id);
+                              setOpenDropdown(null);
+                            }}
+                            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Kustuta
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </td>
+                </tr>
               ))
             )}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
+
+        {/* Pagination */}
+        {data?.pagination && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
+            <div className="text-sm text-slate-600">
+              Lehekülg {data.pagination.page} / {data.pagination.totalPages}
+              {' '}(Kokku {data.pagination.total} vara)
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1 text-sm border border-slate-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+              >
+                Eelmine
+              </button>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={page >= data.pagination.totalPages}
+                className="px-3 py-1 text-sm border border-slate-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+              >
+                Järgmine
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Pagination */}
-      {data?.pagination && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Lehekülg {data.pagination.page} / {data.pagination.totalPages}
-            {' '}(Kokku {data.pagination.total} vara)
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              Eelmine
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(p => p + 1)}
-              disabled={page >= data.pagination.totalPages}
-            >
-              Järgmine
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
