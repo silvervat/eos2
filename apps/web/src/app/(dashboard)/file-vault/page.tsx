@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   FolderArchive,
-  Upload,
   Search,
   Filter,
   Grid,
   List,
+  Table2,
   FolderPlus,
   FileUp,
   MoreVertical,
@@ -27,9 +27,17 @@ import {
   Loader2,
   ChevronRight,
   Home,
+  BarChart3,
+  Edit3,
+  MessageSquare,
+  X,
 } from 'lucide-react'
 import { Button, Input, Card } from '@rivest/ui'
 import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
+import { FilePreviewModal } from '@/components/file-vault/FilePreviewModal'
+import { FileVaultTableView } from '@/components/file-vault/FileVaultTableView'
+import { FileVaultStatistics } from '@/components/file-vault/FileVaultStatistics'
+import { ImageAnnotationEditor } from '@/components/file-vault/ImageAnnotationEditor'
 
 // Types
 interface FileItem {
@@ -41,9 +49,13 @@ interface FileItem {
   extension: string
   thumbnailSmall?: string
   thumbnailMedium?: string
+  thumbnailLarge?: string
+  storageKey?: string
+  isStarred?: boolean
   createdAt: string
   updatedAt: string
   tags: string[]
+  commentCount?: number
   folder?: {
     id: string
     name: string
@@ -59,6 +71,7 @@ interface FolderItem {
   icon?: string
   parentId?: string
   createdAt: string
+  fileCount?: number
 }
 
 interface Vault {
@@ -69,6 +82,8 @@ interface Vault {
   usedBytes: number
   usagePercent: number
 }
+
+type ViewMode = 'grid' | 'list' | 'table' | 'stats'
 
 // Helper to get file icon
 const getFileIcon = (mimeType: string) => {
@@ -101,7 +116,7 @@ const formatDate = (dateString: string): string => {
 
 export default function FileVaultPage() {
   // State
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -122,6 +137,11 @@ export default function FileVaultPage() {
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+
+  // Preview & Edit state
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
+  const [editingFile, setEditingFile] = useState<FileItem | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   // Fetch vault
   const fetchVault = useCallback(async () => {
@@ -201,6 +221,7 @@ export default function FileVaultPage() {
     if (!vault) return
     setIsRefreshing(true)
     await fetchContent(vault.id, currentFolderId)
+    await fetchVault() // Refresh vault stats too
     setIsRefreshing(false)
   }
 
@@ -209,16 +230,13 @@ export default function FileVaultPage() {
     if (!vault) return
 
     if (folder === null) {
-      // Navigate to root
       setCurrentFolderId(null)
       setBreadcrumbs([{ id: null, name: 'Failid' }])
     } else {
       setCurrentFolderId(folder.id)
-      // Update breadcrumbs - build from path
       const newBreadcrumbs: Array<{ id: string | null; name: string }> = [
         { id: null, name: 'Failid' },
       ]
-      // For now, just add the current folder
       newBreadcrumbs.push({ id: folder.id, name: folder.name })
       setBreadcrumbs(newBreadcrumbs)
     }
@@ -265,6 +283,121 @@ export default function FileVaultPage() {
   const handleUploadComplete = async () => {
     if (vault) {
       await fetchContent(vault.id, currentFolderId)
+      await fetchVault()
+    }
+  }
+
+  // File actions
+  const handleDownload = async (file: FileItem) => {
+    try {
+      const response = await fetch(`/api/file-vault/files/${file.id}/download`)
+      const data = await response.json()
+      if (data.downloadUrl) {
+        const link = document.createElement('a')
+        link.href = data.downloadUrl
+        link.download = file.name
+        link.click()
+      }
+    } catch (error) {
+      console.error('Error downloading:', error)
+    }
+  }
+
+  const handleShare = async (file: FileItem) => {
+    try {
+      const response = await fetch(`/api/file-vault/files/${file.id}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiresIn: 24 * 7 }),
+      })
+      const data = await response.json()
+      if (data.shareUrl) {
+        await navigator.clipboard.writeText(data.shareUrl)
+        alert(`Jagamislink kopeeritud!\n${data.shareUrl}`)
+      }
+    } catch (error) {
+      console.error('Error sharing:', error)
+    }
+  }
+
+  const handleDelete = async (file: FileItem) => {
+    if (!confirm(`Kas oled kindel, et soovid kustutada "${file.name}"?`)) return
+
+    try {
+      const response = await fetch(`/api/file-vault/files/${file.id}/delete`, {
+        method: 'DELETE',
+      })
+      if (response.ok && vault) {
+        await fetchContent(vault.id, currentFolderId)
+        await fetchVault()
+      }
+    } catch (error) {
+      console.error('Error deleting:', error)
+    }
+  }
+
+  const handleToggleStar = async (file: FileItem) => {
+    try {
+      const response = await fetch(`/api/file-vault/files/${file.id}/favorite`, {
+        method: 'POST',
+      })
+      if (response.ok && vault) {
+        await fetchContent(vault.id, currentFolderId)
+      }
+    } catch (error) {
+      console.error('Error toggling star:', error)
+    }
+  }
+
+  const handlePreview = async (file: FileItem) => {
+    setPreviewFile(file)
+    try {
+      const response = await fetch(`/api/file-vault/files/${file.id}/download`)
+      const data = await response.json()
+      if (data.downloadUrl) {
+        setPreviewUrl(data.downloadUrl)
+      }
+    } catch (error) {
+      console.error('Error getting preview URL:', error)
+    }
+  }
+
+  const handleEdit = async (file: FileItem) => {
+    if (!file.mimeType.startsWith('image/')) return
+    try {
+      const response = await fetch(`/api/file-vault/files/${file.id}/download`)
+      const data = await response.json()
+      if (data.downloadUrl) {
+        setPreviewUrl(data.downloadUrl)
+        setEditingFile(file)
+      }
+    } catch (error) {
+      console.error('Error getting file for editing:', error)
+    }
+  }
+
+  // Bulk actions
+  const handleBulkDownload = () => {
+    selectedItems.forEach((id) => {
+      const file = files.find((f) => f.id === id)
+      if (file) handleDownload(file)
+    })
+  }
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Kas oled kindel, et soovid kustutada ${selectedItems.length} faili?`)) return
+
+    for (const id of selectedItems) {
+      const file = files.find((f) => f.id === id)
+      if (file) {
+        await fetch(`/api/file-vault/files/${file.id}/delete`, { method: 'DELETE' })
+      }
+    }
+
+    setSelectedItems([])
+    if (vault) {
+      await fetchContent(vault.id, currentFolderId)
+      await fetchVault()
     }
   }
 
@@ -302,6 +435,7 @@ export default function FileVaultPage() {
             {vault ? (
               <>
                 {vault.name} - {formatFileSize(Number(vault.usedBytes))} / {formatFileSize(Number(vault.quotaBytes))} kasutatud
+                <span className="ml-2 text-sm">({vault.usagePercent}%)</span>
               </>
             ) : (
               'Halda oma faile ja dokumente'
@@ -329,31 +463,33 @@ export default function FileVaultPage() {
       </div>
 
       {/* Breadcrumbs */}
-      <div className="flex items-center gap-1 text-sm">
-        {breadcrumbs.map((crumb, index) => (
-          <div key={crumb.id || 'root'} className="flex items-center gap-1">
-            {index > 0 && <ChevronRight className="w-4 h-4 text-slate-400" />}
-            <button
-              onClick={() => {
-                if (crumb.id === null) {
-                  navigateToFolder(null)
-                } else {
-                  const folder = folders.find((f) => f.id === crumb.id)
-                  if (folder) navigateToFolder(folder)
-                }
-              }}
-              className={`flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-100 ${
-                index === breadcrumbs.length - 1
-                  ? 'text-slate-900 font-medium'
-                  : 'text-slate-500'
-              }`}
-            >
-              {index === 0 && <Home className="w-4 h-4" />}
-              {crumb.name}
-            </button>
-          </div>
-        ))}
-      </div>
+      {viewMode !== 'stats' && (
+        <div className="flex items-center gap-1 text-sm">
+          {breadcrumbs.map((crumb, index) => (
+            <div key={crumb.id || 'root'} className="flex items-center gap-1">
+              {index > 0 && <ChevronRight className="w-4 h-4 text-slate-400" />}
+              <button
+                onClick={() => {
+                  if (crumb.id === null) {
+                    navigateToFolder(null)
+                  } else {
+                    const folder = folders.find((f) => f.id === crumb.id)
+                    if (folder) navigateToFolder(folder)
+                  }
+                }}
+                className={`flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-100 ${
+                  index === breadcrumbs.length - 1
+                    ? 'text-slate-900 font-medium'
+                    : 'text-slate-500'
+                }`}
+              >
+                {index === 0 && <Home className="w-4 h-4" />}
+                {crumb.name}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Toolbar */}
       <Card className="p-4">
@@ -388,6 +524,7 @@ export default function FileVaultPage() {
                 size="icon"
                 onClick={() => setViewMode('grid')}
                 className="rounded-r-none"
+                title="Ruudustik"
               >
                 <Grid className="w-4 h-4" />
               </Button>
@@ -395,9 +532,28 @@ export default function FileVaultPage() {
                 variant={viewMode === 'list' ? 'default' : 'ghost'}
                 size="icon"
                 onClick={() => setViewMode('list')}
-                className="rounded-l-none"
+                className="rounded-none border-l"
+                title="Nimekiri"
               >
                 <List className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'table' ? 'default' : 'ghost'}
+                size="icon"
+                onClick={() => setViewMode('table')}
+                className="rounded-none border-l"
+                title="Tabel"
+              >
+                <Table2 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'stats' ? 'default' : 'ghost'}
+                size="icon"
+                onClick={() => setViewMode('stats')}
+                className="rounded-l-none border-l"
+                title="Statistika"
+              >
+                <BarChart3 className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -408,17 +564,17 @@ export default function FileVaultPage() {
           <div className="flex items-center gap-4 mt-4 pt-4 border-t">
             <span className="text-sm text-slate-600">{selectedItems.length} valitud</span>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="gap-1">
+              <Button variant="ghost" size="sm" className="gap-1" onClick={handleBulkDownload}>
                 <Download className="w-4 h-4" />
                 Laadi alla
               </Button>
-              <Button variant="ghost" size="sm" className="gap-1">
-                <Share2 className="w-4 h-4" />
-                Jaga
-              </Button>
-              <Button variant="ghost" size="sm" className="gap-1 text-red-600 hover:text-red-700">
+              <Button variant="ghost" size="sm" className="gap-1 text-red-600 hover:text-red-700" onClick={handleBulkDelete}>
                 <Trash2 className="w-4 h-4" />
                 Kustuta
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedItems([])}>
+                <X className="w-4 h-4 mr-1" />
+                Tühista
               </Button>
             </div>
           </div>
@@ -442,8 +598,30 @@ export default function FileVaultPage() {
         </div>
       )}
 
-      {/* Files & Folders */}
-      {!isLoading && !error && (
+      {/* Statistics View */}
+      {!isLoading && !error && viewMode === 'stats' && vault && (
+        <FileVaultStatistics vaultId={vault.id} />
+      )}
+
+      {/* Table View */}
+      {!isLoading && !error && viewMode === 'table' && (
+        <FileVaultTableView
+          files={filteredFiles}
+          folders={filteredFolders}
+          selectedItems={selectedItems}
+          onSelect={setSelectedItems}
+          onFolderClick={navigateToFolder}
+          onFileClick={(file) => handlePreview(file)}
+          onDownload={handleDownload}
+          onShare={handleShare}
+          onDelete={handleDelete}
+          onToggleStar={handleToggleStar}
+          onPreview={handlePreview}
+        />
+      )}
+
+      {/* Grid & List Views */}
+      {!isLoading && !error && (viewMode === 'grid' || viewMode === 'list') && (
         <>
           {viewMode === 'grid' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -455,7 +633,7 @@ export default function FileVaultPage() {
                 return (
                   <Card
                     key={item.id}
-                    className={`p-4 cursor-pointer transition-all hover:shadow-md ${
+                    className={`p-4 cursor-pointer transition-all hover:shadow-md group ${
                       isSelected ? 'ring-2 ring-offset-2' : ''
                     }`}
                     style={{
@@ -466,16 +644,57 @@ export default function FileVaultPage() {
                       if (isFolder) {
                         navigateToFolder(item as FolderItem)
                       } else {
-                        toggleSelect(item.id)
-                      }
-                    }}
-                    onDoubleClick={() => {
-                      if (isFolder) {
-                        navigateToFolder(item as FolderItem)
+                        handlePreview(item as FileItem)
                       }
                     }}
                   >
-                    <div className="flex flex-col items-center text-center">
+                    <div className="flex flex-col items-center text-center relative">
+                      {/* Selection checkbox */}
+                      {!isFolder && (
+                        <div className="absolute -top-2 -left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              e.stopPropagation()
+                              toggleSelect(item.id)
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 rounded"
+                          />
+                        </div>
+                      )}
+
+                      {/* Quick actions */}
+                      {!isFolder && (
+                        <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                          {(item as FileItem).mimeType.startsWith('image/') && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="w-6 h-6 bg-white shadow"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleEdit(item as FileItem)
+                              }}
+                            >
+                              <Edit3 className="w-3 h-3" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-6 h-6 bg-white shadow"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDownload(item as FileItem)
+                            }}
+                          >
+                            <Download className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      )}
+
                       {!isFolder && (item as FileItem).thumbnailSmall ? (
                         <div className="w-12 h-12 rounded-lg overflow-hidden mb-3 bg-slate-100">
                           <img
@@ -504,6 +723,9 @@ export default function FileVaultPage() {
                           ? formatDate(item.createdAt)
                           : formatFileSize((item as FileItem).sizeBytes)}
                       </p>
+                      {!isFolder && (item as FileItem).isStarred && (
+                        <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 absolute top-0 right-0" />
+                      )}
                     </div>
                   </Card>
                 )
@@ -527,17 +749,20 @@ export default function FileVaultPage() {
                         if (isFolder) {
                           navigateToFolder(item as FolderItem)
                         } else {
-                          toggleSelect(item.id)
+                          handlePreview(item as FileItem)
                         }
                       }}
                     >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(item.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-4 h-4 rounded"
-                      />
+                      {!isFolder && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(item.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 rounded"
+                        />
+                      )}
+                      {isFolder && <div className="w-4" />}
                       {!isFolder && (item as FileItem).thumbnailSmall ? (
                         <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
                           <img
@@ -559,7 +784,12 @@ export default function FileVaultPage() {
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate">{item.name}</p>
+                        <p className="text-sm font-medium text-slate-900 truncate flex items-center gap-2">
+                          {item.name}
+                          {!isFolder && (item as FileItem).isStarred && (
+                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                          )}
+                        </p>
                         <p className="text-xs text-slate-500">
                           {isFolder ? 'Kaust' : formatFileSize((item as FileItem).sizeBytes)}
                         </p>
@@ -567,16 +797,51 @@ export default function FileVaultPage() {
                       <div className="text-sm text-slate-500 hidden sm:block">
                         {formatDate(item.createdAt)}
                       </div>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="w-8 h-8">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="w-8 h-8">
-                          <Star className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="w-8 h-8">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
+                      <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                        {!isFolder && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="w-8 h-8"
+                              onClick={() => handlePreview(item as FileItem)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="w-8 h-8"
+                              onClick={() => handleToggleStar(item as FileItem)}
+                            >
+                              <Star className={`w-4 h-4 ${(item as FileItem).isStarred ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="w-8 h-8"
+                              onClick={() => handleDownload(item as FileItem)}
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="w-8 h-8"
+                              onClick={() => handleShare(item as FileItem)}
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="w-8 h-8 hover:text-red-600"
+                              onClick={() => handleDelete(item as FileItem)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   )
@@ -588,7 +853,7 @@ export default function FileVaultPage() {
       )}
 
       {/* Empty state */}
-      {!isLoading && !error && allItems.length === 0 && (
+      {!isLoading && !error && viewMode !== 'stats' && allItems.length === 0 && (
         <div className="text-center py-12">
           <FolderArchive className="w-12 h-12 mx-auto text-slate-300" />
           <h3 className="mt-4 text-lg font-medium text-slate-900">
@@ -680,6 +945,40 @@ export default function FileVaultPage() {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        file={previewFile}
+        files={files}
+        isOpen={!!previewFile}
+        onClose={() => {
+          setPreviewFile(null)
+          setPreviewUrl(null)
+        }}
+        vaultId={vault?.id || ''}
+        onFileChange={(file) => setPreviewFile(file)}
+        onDelete={(fileId) => {
+          if (vault) {
+            fetchContent(vault.id, currentFolderId)
+            fetchVault()
+          }
+        }}
+      />
+
+      {/* Image Annotation Editor */}
+      {editingFile && previewUrl && (
+        <ImageAnnotationEditor
+          imageUrl={previewUrl}
+          fileName={editingFile.name}
+          fileId={editingFile.id}
+          vaultId={vault?.id || ''}
+          isOpen={!!editingFile}
+          onClose={() => {
+            setEditingFile(null)
+            setPreviewUrl(null)
+          }}
+        />
       )}
     </div>
   )
