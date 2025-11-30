@@ -21,6 +21,10 @@ import {
   FileType,
   Trash2,
   FolderArchive,
+  Warehouse,
+  Package,
+  ArrowRightLeft,
+  Wrench,
 } from 'lucide-react'
 import { NotificationDropdown } from '@/components/notifications/notification-dropdown'
 
@@ -65,7 +69,15 @@ export default function DashboardLayout({
     { href: '/employees', label: 'Töötajad', icon: Users },
     { href: '/documents', label: 'Dokumendid', icon: File },
     { href: '/file-vault', label: 'Failihaldus', icon: FolderArchive },
+    { href: '/warehouse', label: 'Laohaldus', icon: Warehouse },
     { href: '/reports', label: 'Aruanded', icon: BarChart3 },
+  ]
+
+  const warehouseItems = [
+    { href: '/warehouse', label: 'Ülevaade', icon: LayoutDashboard },
+    { href: '/warehouse/assets', label: 'Varad', icon: Package },
+    { href: '/warehouse/transfers', label: 'Ülekanded', icon: ArrowRightLeft },
+    { href: '/warehouse/maintenance', label: 'Hooldused', icon: Wrench },
   ]
 
   const adminItems = [
@@ -109,13 +121,30 @@ export default function DashboardLayout({
         <nav className="flex-1 p-4 overflow-y-auto">
           <ul className="space-y-1">
             {navItems.map((item) => (
-              <NavItem
-                key={item.href}
-                href={item.href}
-                label={item.label}
-                icon={item.icon}
-                active={item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)}
-              />
+              <li key={item.href}>
+                <NavItem
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  active={item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)}
+                />
+                {/* Warehouse submenu */}
+                {item.href === '/warehouse' && pathname?.startsWith('/warehouse') && (
+                  <ul className="ml-4 mt-1 space-y-1 border-l border-slate-700 pl-4">
+                    {warehouseItems.map((subItem) => (
+                      <NavItem
+                        key={subItem.href}
+                        href={subItem.href}
+                        label={subItem.label}
+                        icon={subItem.icon}
+                        active={subItem.href === '/warehouse'
+                          ? pathname === '/warehouse'
+                          : pathname?.startsWith(subItem.href) && subItem.href !== '/warehouse'}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </li>
             ))}
             <li className="pt-4 mt-4 border-t border-slate-700">
               <span className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -123,15 +152,16 @@ export default function DashboardLayout({
               </span>
             </li>
             {adminItems.map((item) => (
-              <NavItem
-                key={item.href}
-                href={item.href}
-                label={item.label}
-                icon={item.icon}
-                active={item.href === '/notifications' || item.href === '/settings'
-                  ? pathname === item.href
-                  : pathname?.startsWith(item.href)}
-              />
+              <li key={item.href}>
+                <NavItem
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  active={item.href === '/notifications' || item.href === '/settings'
+                    ? pathname === item.href
+                    : pathname?.startsWith(item.href)}
+                />
+              </li>
             ))}
           </ul>
         </nav>
@@ -208,18 +238,16 @@ function NavItem({
   active?: boolean
 }) {
   return (
-    <li>
-      <Link
-        href={href}
-        className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
-          active
-            ? 'bg-slate-800 text-white'
-            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-        }`}
-      >
-        <Icon className="w-5 h-5 flex-shrink-0" />
-        <span className="truncate">{label}</span>
-      </Link>
-    </li>
+    <Link
+      href={href}
+      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+        active
+          ? 'bg-slate-800 text-white'
+          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+      }`}
+    >
+      <Icon className="w-5 h-5 flex-shrink-0" />
+      <span className="truncate">{label}</span>
+    </Link>
   )
 }

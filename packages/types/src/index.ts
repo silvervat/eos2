@@ -188,3 +188,9 @@ export interface TableState {
 // =============================================
 
 export * from './cms.types'
+
+// =============================================
+// Warehouse Types (re-export)
+// =============================================
+
+export * from './warehouse.types'
