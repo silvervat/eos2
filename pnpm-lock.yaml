@@ -131,6 +131,9 @@ importers:
       file-saver:
         specifier: ^2.0.5
         version: 2.0.5
+      html5-qrcode:
+        specifier: ^2.3.8
+        version: 2.3.8
       idb:
         specifier: ^8.0.0
         version: 8.0.3
@@ -2547,6 +2550,9 @@ packages:
 
   html-entities@2.6.0:
     resolution: {integrity: sha512-kig+rMn/QOVRvr7c86gQ8lWXq+Hkv6CbAH1hLu+RG338StTpE8Z0b44SDVaqVu7HGKf27frdmUYEs9hTUX/cLQ==}
+
+  html5-qrcode@2.3.8:
+    resolution: {integrity: sha512-jsr4vafJhwoLVEDW3n1KvPnCCXWaQfRng0/EEYk1vNcQGcG/htAdhJX0be8YyqMoSz7+hZvOZSTAepsabiuhiQ==}
 
   http-proxy-agent@7.0.2:
     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
@@ -7110,6 +7116,8 @@ snapshots:
   hotkeys-js@3.13.15: {}
 
   html-entities@2.6.0: {}
+
+  html5-qrcode@2.3.8: {}
 
   http-proxy-agent@7.0.2:
     dependencies:
