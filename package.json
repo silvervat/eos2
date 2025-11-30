@@ -17,13 +17,16 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "db:generate": "turbo run db:generate",
     "db:push": "turbo run db:push",
-    "db:migrate": "turbo run db:migrate",
+    "db:migrate": "node scripts/migrate-direct.js",
+    "db:status": "node scripts/db-status.js",
     "db:studio": "cd packages/db && prisma studio",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "generate": "plop",
     "g": "plop"
   },
   "devDependencies": {
+    "pg": "^8.11.3",
+    "dotenv": "^16.3.1",
     "@turbo/gen": "^2.0.0",
     "@types/node": "^20.11.0",
     "eslint": "^8.56.0",
