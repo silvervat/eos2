@@ -142,7 +142,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ vaults: transformedVaults })
   } catch (error) {
     console.error('Error in GET /api/file-vault/vaults:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({
+      error: 'Internal Server Error',
+      details: errorMessage
+    }, { status: 500 })
   }
 }
 
