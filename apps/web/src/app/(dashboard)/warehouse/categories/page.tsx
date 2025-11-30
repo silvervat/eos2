@@ -190,10 +190,10 @@ export default function CategoriesPage() {
       return;
     }
 
-    const submitData = {
+    const submitData: Partial<FormData> = {
       ...formData,
-      parent_id: formData.parent_id || null,
-      maintenance_interval_days: formData.requires_maintenance ? formData.maintenance_interval_days : null,
+      parent_id: formData.parent_id || undefined,
+      maintenance_interval_days: formData.requires_maintenance ? formData.maintenance_interval_days : 0,
     };
 
     if (editingCategory) {
