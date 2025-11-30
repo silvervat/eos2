@@ -2,27 +2,53 @@
 // Uses service_role key for elevated privileges
 // NEVER import this in client components!
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL')
-}
+// Lazy-initialized admin client to avoid build errors when env vars are not set
+let _supabaseAdmin: SupabaseClient | null = null
 
-if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY')
-}
+/**
+ * Get the Supabase admin client (lazy initialization)
+ * Throws at runtime if env vars are missing, but not at build time
+ */
+function getSupabaseAdmin(): SupabaseClient {
+  if (_supabaseAdmin) {
+    return _supabaseAdmin
+  }
 
-// Admin client bypasses RLS - use with caution!
-export const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL')
+  }
+
+  if (!supabaseServiceRoleKey) {
+    throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY')
+  }
+
+  _supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
-  }
-)
+  })
+
+  return _supabaseAdmin
+}
+
+// Export as a getter to ensure lazy initialization
+// Admin client bypasses RLS - use with caution!
+export const supabaseAdmin = new Proxy({} as SupabaseClient, {
+  get(_, prop) {
+    const client = getSupabaseAdmin()
+    const value = (client as unknown as Record<string, unknown>)[prop as string]
+    if (typeof value === 'function') {
+      return value.bind(client)
+    }
+    return value
+  },
+})
 
 // Helper to check if we're on server
 export function assertServer() {

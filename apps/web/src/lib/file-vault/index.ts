@@ -12,6 +12,42 @@
 // Types
 export * from './types'
 
+// Storage (Supabase) - explicit exports to avoid conflicts
+export {
+  FILE_VAULT_BUCKET,
+  IMAGE_FORMATS,
+  MAX_FILE_SIZE,
+  CHUNK_SIZE,
+  generateStorageKey,
+  calculateMd5,
+  calculateSha256,
+  getFileExtension,
+  detectMimeType,
+  uploadFileToStorage,
+  getSignedDownloadUrl,
+  deleteFileFromStorage,
+  createUploadSession,
+  isFileTypeAllowed,
+  isImage,
+  isVideo,
+  isAudio,
+  isDocument,
+  type UploadSessionData,
+} from './storage/file-storage'
+
+export {
+  THUMBNAIL_SIZES,
+  generateThumbnail,
+  generateAllThumbnails,
+  getImageDimensions,
+  deleteThumbnails,
+  compressImage,
+  convertHeicToJpeg,
+  getImageOrientation,
+  autoRotateImage,
+  type ThumbnailSize,
+} from './storage/thumbnail-generator'
+
 // Search Engine (ElasticSearch)
 export {
   FileSearchEngine,
