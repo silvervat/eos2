@@ -43,7 +43,7 @@ interface RouteParams {
 }
 
 // Helper function to look up asset by QR code
-async function lookupAssetByQR(supabase: ReturnType<typeof createClient> extends Promise<infer T> ? T : never, qrCode: string) {
+async function lookupAssetByQR(supabase: Awaited<ReturnType<typeof createClient>>, qrCode: string) {
   // Try exact match on qr_code field
   let { data: asset, error } = await supabase
     .from('assets')
