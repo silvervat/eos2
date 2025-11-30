@@ -39,12 +39,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('assets')
-      .select(`
-        *,
-        category:asset_categories(id, name, path),
-        warehouse:warehouses(id, name, code),
-        assigned_user:user_profiles(id, full_name, email)
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .is('deleted_at', null);
 
     // Filters
@@ -66,7 +61,8 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query.order('name');
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('Assets API error:', error);
+      return NextResponse.json({ error: error.message, details: error }, { status: 500 });
     }
 
     return NextResponse.json({
