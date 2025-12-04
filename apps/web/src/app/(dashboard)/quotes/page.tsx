@@ -415,7 +415,7 @@ export default function QuotesPage() {
                     console.error('Failed to create quote:', error)
                   }
                 }}
-                onCancel={() => setShowAddModal(false)}
+                onClose={() => setShowAddModal(false)}
               />
             </div>
           </div>
