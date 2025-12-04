@@ -23,7 +23,6 @@ export async function GET(
       .from('projects')
       .select('*, client:companies!client_id(id, name)')
       .eq('id', params.id)
-      .is('deleted_at', null)
       .single()
 
     if (error) {
@@ -85,7 +84,6 @@ export async function PATCH(
       .from('projects')
       .update(updateData)
       .eq('id', params.id)
-      .is('deleted_at', null)
       .select('*, client:companies!client_id(id, name)')
       .single()
 
@@ -110,7 +108,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/projects/[id] - Soft delete a project
+// DELETE /api/projects/[id] - Delete a project
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
@@ -128,12 +126,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Soft delete by setting deleted_at
+    // Delete project
     const { error } = await supabase
       .from('projects')
-      .update({ deleted_at: new Date().toISOString() })
+      .delete()
       .eq('id', params.id)
-      .is('deleted_at', null)
 
     if (error) {
       console.error('Error deleting project:', error)
