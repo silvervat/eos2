@@ -42,7 +42,8 @@ export async function GET(
       .from('files')
       .select(`
         id,
-        vault:file_vaults!vault_id(id, tenant_id)
+        vault_id,
+        file_vaults!vault_id(tenant_id)
       `)
       .eq('id', fileId)
       .single()
@@ -51,7 +52,9 @@ export async function GET(
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    if (file.vault?.tenant_id !== profile.tenant_id) {
+    // Type assertion for the joined vault data
+    const vaultData = file.file_vaults as { tenant_id: string } | null
+    if (vaultData?.tenant_id !== profile.tenant_id) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
