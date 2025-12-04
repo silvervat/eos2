@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { FixedSizeList as VirtualList } from 'react-window'
+import InfiniteLoader from 'react-window-infinite-loader'
 import {
   FolderArchive,
   Upload,
@@ -30,6 +32,10 @@ import {
 } from 'lucide-react'
 import { Button, Input, Card } from '@rivest/ui'
 import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
+
+// Pagination constants
+const PAGE_SIZE = 100
+const LIST_ROW_HEIGHT = 64
 
 // Types
 interface FileItem {
@@ -70,6 +76,8 @@ interface Vault {
   usagePercent: number
 }
 
+type DisplayItem = (FolderItem & { type: 'folder' }) | (FileItem & { type: 'file' })
+
 // Helper to get file icon
 const getFileIcon = (mimeType: string) => {
   if (mimeType.startsWith('image/')) return Image
@@ -108,6 +116,11 @@ export default function FileVaultPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Pagination state
+  const [hasMoreFiles, setHasMoreFiles] = useState(true)
+  const [totalFiles, setTotalFiles] = useState(0)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+
   // Data state
   const [vault, setVault] = useState<Vault | null>(null)
   const [files, setFiles] = useState<FileItem[]>([])
@@ -116,6 +129,10 @@ export default function FileVaultPage() {
   const [breadcrumbs, setBreadcrumbs] = useState<Array<{ id: string | null; name: string }>>([
     { id: null, name: 'Failid' },
   ])
+
+  // Refs
+  const listContainerRef = useRef<HTMLDivElement>(null)
+  const infiniteLoaderRef = useRef<InfiniteLoader>(null)
 
   // Dialog state
   const [showUploadDialog, setShowUploadDialog] = useState(false)
@@ -150,10 +167,9 @@ export default function FileVaultPage() {
     }
   }, [])
 
-  // Fetch files and folders
-  const fetchContent = useCallback(async (vaultId: string, folderId: string | null) => {
+  // Fetch folders (always fetches all folders in current directory)
+  const fetchFolders = useCallback(async (vaultId: string, folderId: string | null) => {
     try {
-      // Fetch folders
       const foldersParams = new URLSearchParams({
         vaultId,
         flat: 'true',
@@ -164,44 +180,95 @@ export default function FileVaultPage() {
         const foldersData = await foldersResponse.json()
         setFolders(foldersData.folders || [])
       }
+    } catch (err) {
+      console.error('Error fetching folders:', err)
+    }
+  }, [])
 
-      // Fetch files
+  // Fetch files with pagination
+  const fetchFiles = useCallback(async (
+    vaultId: string,
+    folderId: string | null,
+    offset: number = 0,
+    append: boolean = false
+  ) => {
+    try {
       const filesParams = new URLSearchParams({
         vaultId,
         ...(folderId ? { folderId } : { folderId: 'root' }),
-        limit: '100',
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
       })
       const filesResponse = await fetch(`/api/file-vault/files?${filesParams}`)
       if (filesResponse.ok) {
         const filesData = await filesResponse.json()
-        setFiles(filesData.files || [])
+        const newFiles = filesData.files || []
+
+        if (append) {
+          setFiles(prev => [...prev, ...newFiles])
+        } else {
+          setFiles(newFiles)
+        }
+
+        setTotalFiles(filesData.pagination?.total || 0)
+        setHasMoreFiles(filesData.pagination?.hasMore || false)
+
+        return newFiles
       }
+      return []
     } catch (err) {
-      console.error('Error fetching content:', err)
-      setError('Sisu laadimine ebaonnestus')
+      console.error('Error fetching files:', err)
+      return []
     }
   }, [])
+
+  // Load more files for infinite scroll
+  const loadMoreFiles = useCallback(async () => {
+    if (!vault || isLoadingMore || !hasMoreFiles) return
+
+    setIsLoadingMore(true)
+    await fetchFiles(vault.id, currentFolderId, files.length, true)
+    setIsLoadingMore(false)
+  }, [vault, currentFolderId, files.length, hasMoreFiles, isLoadingMore, fetchFiles])
 
   // Initial load
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true)
       setError(null)
+      setFiles([])
+      setFolders([])
+      setHasMoreFiles(true)
+
       const vaultId = await fetchVault()
       if (vaultId) {
-        await fetchContent(vaultId, currentFolderId)
+        await Promise.all([
+          fetchFolders(vaultId, currentFolderId),
+          fetchFiles(vaultId, currentFolderId, 0, false)
+        ])
       }
       setIsLoading(false)
     }
     loadData()
-  }, [fetchVault, fetchContent, currentFolderId])
+  }, [fetchVault, fetchFolders, fetchFiles, currentFolderId])
 
   // Refresh content
   const handleRefresh = async () => {
     if (!vault) return
     setIsRefreshing(true)
-    await fetchContent(vault.id, currentFolderId)
+    setFiles([])
+    setHasMoreFiles(true)
+
+    await Promise.all([
+      fetchFolders(vault.id, currentFolderId),
+      fetchFiles(vault.id, currentFolderId, 0, false)
+    ])
     setIsRefreshing(false)
+
+    // Reset infinite loader
+    if (infiniteLoaderRef.current) {
+      infiniteLoaderRef.current.resetloadMoreItemsCache()
+    }
   }
 
   // Navigate to folder
@@ -209,24 +276,18 @@ export default function FileVaultPage() {
     if (!vault) return
 
     if (folder === null) {
-      // Navigate to root
       setCurrentFolderId(null)
       setBreadcrumbs([{ id: null, name: 'Failid' }])
     } else {
       setCurrentFolderId(folder.id)
-      // Update breadcrumbs - build from path
       const newBreadcrumbs: Array<{ id: string | null; name: string }> = [
         { id: null, name: 'Failid' },
       ]
-      // For now, just add the current folder
       newBreadcrumbs.push({ id: folder.id, name: folder.name })
       setBreadcrumbs(newBreadcrumbs)
     }
 
     setSelectedItems([])
-    setIsLoading(true)
-    await fetchContent(vault.id, folder?.id || null)
-    setIsLoading(false)
   }
 
   // Create folder
@@ -252,7 +313,7 @@ export default function FileVaultPage() {
 
       setNewFolderName('')
       setShowNewFolderDialog(false)
-      await fetchContent(vault.id, currentFolderId)
+      await fetchFolders(vault.id, currentFolderId)
     } catch (err) {
       console.error('Error creating folder:', err)
       alert((err as Error).message)
@@ -264,7 +325,9 @@ export default function FileVaultPage() {
   // Upload complete handler
   const handleUploadComplete = async () => {
     if (vault) {
-      await fetchContent(vault.id, currentFolderId)
+      setFiles([])
+      setHasMoreFiles(true)
+      await fetchFiles(vault.id, currentFolderId, 0, false)
     }
   }
 
@@ -275,19 +338,131 @@ export default function FileVaultPage() {
     )
   }
 
-  // Filter by search
-  const filteredFolders = folders.filter((folder) =>
-    folder.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Filter by search (client-side for already loaded items)
+  const filteredFolders = useMemo(() =>
+    folders.filter((folder) =>
+      folder.name.toLowerCase().includes(searchQuery.toLowerCase())
+    ), [folders, searchQuery]
   )
-  const filteredFiles = files.filter((file) =>
-    file.name.toLowerCase().includes(searchQuery.toLowerCase())
+
+  const filteredFiles = useMemo(() =>
+    files.filter((file) =>
+      file.name.toLowerCase().includes(searchQuery.toLowerCase())
+    ), [files, searchQuery]
   )
 
   // Combined items for display
-  const allItems = [
+  const allItems: DisplayItem[] = useMemo(() => [
     ...filteredFolders.map((f) => ({ ...f, type: 'folder' as const })),
     ...filteredFiles.map((f) => ({ ...f, type: 'file' as const })),
-  ]
+  ], [filteredFolders, filteredFiles])
+
+  // Infinite loader helpers
+  const isItemLoaded = useCallback((index: number) => {
+    return !hasMoreFiles || index < allItems.length
+  }, [hasMoreFiles, allItems.length])
+
+  const itemCount = hasMoreFiles ? allItems.length + 1 : allItems.length
+
+  // Virtual list row renderer
+  const VirtualListRow = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
+    // Loading row
+    if (!isItemLoaded(index)) {
+      return (
+        <div style={style} className="flex items-center justify-center p-4">
+          <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+          <span className="ml-2 text-sm text-slate-500">Laadin...</span>
+        </div>
+      )
+    }
+
+    const item = allItems[index]
+    if (!item) return null
+
+    const isFolder = item.type === 'folder'
+    const Icon = isFolder ? Folder : getFileIcon((item as FileItem).mimeType)
+    const isSelected = selectedItems.includes(item.id)
+
+    return (
+      <div
+        style={style}
+        className={`flex items-center gap-4 px-4 cursor-pointer transition-colors hover:bg-slate-50 border-b border-slate-100 ${
+          isSelected ? 'bg-slate-50' : ''
+        }`}
+        onClick={() => {
+          if (isFolder) {
+            navigateToFolder(item as FolderItem)
+          } else {
+            toggleSelect(item.id)
+          }
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => toggleSelect(item.id)}
+          onClick={(e) => e.stopPropagation()}
+          className="w-4 h-4 rounded"
+        />
+        {!isFolder && (item as FileItem).thumbnailSmall ? (
+          <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+            <img
+              src={(item as FileItem).thumbnailSmall}
+              alt={item.name}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        ) : (
+          <div
+            className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+              isFolder ? 'bg-amber-100' : 'bg-slate-100'
+            }`}
+          >
+            <Icon
+              className="w-5 h-5"
+              style={{ color: isFolder ? '#f59e0b' : '#64748b' }}
+            />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-900 truncate">{item.name}</p>
+          <p className="text-xs text-slate-500">
+            {isFolder ? 'Kaust' : formatFileSize((item as FileItem).sizeBytes)}
+          </p>
+        </div>
+        <div className="text-sm text-slate-500 hidden sm:block">
+          {formatDate(item.createdAt)}
+        </div>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" className="w-8 h-8">
+            <Eye className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="w-8 h-8">
+            <Star className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="w-8 h-8">
+            <MoreVertical className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    )
+  }, [allItems, selectedItems, isItemLoaded, navigateToFolder, toggleSelect])
+
+  // Calculate container height for virtual list
+  const [listHeight, setListHeight] = useState(500)
+
+  useEffect(() => {
+    const updateHeight = () => {
+      if (listContainerRef.current) {
+        const rect = listContainerRef.current.getBoundingClientRect()
+        setListHeight(Math.max(300, window.innerHeight - rect.top - 40))
+      }
+    }
+    updateHeight()
+    window.addEventListener('resize', updateHeight)
+    return () => window.removeEventListener('resize', updateHeight)
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -302,6 +477,7 @@ export default function FileVaultPage() {
             {vault ? (
               <>
                 {vault.name} - {formatFileSize(Number(vault.usedBytes))} / {formatFileSize(Number(vault.quotaBytes))} kasutatud
+                {totalFiles > 0 && <span className="ml-2">({totalFiles} faili)</span>}
               </>
             ) : (
               'Halda oma faile ja dokumente'
@@ -482,6 +658,7 @@ export default function FileVaultPage() {
                             src={(item as FileItem).thumbnailSmall}
                             alt={item.name}
                             className="w-full h-full object-cover"
+                            loading="lazy"
                           />
                         </div>
                       ) : (
@@ -508,80 +685,57 @@ export default function FileVaultPage() {
                   </Card>
                 )
               })}
+
+              {/* Load more trigger for grid view */}
+              {hasMoreFiles && (
+                <Card
+                  className="p-4 cursor-pointer hover:bg-slate-50 flex items-center justify-center"
+                  onClick={loadMoreFiles}
+                >
+                  <div className="flex flex-col items-center text-center">
+                    {isLoadingMore ? (
+                      <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                    ) : (
+                      <>
+                        <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center mb-3">
+                          <RefreshCw className="w-6 h-6 text-slate-400" />
+                        </div>
+                        <p className="text-sm text-slate-600">Laadi rohkem</p>
+                      </>
+                    )}
+                  </div>
+                </Card>
+              )}
             </div>
           ) : (
-            <Card>
-              <div className="divide-y">
-                {allItems.map((item) => {
-                  const isFolder = item.type === 'folder'
-                  const Icon = isFolder ? Folder : getFileIcon((item as FileItem).mimeType)
-                  const isSelected = selectedItems.includes(item.id)
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={`flex items-center gap-4 p-4 cursor-pointer transition-colors hover:bg-slate-50 ${
-                        isSelected ? 'bg-slate-50' : ''
-                      }`}
-                      onClick={() => {
-                        if (isFolder) {
-                          navigateToFolder(item as FolderItem)
-                        } else {
-                          toggleSelect(item.id)
-                        }
-                      }}
+            <Card ref={listContainerRef}>
+              {allItems.length > 0 ? (
+                <InfiniteLoader
+                  ref={infiniteLoaderRef}
+                  isItemLoaded={isItemLoaded}
+                  itemCount={itemCount}
+                  loadMoreItems={loadMoreFiles}
+                  threshold={10}
+                >
+                  {({ onItemsRendered, ref }) => (
+                    <VirtualList
+                      ref={ref}
+                      height={listHeight}
+                      itemCount={itemCount}
+                      itemSize={LIST_ROW_HEIGHT}
+                      width="100%"
+                      onItemsRendered={onItemsRendered}
+                      overscanCount={5}
                     >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(item.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-4 h-4 rounded"
-                      />
-                      {!isFolder && (item as FileItem).thumbnailSmall ? (
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
-                          <img
-                            src={(item as FileItem).thumbnailSmall}
-                            alt={item.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div
-                          className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                            isFolder ? 'bg-amber-100' : 'bg-slate-100'
-                          }`}
-                        >
-                          <Icon
-                            className="w-5 h-5"
-                            style={{ color: isFolder ? '#f59e0b' : '#64748b' }}
-                          />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate">{item.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {isFolder ? 'Kaust' : formatFileSize((item as FileItem).sizeBytes)}
-                        </p>
-                      </div>
-                      <div className="text-sm text-slate-500 hidden sm:block">
-                        {formatDate(item.createdAt)}
-                      </div>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="w-8 h-8">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="w-8 h-8">
-                          <Star className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="w-8 h-8">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+                      {VirtualListRow}
+                    </VirtualList>
+                  )}
+                </InfiniteLoader>
+              ) : (
+                <div className="py-8 text-center text-slate-500">
+                  Andmeid ei leitud
+                </div>
+              )}
             </Card>
           )}
         </>

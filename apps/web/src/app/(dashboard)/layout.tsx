@@ -15,6 +15,8 @@ import {
   Search,
   User,
   ChevronDown,
+  ChevronRight,
+  ChevronLeft,
   BarChart3,
   Menu,
   X,
@@ -27,231 +29,368 @@ import {
   Wrench,
   Table,
   Menu as MenuIcon,
+  Building2,
+  Hammer,
+  ShoppingCart,
+  Handshake,
+  Home,
+  Zap,
+  UsersRound,
+  ChevronsUpDown,
+  PanelLeftClose,
+  PanelLeft,
+  Building,
+  Receipt,
+  Mail,
+  Send,
+  TrendingUp,
+  Ruler,
 } from 'lucide-react'
 import { NotificationDropdown } from '@/components/notifications/notification-dropdown'
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+// Project types
+const projectTypes = [
+  { href: '/projects', label: 'Kõik', icon: FolderKanban },
+  { href: '/projects/ptv', label: 'PTV', icon: Zap },
+  { href: '/projects/montaaz', label: 'Montaaž', icon: Hammer },
+  { href: '/projects/muuk', label: 'Müük', icon: ShoppingCart },
+  { href: '/projects/vahendus', label: 'Vahendus', icon: Handshake },
+  { href: '/projects/rent', label: 'Rent', icon: Home },
+]
+
+// Personnel items
+const personnelItems = [
+  { href: '/personnel', label: 'Ülevaade', icon: UsersRound },
+  { href: '/personnel/employees', label: 'Töötajad', icon: Users },
+  { href: '/personnel/groups', label: 'Grupid', icon: Building2 },
+]
+
+// Warehouse items
+const warehouseItems = [
+  { href: '/warehouse', label: 'Ülevaade', icon: LayoutDashboard },
+  { href: '/warehouse/assets', label: 'Varad', icon: Package },
+  { href: '/warehouse/transfers', label: 'Ülekanded', icon: ArrowRightLeft },
+  { href: '/warehouse/maintenance', label: 'Hooldused', icon: Wrench },
+]
+
+// Quotes items
+const quotesItems = [
+  { href: '/quotes', label: 'Kõik', icon: Receipt },
+  { href: '/quotes/inquiries', label: 'Päringud', icon: Mail },
+  { href: '/quotes/sent', label: 'Saadetud', icon: Send },
+  { href: '/quotes/articles', label: 'Artiklid', icon: FileText },
+  { href: '/quotes/units', label: 'Ühikud', icon: Ruler },
+  { href: '/quotes/statistics', label: 'Statistika', icon: TrendingUp },
+]
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [projectsExpanded, setProjectsExpanded] = useState(false)
+  const [personnelExpanded, setPersonnelExpanded] = useState(false)
+  const [warehouseExpanded, setWarehouseExpanded] = useState(false)
+  const [quotesExpanded, setQuotesExpanded] = useState(false)
+  const [allExpanded, setAllExpanded] = useState(false)
 
-  // Close sidebar on route change
+  // Auto-expand menus based on current path
+  useEffect(() => {
+    if (pathname?.startsWith('/projects')) setProjectsExpanded(true)
+    if (pathname?.startsWith('/personnel')) setPersonnelExpanded(true)
+    if (pathname?.startsWith('/warehouse')) setWarehouseExpanded(true)
+    if (pathname?.startsWith('/quotes')) setQuotesExpanded(true)
+  }, [pathname])
+
+  // Close sidebar on route change (mobile)
   useEffect(() => {
     setSidebarOpen(false)
   }, [pathname])
 
-  // Close sidebar on escape key
+  // Toggle all submenus
+  const toggleAllSubmenus = () => {
+    const newState = !allExpanded
+    setAllExpanded(newState)
+    setProjectsExpanded(newState)
+    setPersonnelExpanded(newState)
+    setWarehouseExpanded(newState)
+    setQuotesExpanded(newState)
+  }
+
+  // Load collapsed state from localStorage
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSidebarOpen(false)
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
+    const saved = localStorage.getItem('sidebar-collapsed')
+    if (saved === 'true') setSidebarCollapsed(true)
   }, [])
 
-  // Prevent body scroll when sidebar is open on mobile
-  useEffect(() => {
-    if (sidebarOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [sidebarOpen])
+  // Save collapsed state
+  const toggleCollapse = () => {
+    const newState = !sidebarCollapsed
+    setSidebarCollapsed(newState)
+    localStorage.setItem('sidebar-collapsed', String(newState))
+  }
 
   const navItems = [
     { href: '/dashboard', label: 'Töölaud', icon: LayoutDashboard },
-    { href: '/projects', label: 'Projektid', icon: FolderKanban },
+    { href: '/projects', label: 'Projektid', icon: FolderKanban, hasSubmenu: true, submenuKey: 'projects' },
+    { href: '/partners', label: 'Partnerid', icon: Building },
+    { href: '/quotes', label: 'Pakkumised', icon: Receipt, hasSubmenu: true, submenuKey: 'quotes' },
+    { href: '/personnel', label: 'Personaal', icon: UsersRound, hasSubmenu: true, submenuKey: 'personnel' },
+    { href: '/warehouse', label: 'Laohaldus', icon: Warehouse, hasSubmenu: true, submenuKey: 'warehouse' },
     { href: '/invoices', label: 'Arved', icon: FileText },
-    { href: '/employees', label: 'Töötajad', icon: Users },
     { href: '/documents', label: 'Dokumendid', icon: File },
-    { href: '/file-vault', label: 'Failihaldus', icon: FolderArchive },
-    { href: '/warehouse', label: 'Laohaldus', icon: Warehouse },
+    { href: '/file-vault', label: 'Failid', icon: FolderArchive },
     { href: '/reports', label: 'Aruanded', icon: BarChart3 },
   ]
 
-  const warehouseItems = [
-    { href: '/warehouse', label: 'Ülevaade', icon: LayoutDashboard },
-    { href: '/warehouse/assets', label: 'Varad', icon: Package },
-    { href: '/warehouse/transfers', label: 'Ülekanded', icon: ArrowRightLeft },
-    { href: '/warehouse/maintenance', label: 'Hooldused', icon: Wrench },
-  ]
-
   const adminItems = [
-    { href: '/admin/cms', label: 'CMS Haldus', icon: Database },
-    { href: '/admin/templates', label: 'PDF Mallid', icon: FileType },
+    { href: '/admin/cms', label: 'CMS', icon: Database },
+    { href: '/admin/templates', label: 'Mallid', icon: FileType },
     { href: '/admin/ultra-tables', label: 'Tabelid', icon: Table },
-    { href: '/admin/menu', label: 'Menüü', icon: MenuIcon },
-    { href: '/trash', label: 'Prügikast', icon: Trash2 },
+    { href: '/trash', label: 'Prügi', icon: Trash2 },
     { href: '/notifications', label: 'Teavitused', icon: Bell },
     { href: '/settings', label: 'Seaded', icon: Settings },
   ]
+
+  const getSubmenuItems = (key: string) => {
+    if (key === 'projects') return projectTypes
+    if (key === 'personnel') return personnelItems
+    if (key === 'warehouse') return warehouseItems
+    if (key === 'quotes') return quotesItems
+    return []
+  }
+
+  const isSubmenuExpanded = (key: string) => {
+    if (key === 'projects') return projectsExpanded
+    if (key === 'personnel') return personnelExpanded
+    if (key === 'warehouse') return warehouseExpanded
+    if (key === 'quotes') return quotesExpanded
+    return false
+  }
+
+  const toggleSubmenu = (key: string) => {
+    if (key === 'projects') setProjectsExpanded(!projectsExpanded)
+    if (key === 'personnel') setPersonnelExpanded(!personnelExpanded)
+    if (key === 'warehouse') setWarehouseExpanded(!warehouseExpanded)
+    if (key === 'quotes') setQuotesExpanded(!quotesExpanded)
+  }
 
   return (
     <div className="min-h-screen flex">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Sidebar */}
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-50
-          w-64 bg-slate-900 text-white flex flex-col
-          transform transition-transform duration-200 ease-in-out
+          ${sidebarCollapsed ? 'w-16' : 'w-52'}
+          bg-slate-900 text-white flex flex-col
+          transform transition-all duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
-        <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-          <Link href="/dashboard" className="text-xl font-bold" style={{ color: '#279989' }}>
-            Rivest
-          </Link>
+        {/* Header */}
+        <div className={`h-12 border-b border-slate-700 flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'}`}>
+          {!sidebarCollapsed && (
+            <Link href="/dashboard" className="text-lg font-bold" style={{ color: '#279989' }}>
+              Rivest
+            </Link>
+          )}
+          {sidebarCollapsed && (
+            <Link href="/dashboard" className="text-lg font-bold" style={{ color: '#279989' }}>
+              R
+            </Link>
+          )}
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 rounded-lg hover:bg-slate-800 transition-colors"
+            className="lg:hidden p-1 rounded hover:bg-slate-800"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
-        <nav className="flex-1 p-4 overflow-y-auto">
-          <ul className="space-y-1">
+
+        {/* Toggle buttons */}
+        {!sidebarCollapsed && (
+          <div className="px-2 py-1.5 border-b border-slate-700 flex gap-1">
+            <button
+              onClick={toggleAllSubmenus}
+              className="flex-1 flex items-center justify-center gap-1 px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+              title={allExpanded ? 'Peida kõik' : 'Näita kõik'}
+            >
+              <ChevronsUpDown className="w-3 h-3" />
+              <span>{allExpanded ? 'Peida' : 'Näita'}</span>
+            </button>
+            <button
+              onClick={toggleCollapse}
+              className="flex items-center justify-center px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+              title="Voldi kokku"
+            >
+              <PanelLeftClose className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+
+        {/* Navigation */}
+        <nav className="flex-1 py-1.5 px-1.5 overflow-y-auto">
+          <ul className="space-y-0.5">
             {navItems.map((item) => (
               <li key={item.href}>
-                <NavItem
-                  href={item.href}
-                  label={item.label}
-                  icon={item.icon}
-                  active={item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)}
-                />
-                {/* Warehouse submenu */}
-                {item.href === '/warehouse' && pathname?.startsWith('/warehouse') && (
-                  <ul className="ml-4 mt-1 space-y-1 border-l border-slate-700 pl-4">
-                    {warehouseItems.map((subItem) => (
-                      <NavItem
-                        key={subItem.href}
-                        href={subItem.href}
-                        label={subItem.label}
-                        icon={subItem.icon}
-                        active={subItem.href === '/warehouse'
-                          ? pathname === '/warehouse'
-                          : pathname?.startsWith(subItem.href) && subItem.href !== '/warehouse'}
-                      />
-                    ))}
-                  </ul>
+                {item.hasSubmenu ? (
+                  <>
+                    <button
+                      onClick={() => !sidebarCollapsed && toggleSubmenu(item.submenuKey!)}
+                      className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
+                        pathname?.startsWith(item.href)
+                          ? 'bg-slate-800 text-white'
+                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      }`}
+                      title={sidebarCollapsed ? item.label : undefined}
+                    >
+                      <div className="flex items-center gap-2">
+                        <item.icon className="w-4 h-4 flex-shrink-0" />
+                        {!sidebarCollapsed && <span>{item.label}</span>}
+                      </div>
+                      {!sidebarCollapsed && (
+                        isSubmenuExpanded(item.submenuKey!) ? (
+                          <ChevronDown className="w-3 h-3" />
+                        ) : (
+                          <ChevronRight className="w-3 h-3" />
+                        )
+                      )}
+                    </button>
+                    {!sidebarCollapsed && isSubmenuExpanded(item.submenuKey!) && (
+                      <ul className="ml-3 mt-0.5 space-y-0.5 border-l border-slate-700 pl-2">
+                        {getSubmenuItems(item.submenuKey!).map((subItem) => (
+                          <li key={subItem.href}>
+                            <Link
+                              href={subItem.href}
+                              className={`flex items-center gap-2 px-2 py-1 rounded text-xs transition-colors ${
+                                pathname === subItem.href || (subItem.href !== item.href && pathname?.startsWith(subItem.href))
+                                  ? 'bg-slate-800 text-white'
+                                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                              }`}
+                            >
+                              <subItem.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span>{subItem.label}</span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : (
+                  <Link
+                    href={item.href}
+                    className={`flex items-center ${sidebarCollapsed ? 'justify-center' : ''} gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
+                      (item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href))
+                        ? 'bg-slate-800 text-white'
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                    title={sidebarCollapsed ? item.label : undefined}
+                  >
+                    <item.icon className="w-4 h-4 flex-shrink-0" />
+                    {!sidebarCollapsed && <span>{item.label}</span>}
+                  </Link>
                 )}
               </li>
             ))}
-            <li className="pt-4 mt-4 border-t border-slate-700">
-              <span className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Admin
-              </span>
+
+            {/* Admin section */}
+            <li className="pt-2 mt-2 border-t border-slate-700">
+              {!sidebarCollapsed && (
+                <span className="px-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                  Admin
+                </span>
+              )}
             </li>
             {adminItems.map((item) => (
               <li key={item.href}>
-                <NavItem
+                <Link
                   href={item.href}
-                  label={item.label}
-                  icon={item.icon}
-                  active={item.href === '/notifications' || item.href === '/settings'
-                    ? pathname === item.href
-                    : pathname?.startsWith(item.href)}
-                />
+                  className={`flex items-center ${sidebarCollapsed ? 'justify-center' : ''} gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
+                    pathname?.startsWith(item.href)
+                      ? 'bg-slate-800 text-white'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                  title={sidebarCollapsed ? item.label : undefined}
+                >
+                  <item.icon className="w-4 h-4 flex-shrink-0" />
+                  {!sidebarCollapsed && <span>{item.label}</span>}
+                </Link>
               </li>
             ))}
           </ul>
         </nav>
 
+        {/* Collapse toggle (desktop) */}
+        {sidebarCollapsed && (
+          <div className="p-2 border-t border-slate-700">
+            <button
+              onClick={toggleCollapse}
+              className="w-full flex items-center justify-center p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+              title="Laienda"
+            >
+              <PanelLeft className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* User section */}
-        <div className="p-4 border-t border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
-              <User className="w-5 h-5 text-slate-300" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">Admin Kasutaja</p>
-              <p className="text-xs text-slate-400 truncate">admin@rivest.ee</p>
+        {!sidebarCollapsed && (
+          <div className="p-2 border-t border-slate-700">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                <User className="w-3.5 h-3.5 text-slate-300" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white truncate">Admin</p>
+                <p className="text-[10px] text-slate-400 truncate">admin@rivest.ee</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </aside>
 
       {/* Main content */}
       <main className="flex-1 bg-slate-50 flex flex-col min-w-0">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
-          <div className="flex items-center gap-3">
+        <header className="h-12 bg-white border-b border-slate-200 flex items-center justify-between px-3 lg:px-4 flex-shrink-0">
+          <div className="flex items-center gap-2">
             {/* Mobile menu button */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-slate-100 transition-colors"
+              className="lg:hidden p-1.5 -ml-1 rounded hover:bg-slate-100"
             >
               <Menu className="w-5 h-5 text-slate-600" />
             </button>
 
-            {/* Search - hidden on mobile, visible on tablet+ */}
+            {/* Search */}
             <div className="hidden sm:block relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder="Otsi..."
-                className="w-48 md:w-64 pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-40 md:w-56 pl-8 pr-3 py-1.5 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989] focus:border-[#279989]"
               />
             </div>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2">
-            {/* Mobile search button */}
-            <button className="sm:hidden p-2 rounded-lg hover:bg-slate-100 transition-colors">
-              <Search className="w-5 h-5 text-slate-600" />
+          <div className="flex items-center gap-1">
+            <button className="sm:hidden p-1.5 rounded hover:bg-slate-100">
+              <Search className="w-4 h-4 text-slate-600" />
             </button>
-
             <NotificationDropdown />
-
-            {/* User menu - simplified on mobile */}
-            <button className="flex items-center gap-2 p-2 sm:px-3 rounded-lg hover:bg-slate-100 transition-colors">
-              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
-                <User className="w-4 h-4 text-slate-600" />
+            <button className="flex items-center gap-1.5 p-1.5 rounded hover:bg-slate-100">
+              <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center">
+                <User className="w-3.5 h-3.5 text-slate-600" />
               </div>
-              <ChevronDown className="w-4 h-4 text-slate-400 hidden sm:block" />
+              <ChevronDown className="w-3 h-3 text-slate-400 hidden sm:block" />
             </button>
           </div>
         </header>
-        <div className="flex-1 p-4 lg:p-6 overflow-y-auto">{children}</div>
+        <div className="flex-1 p-3 lg:p-4 overflow-y-auto">{children}</div>
       </main>
     </div>
-  )
-}
-
-function NavItem({
-  href,
-  label,
-  icon: Icon,
-  active,
-}: {
-  href: string
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-  active?: boolean
-}) {
-  return (
-    <Link
-      href={href}
-      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
-        active
-          ? 'bg-slate-800 text-white'
-          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-      }`}
-    >
-      <Icon className="w-5 h-5 flex-shrink-0" />
-      <span className="truncate">{label}</span>
-    </Link>
   )
 }

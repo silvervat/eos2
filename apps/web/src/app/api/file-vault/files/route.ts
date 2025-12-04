@@ -65,7 +65,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Vault not found or access denied' }, { status: 404 })
     }
 
-    // Build query
+    // Build query - simplified without relationships to avoid schema cache issues
     let query = supabase
       .from('files')
       .select(`
@@ -84,10 +84,9 @@ export async function GET(request: Request) {
         version,
         is_public,
         owner_id,
+        folder_id,
         created_at,
-        updated_at,
-        folder:file_folders!folder_id(id, name, path),
-        tags:file_tags(tag)
+        updated_at
       `, { count: 'exact' })
       .eq('vault_id', vaultId)
 
@@ -157,10 +156,10 @@ export async function GET(request: Request) {
       version: file.version,
       isPublic: file.is_public,
       ownerId: file.owner_id,
+      folderId: file.folder_id,
       createdAt: file.created_at,
       updatedAt: file.updated_at,
-      folder: file.folder,
-      tags: file.tags?.map((t: { tag: string }) => t.tag) || [],
+      tags: [],
     })) || []
 
     return NextResponse.json({

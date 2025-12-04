@@ -1,6 +1,143 @@
-# Claude Memory - EOS2 Laohaldussüsteem
+# Claude Memory - EOS2 Enterprise Operating System
 
-## Tehtud tööd (2024-11-30)
+**Viimati uuendatud:** 2025-12-04
+**Projekt:** EOS2 - Modulaarne ERP süsteem
+
+---
+
+## OLULINE - LOE ALATI ESIMESENA
+
+1. **SYSTEM.md** - Süsteemi ülevaade, moodulid, struktuur
+2. **TODO.md** - Pooleli asjad ja planeeritud tööd
+3. **manual/04.12/** - Täielik dokumentatsioon modulaarse süsteemi kohta
+
+---
+
+## IMPLEMENTATSIOONI SEIS (2025-12-04)
+
+### ✅ KÕIK 8 FAASI ON TEHTUD!
+
+| Faas | Staatus | Kirjeldus |
+|------|---------|-----------|
+| PHASE 1 | ✅ DONE | Baassüsteem - DB migratsioonid |
+| PHASE 2 | ✅ DONE | Õiguste süsteem - RBAC |
+| PHASE 3 | ✅ DONE | Admin paneel - Dashboard |
+| PHASE 4 | ✅ DONE | Registry süsteem - defineModule/registerModule |
+| PHASE 5 | ✅ DONE | Design System - Tokens/Theme |
+| PHASE 6 | ✅ DONE | Vehicles näidismoodul |
+| PHASE 7 | ✅ DONE | Testimine - Unit testid |
+| PHASE 8 | ✅ DONE | Dokumentatsioon |
+
+---
+
+## Tehtud tööd (2025-12-04) - Modulaarne süsteem
+
+### PHASE 1: Baassüsteem
+**Fail:** `supabase/migrations/008_modules_system.sql`
+
+Loodud tabelid:
+- `modules` - Moodulite register
+- `components` - Komponentide register
+- `module_actions` - Toimingud
+- `roles` - 5 vaikerolli (owner, admin, manager, user, viewer)
+- `user_module_access` - Kasutaja-mooduli õigused
+- `user_component_access` - Kasutaja-komponendi õigused
+- `module_relations` - Moodulite seosed
+
+### PHASE 2: Õiguste süsteem
+**Asukoht:** `apps/web/src/core/permissions/`
+
+Failid:
+- `roles.ts` - RoleType, RoleHierarchy (owner=100, admin=80, manager=60, user=40, viewer=20)
+- `actions.ts` - BaseAction, AdminAction, WarehouseAction, ProjectAction, InvoiceAction, VehicleAction
+- `matrix.ts` - PermissionMatrix, roleHasPermission, getAllPermissions
+- `check.ts` - hasPermission, canAccessResource, getUserPermissions, filterByPermission
+- `hooks.ts` - usePermission, useModulePermissions, useIsAdmin
+- `components.tsx` - ProtectedComponent, AdminOnly, withPermission HOC
+
+### PHASE 3: Admin paneel
+**Asukoht:** `apps/web/src/app/(dashboard)/admin/`
+
+Leheküljed:
+- `page.tsx` - Admin dashboard (statistika, süsteemi tervis, TODO)
+- `modules/page.tsx` - Moodulite haldus
+- `permissions/page.tsx` - Õiguste maatriks
+
+### PHASE 4: Registry süsteem
+**Asukoht:** `apps/web/src/core/registry/`
+
+Failid:
+- `types.ts` - ModuleDefinition, FieldDefinition, PermissionDefinition jne
+- `defineModule.ts` - defineModule() helper koos valideerimisega
+- `registerModule.ts` - registerModule(), registerModules(), getModule()
+
+### PHASE 5: Design System
+**Asukoht:** `apps/web/src/design/`
+
+Failid:
+- `tokens.ts` - Design tokens (colors, spacing, typography, shadows, breakpoints, zIndex, status, transitions)
+- `theme.ts` - Ant Design theme (antdTheme, antdDarkTheme)
+
+Brand värv: `#279989` (Rivest teal)
+
+### PHASE 6: Vehicles näidismoodul
+**Asukoht:** `apps/web/src/modules/vehicles/`
+
+Failid:
+- `definition.ts` - Täielik mooduli definitsioon
+- `MODULE.md` - Mooduli dokumentatsioon
+- `index.ts` - Ekspordid
+- `pages/index.tsx` - Nimekirja leht
+- `pages/[id].tsx` - Detail leht
+- `pages/new.tsx` - Lisamise leht
+- `pages/edit.tsx` - Muutmise leht
+- `components/VehicleForm.tsx` - Sõiduki vorm
+- `components/VehicleCard.tsx` - Sõiduki kaart
+
+**Template:** `apps/web/src/modules/_template/definition.ts`
+
+### PHASE 7: Testid
+**Asukoht:** `apps/web/src/`
+
+Testifailid:
+- `core/permissions/check.test.ts` - hasPermission, canAccessResource testid
+- `core/permissions/matrix.test.ts` - PermissionMatrix, roleHasPermission testid
+- `core/registry/defineModule.test.ts` - defineModule testid
+- `core/registry/registerModule.test.ts` - registerModule, getModule testid
+- `design/tokens.test.ts` - Design tokens testid
+
+### PHASE 8: Dokumentatsioon
+Uuendatud:
+- `SYSTEM.md` - Versioon 2.1.0
+- `TODO.md` - Kõik faasid märgitud tehtuks
+- `CLAUDE_MEMORY.md` - See fail
+
+---
+
+## Dokumentatsiooni ülevaade
+
+### Loodud failid
+- `SYSTEM.md` - Süsteemi dokumentatsioon
+- `TODO.md` - Pooleli ja planeeritud tööd
+- `manual/04.12/` - EOS2 modulaarse süsteemi juhendid:
+  - `00-INDEX.md` - Navigatsioon
+  - `00-CLAUDE-CODE-MASTER-JUHEND.md` - Põhjalik 12-peatükkiline juhend
+  - `01-IMPLEMENTATSIOONI-PLAAN.md` - 8-faasiline ehitusplaan
+  - `02-QUICK-START.md` - Igapäevane juhend
+  - `03-SUMMARY.md` - Kokkuvõte
+  - `04-DOKUMENTATSIOONIPUU.md` - Visuaalne ülevaade
+
+### Visioon
+> **"Lego-stiilis ERP süsteem"** - uus moodul valmib 30 minutiga, kõik on ühes kohas hallatav
+
+### 3 Peamist printsiipi
+1. **Single Source of Truth** - üks definition.ts fail = kogu moodul
+2. **DRY** - ära korda koodi, kasuta core komponente
+3. **Automaatne registreerimine** - moodul on kohe nähtav kõikjal
+
+---
+
+## Tehtud tööd (2024-11-30) - Warehouse moodul
 
 ### Faas 1: Põhifunktsionaalsus
 - SQL migratsioonid: `004_warehouse_management.sql`, `005_warehouse_enhanced.sql`
@@ -53,6 +190,8 @@
 - **RLS poliitikad:**
   - `006_warehouse_rls.sql` - Täielikud RLS poliitikad warehouse moodulile
 
+---
+
 ## Olulised märkused
 
 ### Andmebaas
@@ -77,73 +216,15 @@ ALTER TABLE stock_movements DISABLE ROW LEVEL SECURITY;
 ### Tenant ID
 - Test tenant: `16e26c26-2c98-4b58-a956-b86ac3becf14`
 
-## Süsteemi ülevaade
+---
 
-### Implementeeritud funktsioonid
-- [x] Varade haldus (CRUD)
-- [x] Tükikaupade/laoseisu haldus
-- [x] Laoseisu liikumised
-- [x] Madala laoseisu hoiatused
-- [x] Ülekannete süsteem (warehouse/user/project)
-- [x] Hoolduste planeerimine ja jälgimine
-- [x] Kategooriate hierarhia
-- [x] Fotogalerii
-- [x] QR koodide genereerimine ja printimine
-- [x] CSV eksport
-- [x] RLS poliitikad multi-tenant turvalisuseks
+## Järgmine samm
 
-### Tehniline arhitektuur
-```
-apps/web/
-├── src/
-│   ├── app/
-│   │   ├── (dashboard)/warehouse/
-│   │   │   ├── page.tsx              # Ülevaade
-│   │   │   ├── assets/
-│   │   │   │   ├── page.tsx          # Varade nimekiri
-│   │   │   │   ├── new/page.tsx      # Lisa vara
-│   │   │   │   └── [id]/
-│   │   │   │       ├── page.tsx      # Vara detail
-│   │   │   │       └── edit/page.tsx # Muuda vara
-│   │   │   ├── transfers/
-│   │   │   │   ├── page.tsx          # Ülekanded
-│   │   │   │   └── new/page.tsx      # Loo ülekanne
-│   │   │   ├── maintenance/
-│   │   │   │   ├── page.tsx          # Hooldused
-│   │   │   │   └── new/page.tsx      # Lisa hooldus
-│   │   │   └── categories/
-│   │   │       └── page.tsx          # Kategooriate haldus
-│   │   └── api/warehouse/
-│   │       ├── assets/...
-│   │       ├── categories/...
-│   │       ├── maintenance/...
-│   │       ├── transfers/...
-│   │       ├── warehouses/...
-│   │       ├── users/
-│   │       └── projects/
-│   └── components/warehouse/
-│       ├── AssetsTable.tsx
-│       ├── WarehouseStats.tsx
-│       ├── LowStockAlerts.tsx
-│       ├── PhotoGallery.tsx
-│       ├── StockMovements.tsx
-│       ├── QRCodeModal.tsx
-│       └── index.ts
-│
-supabase/migrations/
-├── 004_warehouse_management.sql  # Põhitabelid
-├── 005_warehouse_enhanced.sql    # Täiendavad tabelid
-└── 006_warehouse_rls.sql         # RLS poliitikad
-```
+### Järgmised prioriteedid:
+1. **Supabase integratsioon:** Vehicles tabeli migratsioon + RLS poliitikad
+2. **Core komponendid:** DataTable, FormBuilder, StatusBadge
+3. **Uued moodulid:** projects, clients, invoices vastavalt _template'ile
 
-## Konkurendid
-- AssetTiger - https://www.assettiger.com/
-- Asset Panda - https://www.assetpanda.com/
+---
 
-Meie eelised:
-- Eestikeelne kasutajaliides
-- Integreeritud projekti- ja töötajate haldusega
-- Paindlik kategooriate süsteem
-- Hoolduste planeerimine
-- Tükikaupade/laoseisu jälgimine
-- QR koodid ja mobiilne skaneerimine
+**NB!** Uuenda seda faili iga suurema muudatuse järel!
