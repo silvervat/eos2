@@ -1,9 +1,11 @@
 /**
- * EOS2 Ant Design Theme
+ * EOS2 Theme Configuration
  *
- * Ant Design theme konfiguratsioon kasutades meie design tokens.
+ * Theme konfiguratsioon kasutades meie design tokens.
+ * Ühildub Ant Design ConfigProvider'iga kui antd on installeeritud.
  *
  * @example
+ * // Kui antd on installeeritud:
  * import { ConfigProvider } from 'antd'
  * import { antdTheme } from '@/design/theme'
  *
@@ -12,8 +14,15 @@
  * </ConfigProvider>
  */
 
-import type { ThemeConfig } from 'antd'
 import { tokens } from './tokens'
+
+/**
+ * Theme config type (ühildub Ant Design ThemeConfig-iga)
+ */
+export interface ThemeConfig {
+  token?: Record<string, unknown>
+  components?: Record<string, Record<string, unknown>>
+}
 
 export const antdTheme: ThemeConfig = {
   // ═══════════════════════════════════════════════════════════════
