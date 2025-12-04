@@ -20,8 +20,10 @@ interface ShareDialogProps {
   onOpenChange: (open: boolean) => void
   vaultId: string
   fileId?: string
+  fileIds?: string[]  // Support multiple files
   folderId?: string
   fileName?: string
+  fileNames?: string[]  // Names for multiple files
 }
 
 interface Share {
@@ -44,10 +46,17 @@ export function ShareDialog({
   onOpenChange,
   vaultId,
   fileId,
+  fileIds,
   folderId,
   fileName,
+  fileNames,
 }: ShareDialogProps) {
   const [shares, setShares] = useState<Share[]>([])
+
+  // Normalize to arrays for multi-file support
+  const allFileIds = fileIds || (fileId ? [fileId] : [])
+  const allFileNames = fileNames || (fileName ? [fileName] : [])
+  const isMultiFile = allFileIds.length > 1
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
@@ -72,16 +81,23 @@ export function ShareDialog({
 
   // Load existing shares
   useEffect(() => {
-    if (open && vaultId && (fileId || folderId)) {
+    if (open && vaultId && (allFileIds.length > 0 || folderId)) {
       loadShares()
     }
-  }, [open, vaultId, fileId, folderId])
+  }, [open, vaultId, allFileIds.length, folderId])
 
   const loadShares = async () => {
+    // For multiple files, don't load existing shares (too complex)
+    if (isMultiFile) {
+      setShares([])
+      setIsLoading(false)
+      return
+    }
+
     setIsLoading(true)
     try {
       const params = new URLSearchParams({ vaultId })
-      if (fileId) params.set('fileId', fileId)
+      if (allFileIds[0]) params.set('fileId', allFileIds[0])
       if (folderId) params.set('folderId', folderId)
 
       const response = await fetch(`/api/file-vault/shares?${params}`)
@@ -109,29 +125,35 @@ export function ShareDialog({
         }
       }
 
-      const response = await fetch('/api/file-vault/shares', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vaultId,
-          fileId: fileId || null,
-          folderId: folderId || null,
-          password: password || null,
-          expiresAt,
-          downloadLimit: downloadLimit ? parseInt(downloadLimit) : null,
-        }),
-      })
+      // Create shares for all files
+      const createdShares: Share[] = []
 
-      if (response.ok) {
-        const newShare = await response.json()
-        setShares([newShare, ...shares])
+      for (const fId of allFileIds) {
+        const response = await fetch('/api/file-vault/shares', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vaultId,
+            fileId: fId,
+            folderId: folderId || null,
+            password: password || null,
+            expiresAt,
+            downloadLimit: downloadLimit ? parseInt(downloadLimit) : null,
+          }),
+        })
+
+        if (response.ok) {
+          const newShare = await response.json()
+          createdShares.push(newShare)
+        }
+      }
+
+      if (createdShares.length > 0) {
+        setShares(prev => [...createdShares, ...prev])
         setShowForm(false)
         setPassword('')
         setExpiresIn('')
         setDownloadLimit('')
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Failed to create share')
       }
     } catch (error) {
       console.error('Error creating share:', error)
@@ -195,9 +217,13 @@ export function ShareDialog({
               <Link2 className="w-5 h-5 text-[#279989]" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Jaga faili</h2>
+              <h2 className="text-lg font-semibold text-slate-900">
+                {isMultiFile ? `Jaga ${allFileIds.length} faili` : 'Jaga faili'}
+              </h2>
               <p className="text-sm text-slate-500 truncate max-w-[200px]">
-                {fileName || 'Valitud fail'}
+                {isMultiFile
+                  ? allFileNames.slice(0, 2).join(', ') + (allFileNames.length > 2 ? ` +${allFileNames.length - 2}` : '')
+                  : fileName || 'Valitud fail'}
               </p>
             </div>
           </div>

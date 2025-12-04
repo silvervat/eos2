@@ -34,6 +34,7 @@ import { Button, Input, Card } from '@rivest/ui'
 import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
 import { ShareDialog } from '@/components/file-vault/ShareDialog'
 import { FilePreviewDialog } from '@/components/file-vault/FilePreviewDialog'
+import { FileTree } from '@/components/file-vault/FileTree'
 
 // Pagination constants
 const PAGE_SIZE = 100
@@ -144,10 +145,13 @@ export default function FileVaultPage() {
   const [newFolderName, setNewFolderName] = useState('')
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
 
-  // Share dialog state
+  // Share dialog state - supports multiple files
   const [showShareDialog, setShowShareDialog] = useState(false)
-  const [shareFileId, setShareFileId] = useState<string | null>(null)
-  const [shareFileName, setShareFileName] = useState<string>('')
+  const [shareFileIds, setShareFileIds] = useState<string[]>([])
+  const [shareFileNames, setShareFileNames] = useState<string[]>([])
+
+  // File tree visibility
+  const [showFileTree, setShowFileTree] = useState(true)
 
   // Preview dialog state
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
@@ -383,22 +387,25 @@ export default function FileVaultPage() {
     setShowPreviewDialog(true)
   }, [])
 
-  // Open share dialog
+  // Open share dialog - supports single file
   const handleShare = useCallback((file: FileItem) => {
-    setShareFileId(file.id)
-    setShareFileName(file.name)
+    setShareFileIds([file.id])
+    setShareFileNames([file.name])
     setShowShareDialog(true)
   }, [])
 
-  // Share selected files
-  const handleShareSelected = () => {
-    if (selectedItems.length === 1) {
-      const file = files.find(f => f.id === selectedItems[0])
-      if (file) {
-        handleShare(file)
-      }
-    }
-  }
+  // Share selected files - supports multiple files
+  const handleShareSelected = useCallback(() => {
+    if (selectedItems.length === 0) return
+
+    // Filter to only files (not folders)
+    const selectedFiles = files.filter(f => selectedItems.includes(f.id))
+    if (selectedFiles.length === 0) return
+
+    setShareFileIds(selectedFiles.map(f => f.id))
+    setShareFileNames(selectedFiles.map(f => f.name))
+    setShowShareDialog(true)
+  }, [selectedItems, files])
 
   // Download file - fetch as blob to force download instead of opening
   const handleDownload = useCallback(async (file: FileItem) => {
@@ -661,45 +668,76 @@ export default function FileVaultPage() {
     return () => window.removeEventListener('resize', updateHeight)
   }, [])
 
+  // Handler for folder select from FileTree
+  const handleTreeFolderSelect = useCallback((folder: { id: string; name: string; parentId: string | null; path: string } | null) => {
+    if (!folder) {
+      // Navigate to root
+      setCurrentFolderId(null)
+      setBreadcrumbs([{ id: null, name: 'Failid' }])
+    } else {
+      // Navigate to selected folder
+      setCurrentFolderId(folder.id)
+      setBreadcrumbs([
+        { id: null, name: 'Failid' },
+        { id: folder.id, name: folder.name }
+      ])
+    }
+    setSelectedItems([])
+  }, [])
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <FolderArchive className="w-7 h-7" style={{ color: '#279989' }} />
-            Failihaldus
-          </h1>
-          <p className="text-slate-600 mt-1">
-            {vault ? (
-              <>
-                {vault.name} - {formatFileSize(Number(vault.usedBytes))} / {formatFileSize(Number(vault.quotaBytes))} kasutatud
-                {totalFiles > 0 && <span className="ml-2">({totalFiles} faili)</span>}
-              </>
-            ) : (
-              'Halda oma faile ja dokumente'
-            )}
-          </p>
+    <div className="flex h-[calc(100vh-80px)]">
+      {/* File Tree Sidebar */}
+      {vault && showFileTree && (
+        <div className="w-64 flex-shrink-0 hidden lg:block">
+          <FileTree
+            vaultId={vault.id}
+            currentFolderId={currentFolderId}
+            onFolderSelect={handleTreeFolderSelect}
+            onCreateFolder={() => setShowNewFolderDialog(true)}
+          />
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={() => setShowNewFolderDialog(true)}
-          >
-            <FolderPlus className="w-4 h-4" />
-            <span className="hidden sm:inline">Uus kaust</span>
-          </Button>
-          <Button
-            className="gap-2"
-            style={{ backgroundColor: '#279989' }}
-            onClick={() => setShowUploadDialog(true)}
-          >
-            <FileUp className="w-4 h-4" />
-            <span className="hidden sm:inline">Laadi fail</span>
-          </Button>
+      )}
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+              <FolderArchive className="w-7 h-7" style={{ color: '#279989' }} />
+              Failihaldus
+            </h1>
+            <p className="text-slate-600 mt-1">
+              {vault ? (
+                <>
+                  {vault.name} - {formatFileSize(Number(vault.usedBytes))} / {formatFileSize(Number(vault.quotaBytes))} kasutatud
+                  {totalFiles > 0 && <span className="ml-2">({totalFiles} faili)</span>}
+                </>
+              ) : (
+                'Halda oma faile ja dokumente'
+              )}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setShowNewFolderDialog(true)}
+            >
+              <FolderPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Uus kaust</span>
+            </Button>
+            <Button
+              className="gap-2"
+              style={{ backgroundColor: '#279989' }}
+              onClick={() => setShowUploadDialog(true)}
+            >
+              <FileUp className="w-4 h-4" />
+              <span className="hidden sm:inline">Laadi fail</span>
+            </Button>
+          </div>
         </div>
-      </div>
 
       {/* Breadcrumbs */}
       <div className="flex items-center gap-1 text-sm">
@@ -795,7 +833,6 @@ export default function FileVaultPage() {
                 size="sm"
                 className="gap-1"
                 onClick={handleShareSelected}
-                disabled={selectedItems.length !== 1}
               >
                 <Share2 className="w-4 h-4" />
                 Jaga
@@ -1094,20 +1131,23 @@ export default function FileVaultPage() {
         </div>
       )}
 
+      </div>
+      {/* End of Main Content */}
+
       {/* Share Dialog */}
-      {vault && shareFileId && (
+      {vault && shareFileIds.length > 0 && (
         <ShareDialog
           open={showShareDialog}
           onOpenChange={(open) => {
             setShowShareDialog(open)
             if (!open) {
-              setShareFileId(null)
-              setShareFileName('')
+              setShareFileIds([])
+              setShareFileNames([])
             }
           }}
           vaultId={vault.id}
-          fileId={shareFileId}
-          fileName={shareFileName}
+          fileIds={shareFileIds}
+          fileNames={shareFileNames}
         />
       )}
 
@@ -1125,7 +1165,9 @@ export default function FileVaultPage() {
             const file = files.find(f => f.id === previewFileId)
             if (file) {
               setShowPreviewDialog(false)
-              handleShare(file)
+              setShareFileIds([file.id])
+              setShareFileNames([file.name])
+              setShowShareDialog(true)
             }
           }}
         />
