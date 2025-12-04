@@ -194,3 +194,9 @@ export * from './cms.types'
 // =============================================
 
 export * from './warehouse.types'
+
+// =============================================
+// Quotes Types (re-export)
+// =============================================
+
+export * from './quotes.types'

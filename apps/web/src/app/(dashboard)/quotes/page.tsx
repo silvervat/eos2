@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   FileText,
   Plus,
@@ -20,7 +21,11 @@ import {
   AlertCircle,
   ArrowRight,
   Calendar,
+  LayoutGrid,
+  List,
 } from 'lucide-react'
+import { QuoteKanban, QuoteEditor, QuoteStatusTimeline, StatusBadge } from '@/components/quotes'
+import type { Quote as QuoteType, QuoteStatus } from '@rivest/types'
 
 interface Quote {
   id: string
@@ -35,23 +40,19 @@ interface Quote {
   valid_until: string
   created_at: string
   items_count: number
+  language?: string
+  revision?: number
 }
 
-const statusLabels: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  draft: { label: 'Mustand', color: 'bg-slate-100 text-slate-700', icon: Edit },
-  sent: { label: 'Saadetud', color: 'bg-blue-100 text-blue-700', icon: Send },
-  viewed: { label: 'Vaadatud', color: 'bg-purple-100 text-purple-700', icon: Eye },
-  accepted: { label: 'Kinnitatud', color: 'bg-green-100 text-green-700', icon: CheckCircle },
-  rejected: { label: 'Tagasi lükatud', color: 'bg-red-100 text-red-700', icon: XCircle },
-  expired: { label: 'Aegunud', color: 'bg-amber-100 text-amber-700', icon: Clock },
-}
 
 export default function QuotesPage() {
+  const router = useRouter()
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('kanban')
   const [stats, setStats] = useState({
     total: 0,
     draft: 0,
@@ -123,14 +124,37 @@ export default function QuotesPage() {
           <h1 className="text-xl font-bold text-slate-900">Hinnapakkumised</h1>
           <p className="text-sm text-slate-500">Halda pakkumisi ja päringuid</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-colors"
-          style={{ backgroundColor: '#279989' }}
-        >
-          <Plus className="w-4 h-4" />
-          Uus pakkumine
-        </button>
+        <div className="flex items-center gap-3">
+          {/* View toggle */}
+          <div className="flex items-center bg-slate-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`p-2 rounded-md transition-colors ${
+                viewMode === 'kanban' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
+              }`}
+              title="Kanban vaade"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded-md transition-colors ${
+                viewMode === 'list' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
+              }`}
+              title="Nimekirja vaade"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-colors hover:opacity-90"
+            style={{ backgroundColor: '#279989' }}
+          >
+            <Plus className="w-4 h-4" />
+            Uus pakkumine
+          </button>
+        </div>
       </div>
 
       {/* Quick Links */}
@@ -250,102 +274,180 @@ export default function QuotesPage() {
         </select>
       </div>
 
-      {/* Quotes Table */}
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#279989]" />
-          </div>
-        ) : filteredQuotes.length === 0 ? (
-          <div className="text-center py-12 text-slate-500">
-            {searchQuery || statusFilter !== 'all' ? 'Pakkumisi ei leitud' : 'Pakkumised puuduvad'}
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Pakkumine</th>
-                <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Ettevõte</th>
-                <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Staatus</th>
-                <th className="text-right text-xs font-medium text-slate-500 uppercase px-4 py-3">Summa</th>
-                <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Kehtiv kuni</th>
-                <th className="text-right text-xs font-medium text-slate-500 uppercase px-4 py-3">Tegevused</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredQuotes.map((quote) => {
-                const status = statusLabels[quote.status] || statusLabels.draft
-                const StatusIcon = status.icon
-                const expiringSoon = quote.status === 'sent' && isExpiringSoon(quote.valid_until)
+      {/* Quotes Content - Kanban or List View */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12 bg-white border border-slate-200 rounded-lg">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#279989]" />
+        </div>
+      ) : viewMode === 'kanban' ? (
+        <QuoteKanban
+          quotes={filteredQuotes.map(q => ({
+            id: q.id,
+            quoteNumber: q.quote_number,
+            title: { et: q.title, en: q.title },
+            companyId: q.company_id,
+            companyName: q.company_name,
+            contactId: q.contact_id,
+            contactName: q.contact_name,
+            status: q.status as QuoteStatus,
+            language: (q.language || 'et') as 'et' | 'en',
+            subtotal: q.total_amount,
+            vatAmount: 0,
+            totalAmount: q.total_amount,
+            validUntil: q.valid_until,
+            createdAt: q.created_at,
+            year: parseInt(q.quote_number?.split('-')[0] || new Date().getFullYear().toString()),
+            sequenceNumber: parseInt(q.quote_number?.split('-')[1] || '1'),
+            revisionNumber: q.revision || 0,
+          }))}
+          onQuoteClick={(quoteId) => router.push(`/quotes/${quoteId}`)}
+          onStatusChange={async (quoteId, newStatus) => {
+            try {
+              await fetch(`/api/quotes/${quoteId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+              })
+              fetchQuotes()
+            } catch (error) {
+              console.error('Failed to update quote status:', error)
+            }
+          }}
+        />
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+          {filteredQuotes.length === 0 ? (
+            <div className="text-center py-12 text-slate-500">
+              {searchQuery || statusFilter !== 'all' ? 'Pakkumisi ei leitud' : 'Pakkumised puuduvad'}
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Pakkumine</th>
+                  <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Ettevõte</th>
+                  <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Staatus</th>
+                  <th className="text-right text-xs font-medium text-slate-500 uppercase px-4 py-3">Summa</th>
+                  <th className="text-left text-xs font-medium text-slate-500 uppercase px-4 py-3">Kehtiv kuni</th>
+                  <th className="text-right text-xs font-medium text-slate-500 uppercase px-4 py-3">Tegevused</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredQuotes.map((quote) => {
+                  const expiringSoon = quote.status === 'sent' && isExpiringSoon(quote.valid_until)
 
-                return (
-                  <tr key={quote.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3">
-                      <Link href={`/quotes/${quote.id}`} className="font-medium text-slate-900 hover:text-[#279989]">
-                        {quote.quote_number}
-                      </Link>
-                      <div className="text-xs text-slate-500">{quote.title}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-slate-400" />
-                        <div>
-                          <div className="text-sm text-slate-900">{quote.company_name}</div>
-                          {quote.contact_name && <div className="text-xs text-slate-500">{quote.contact_name}</div>}
+                  return (
+                    <tr key={quote.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => router.push(`/quotes/${quote.id}`)}>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-900 hover:text-[#279989]">
+                          {quote.quote_number}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
-                        <StatusIcon className="w-3 h-3" />
-                        {status.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="text-sm font-medium text-slate-900">{formatCurrency(quote.total_amount)}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-sm text-slate-600">{formatDate(quote.valid_until)}</span>
-                        {expiringSoon && <span title="Aegub peagi"><AlertCircle className="w-3.5 h-3.5 text-amber-500" /></span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button className="p-1.5 hover:bg-slate-100 rounded" title="Vaata">
-                          <Eye className="w-4 h-4 text-slate-500" />
-                        </button>
-                        <button className="p-1.5 hover:bg-slate-100 rounded" title="Muuda">
-                          <Edit className="w-4 h-4 text-slate-500" />
-                        </button>
-                        <button className="p-1.5 hover:bg-slate-100 rounded" title="Saada">
-                          <Send className="w-4 h-4 text-slate-500" />
-                        </button>
-                        <button className="p-1.5 hover:bg-red-50 rounded" title="Kustuta">
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+                        <div className="text-xs text-slate-500">{quote.title}</div>
+                        <QuoteStatusTimeline status={quote.status as QuoteStatus} size="sm" className="mt-1" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-slate-400" />
+                          <div>
+                            <div className="text-sm text-slate-900">{quote.company_name}</div>
+                            {quote.contact_name && <div className="text-xs text-slate-500">{quote.contact_name}</div>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={quote.status as QuoteStatus} />
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="text-sm font-medium text-slate-900">{formatCurrency(quote.total_amount)}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="text-sm text-slate-600">{formatDate(quote.valid_until)}</span>
+                          {expiringSoon && <span title="Aegub peagi"><AlertCircle className="w-3.5 h-3.5 text-amber-500" /></span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            className="p-1.5 hover:bg-slate-100 rounded"
+                            title="Vaata"
+                            onClick={() => router.push(`/quotes/${quote.id}`)}
+                          >
+                            <Eye className="w-4 h-4 text-slate-500" />
+                          </button>
+                          <button
+                            className="p-1.5 hover:bg-slate-100 rounded"
+                            title="Muuda"
+                            onClick={() => router.push(`/quotes/${quote.id}?tab=edit`)}
+                          >
+                            <Edit className="w-4 h-4 text-slate-500" />
+                          </button>
+                          <button
+                            className="p-1.5 hover:bg-slate-100 rounded"
+                            title="Saada"
+                            onClick={() => router.push(`/quotes/${quote.id}?action=send`)}
+                          >
+                            <Send className="w-4 h-4 text-slate-500" />
+                          </button>
+                          <button
+                            className="p-1.5 hover:bg-red-50 rounded"
+                            title="Kustuta"
+                            onClick={async () => {
+                              if (confirm('Kas olete kindel, et soovite selle pakkumise kustutada?')) {
+                                try {
+                                  await fetch(`/api/quotes/${quote.id}`, { method: 'DELETE' })
+                                  fetchQuotes()
+                                } catch (error) {
+                                  console.error('Failed to delete quote:', error)
+                                }
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* Add Quote Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="bg-white rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto m-4">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-10">
               <h2 className="text-lg font-semibold text-slate-900">Uus pakkumine</h2>
               <button onClick={() => setShowAddModal(false)} className="p-1 hover:bg-slate-100 rounded">
                 <XCircle className="w-5 h-5 text-slate-500" />
               </button>
             </div>
-            <div className="p-4 text-center text-slate-500 py-12">Pakkumise loomine - tuleb peagi</div>
+            <div className="p-4">
+              <QuoteEditor
+                onSave={async (quoteData) => {
+                  try {
+                    const res = await fetch('/api/quotes', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(quoteData),
+                    })
+                    if (res.ok) {
+                      const data = await res.json()
+                      setShowAddModal(false)
+                      router.push(`/quotes/${data.id}`)
+                    }
+                  } catch (error) {
+                    console.error('Failed to create quote:', error)
+                  }
+                }}
+                onCancel={() => setShowAddModal(false)}
+              />
+            </div>
           </div>
         </div>
       )}
