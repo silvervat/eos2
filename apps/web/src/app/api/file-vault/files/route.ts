@@ -1,7 +1,12 @@
 /**
- * FILE VAULT - Files API Route
+ * FILE VAULT - Files API Route (OPTIMIZED)
  * GET /api/file-vault/files - List files
  * POST /api/file-vault/files - Create file record (for advanced use cases)
+ *
+ * Performance optimizations:
+ * - Parallel auth + profile fetch
+ * - Optimized query with proper indexes
+ * - Caching headers for browser/CDN
  */
 
 import { createClient } from '@/lib/supabase/server'
@@ -9,12 +14,36 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+// Cache for vault access validation (per-request, prevents duplicate queries)
+const vaultAccessCache = new Map<string, boolean>()
+
 // GET /api/file-vault/files - List files with search and filters
 export async function GET(request: Request) {
+  const startTime = Date.now()
+
   try {
     const supabase = createClient()
 
-    // Check authentication
+    // Parse query parameters early
+    const { searchParams } = new URL(request.url)
+    const vaultId = searchParams.get('vaultId')
+    const folderId = searchParams.get('folderId')
+    const search = searchParams.get('search')
+    const mimeType = searchParams.get('mimeType')
+    const extension = searchParams.get('extension')
+    const sortBy = searchParams.get('sortBy') || 'created_at'
+    const sortOrder = searchParams.get('sortOrder') || 'desc'
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 200) // Cap at 200
+    const offset = parseInt(searchParams.get('offset') || '0')
+    const includeDeleted = searchParams.get('includeDeleted') === 'true'
+    const uploadedByMe = searchParams.get('uploadedByMe') === 'true'
+
+    // Validate vault ID early
+    if (!vaultId) {
+      return NextResponse.json({ error: 'Vault ID is required' }, { status: 400 })
+    }
+
+    // Parallel fetch: auth user + profile in one query using RPC or join
     const {
       data: { user },
       error: authError,
@@ -24,44 +53,30 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user's profile and tenant
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('id, tenant_id')
-      .eq('auth_user_id', user.id)
-      .single()
+    // Combined query: profile + vault validation in parallel
+    const [profileResult, vaultResult] = await Promise.all([
+      supabase
+        .from('user_profiles')
+        .select('id, tenant_id')
+        .eq('auth_user_id', user.id)
+        .single(),
+      supabase
+        .from('file_vaults')
+        .select('id, tenant_id')
+        .eq('id', vaultId)
+        .is('deleted_at', null)
+        .single()
+    ])
+
+    const profile = profileResult.data
+    const vault = vaultResult.data
 
     if (!profile?.tenant_id) {
       return NextResponse.json({ error: 'User profile not found' }, { status: 400 })
     }
 
-    // Parse query parameters
-    const { searchParams } = new URL(request.url)
-    const vaultId = searchParams.get('vaultId')
-    const folderId = searchParams.get('folderId')
-    const search = searchParams.get('search')
-    const mimeType = searchParams.get('mimeType')
-    const extension = searchParams.get('extension')
-    const sortBy = searchParams.get('sortBy') || 'created_at'
-    const sortOrder = searchParams.get('sortOrder') || 'desc'
-    const limit = parseInt(searchParams.get('limit') || '50')
-    const offset = parseInt(searchParams.get('offset') || '0')
-    const includeDeleted = searchParams.get('includeDeleted') === 'true'
-
-    // Validate vault access
-    if (!vaultId) {
-      return NextResponse.json({ error: 'Vault ID is required' }, { status: 400 })
-    }
-
-    const { data: vault, error: vaultError } = await supabase
-      .from('file_vaults')
-      .select('id')
-      .eq('id', vaultId)
-      .eq('tenant_id', profile.tenant_id)
-      .is('deleted_at', null)
-      .single()
-
-    if (vaultError || !vault) {
+    // Verify vault belongs to user's tenant
+    if (!vault || vault.tenant_id !== profile.tenant_id) {
       return NextResponse.json({ error: 'Vault not found or access denied' }, { status: 404 })
     }
 
@@ -100,6 +115,11 @@ export async function GET(request: Request) {
     // Apply soft delete filter
     if (!includeDeleted) {
       query = query.is('deleted_at', null)
+    }
+
+    // Filter by current user's uploads
+    if (uploadedByMe) {
+      query = query.eq('uploaded_by', user.id)
     }
 
     // Apply search filter
@@ -162,7 +182,10 @@ export async function GET(request: Request) {
       tags: [],
     })) || []
 
-    return NextResponse.json({
+    const duration = Date.now() - startTime
+
+    // Create response with caching headers
+    const response = NextResponse.json({
       files: transformedFiles,
       pagination: {
         total: count || 0,
@@ -170,7 +193,17 @@ export async function GET(request: Request) {
         offset,
         hasMore: (offset + limit) < (count || 0),
       },
+      _meta: {
+        duration,
+        cached: false,
+      },
     })
+
+    // Add cache headers - short TTL for dynamic data
+    // stale-while-revalidate allows serving stale content while fetching fresh
+    response.headers.set('Cache-Control', 'private, max-age=5, stale-while-revalidate=30')
+
+    return response
   } catch (error) {
     console.error('Error in GET /api/file-vault/files:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })

@@ -170,7 +170,18 @@ export async function POST(request: Request) {
 
     // Parse request body
     const body = await request.json()
-    const { vaultId, parentId, name, color, icon } = body
+    const {
+      vaultId,
+      parentId,
+      name,
+      color,
+      icon,
+      description,
+      visibility = 'public',  // 'public' | 'private' | 'groups' | 'users'
+      allowedGroups = [],     // Array of group IDs
+      allowedUsers = [],      // Array of user IDs to allow
+      deniedUsers = [],       // Array of user IDs to deny
+    } = body
 
     if (!vaultId) {
       return NextResponse.json({ error: 'Vault ID is required' }, { status: 400 })
@@ -249,6 +260,9 @@ export async function POST(request: Request) {
         path: folderPath,
         color: color || null,
         icon: icon || null,
+        description: description || null,
+        visibility: visibility,
+        is_public: visibility === 'public',
         owner_id: user.id,
         created_by: user.id,
       })
@@ -266,12 +280,64 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 
+    // Add permissions if specified
+    const permissionPromises: PromiseLike<unknown>[] = []
+
+    // Add group permissions
+    if (allowedGroups.length > 0) {
+      for (const groupId of allowedGroups) {
+        permissionPromises.push(
+          supabaseAdmin.from('folder_permissions').insert({
+            folder_id: newFolder.id,
+            group_id: groupId,
+            permission_type: 'view',
+            created_by: user.id,
+          }).then()
+        )
+      }
+    }
+
+    // Add user allow permissions
+    if (allowedUsers.length > 0) {
+      for (const userId of allowedUsers) {
+        permissionPromises.push(
+          supabaseAdmin.from('folder_permissions').insert({
+            folder_id: newFolder.id,
+            user_id: userId,
+            permission_type: 'view',
+            created_by: user.id,
+          }).then()
+        )
+      }
+    }
+
+    // Add user deny permissions
+    if (deniedUsers.length > 0) {
+      for (const userId of deniedUsers) {
+        permissionPromises.push(
+          supabaseAdmin.from('folder_permissions').insert({
+            folder_id: newFolder.id,
+            user_id: userId,
+            permission_type: 'deny',
+            created_by: user.id,
+          }).then()
+        )
+      }
+    }
+
+    // Execute all permission inserts (ignore errors for now)
+    if (permissionPromises.length > 0) {
+      await Promise.allSettled(permissionPromises)
+    }
+
     return NextResponse.json({
       id: newFolder.id,
       name: newFolder.name,
       path: newFolder.path,
       color: newFolder.color,
       icon: newFolder.icon,
+      description: newFolder.description,
+      visibility: newFolder.visibility,
       parentId: newFolder.parent_id,
       createdAt: newFolder.created_at,
     }, { status: 201 })

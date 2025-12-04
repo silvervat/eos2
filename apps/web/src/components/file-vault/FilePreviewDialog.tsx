@@ -93,6 +93,18 @@ export function FilePreviewDialog({
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('info')
   const [showSidebar, setShowSidebar] = useState(true)
 
+  // Close on ESC key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && open) {
+        onOpenChange(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, onOpenChange])
+
   const loadFile = useCallback(async (forceRefresh = false) => {
     // Check cache first
     const cached = fileCache.get(fileId)
@@ -446,6 +458,40 @@ export function FilePreviewDialog({
 
   const FileIcon = file ? getFileIcon(file.mimeType) : File
 
+  // Calculate responsive modal size based on file type and dimensions
+  const getModalClasses = () => {
+    if (!file) return 'w-full max-w-4xl'
+
+    // Images - adapt to image size with sensible limits
+    if (file.mimeType.startsWith('image/') && file.width && file.height) {
+      const aspectRatio = file.width / file.height
+      if (aspectRatio > 1.5) {
+        // Wide image - use more width
+        return 'w-[95vw] max-w-[1400px]'
+      } else if (aspectRatio < 0.7) {
+        // Tall/portrait image - use less width
+        return 'w-[90vw] max-w-[800px]'
+      }
+      // Normal aspect ratio
+      return 'w-[90vw] max-w-[1100px]'
+    }
+
+    // PDFs and documents - wider for readability
+    if (file.mimeType === 'application/pdf' ||
+        file.mimeType.includes('document') ||
+        file.mimeType.includes('spreadsheet')) {
+      return 'w-[95vw] max-w-[1400px]'
+    }
+
+    // Video - wide
+    if (file.mimeType.startsWith('video/')) {
+      return 'w-[95vw] max-w-[1200px]'
+    }
+
+    // Default
+    return 'w-[90vw] max-w-[1000px]'
+  }
+
   // Use CSS visibility instead of unmounting for faster open/close
   return (
     <div
@@ -453,8 +499,14 @@ export function FilePreviewDialog({
         open ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'
       }`}
       aria-hidden={!open}
+      onClick={(e) => {
+        // Close when clicking backdrop
+        if (e.target === e.currentTarget) {
+          onOpenChange(false)
+        }
+      }}
     >
-      <div className="w-full h-full max-w-7xl max-h-[95vh] m-4 flex bg-white rounded-xl shadow-2xl overflow-hidden">
+      <div className={`${getModalClasses()} h-auto max-h-[95vh] m-4 flex bg-white rounded-xl shadow-2xl overflow-hidden`}>
         {/* Main content */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
