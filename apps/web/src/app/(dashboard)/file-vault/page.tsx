@@ -808,7 +808,7 @@ export default function FileVaultPage() {
                 return (
                   <Card
                     key={item.id}
-                    className={`p-4 cursor-pointer transition-all hover:shadow-md ${
+                    className={`p-4 cursor-pointer transition-all hover:shadow-md group relative ${
                       isSelected ? 'ring-2 ring-offset-2' : ''
                     }`}
                     style={{
@@ -819,18 +819,63 @@ export default function FileVaultPage() {
                       if (isFolder) {
                         navigateToFolder(item as FolderItem)
                       } else {
-                        toggleSelect(item.id)
-                      }
-                    }}
-                    onDoubleClick={() => {
-                      if (isFolder) {
-                        navigateToFolder(item as FolderItem)
+                        handlePreview(item as FileItem)
                       }
                     }}
                   >
+                    {/* Action buttons overlay - only for files */}
+                    {!isFolder && (
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleSelect(item.id)
+                          }}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isSelected
+                              ? 'bg-[#279989] text-white'
+                              : 'bg-white/90 text-slate-600 hover:bg-slate-100'
+                          }`}
+                          title="Vali"
+                        >
+                          <Star className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownload(item as FileItem)
+                          }}
+                          className="p-1.5 bg-white/90 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+                          title="Laadi alla"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleShare(item as FileItem)
+                          }}
+                          className="p-1.5 bg-white/90 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+                          title="Jaga"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(item.id, false)
+                          }}
+                          className="p-1.5 bg-white/90 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                          title="Kustuta"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex flex-col items-center text-center">
                       {!isFolder && (item as FileItem).thumbnailSmall ? (
-                        <div className="w-12 h-12 rounded-lg overflow-hidden mb-3 bg-slate-100">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden mb-3 bg-slate-100">
                           <img
                             src={(item as FileItem).thumbnailSmall}
                             alt={item.name}
@@ -840,12 +885,12 @@ export default function FileVaultPage() {
                         </div>
                       ) : (
                         <div
-                          className={`w-12 h-12 rounded-lg flex items-center justify-center mb-3 ${
+                          className={`w-16 h-16 rounded-lg flex items-center justify-center mb-3 ${
                             isFolder ? 'bg-amber-100' : 'bg-slate-100'
                           }`}
                         >
                           <Icon
-                            className="w-6 h-6"
+                            className="w-8 h-8"
                             style={{ color: isFolder ? '#f59e0b' : '#64748b' }}
                           />
                         </div>
