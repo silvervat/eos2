@@ -106,6 +106,7 @@ export async function GET(
       isPublic: file.is_public,
       ownerId: file.owner_id,
       checksumMd5: file.checksum_md5,
+      extractedText: file.extracted_text,
       createdAt: file.created_at,
       updatedAt: file.updated_at,
       vault: file.vault ? { id: file.vault.id, name: file.vault.name } : null,
