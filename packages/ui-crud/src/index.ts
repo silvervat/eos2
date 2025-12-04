@@ -41,3 +41,21 @@ export {
   type ResourceEditPageProps,
   type TabDefinition,
 } from './pages'
+
+// Layout components
+export {
+  ResourceNavigation,
+  ResourceLayout,
+  ResourceHeader,
+  ResourceBreadcrumbs,
+  PageContainer,
+  Card,
+  type ResourceNavigationProps,
+  type NavigationItem,
+  type ResourceLayoutProps,
+  type ResourceHeaderProps,
+  type ResourceBreadcrumbsProps,
+  type BreadcrumbItem,
+  type PageContainerProps,
+  type CardProps,
+} from './layout'
