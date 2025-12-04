@@ -1,6 +1,42 @@
-# Claude Memory - EOS2 Laohaldussüsteem
+# Claude Memory - EOS2 Enterprise Operating System
 
-## Tehtud tööd (2024-11-30)
+**Viimati uuendatud:** 2025-12-04
+**Projekt:** EOS2 - Modulaarne ERP suusteem
+
+---
+
+## OLULINE - LOE ALATI ESIMESENA
+
+1. **SYSTEM.md** - Suusteemi ulevaade, moodulid, struktuur
+2. **TODO.md** - Pooleli asjad ja planeeritud tuuud
+3. **manual/04.12/** - Taielik dokumentatsioon modulaarse suusteemi kohta
+
+---
+
+## Dokumentatsiooni ulevaade (2025-12-04)
+
+### Loodud failid
+- `SYSTEM.md` - Suusteemi dokumentatsioon
+- `TODO.md` - Pooleli ja planeeritud tuuud
+- `manual/04.12/` - EOS2 modulaarse suusteemi juhendid:
+  - `00-INDEX.md` - Navigatsioon
+  - `00-CLAUDE-CODE-MASTER-JUHEND.md` - Pohjalik 12-peatukkiline juhend
+  - `01-IMPLEMENTATSIOONI-PLAAN.md` - 8-faasiline ehitusplaan
+  - `02-QUICK-START.md` - Igapaevane juhend
+  - `03-SUMMARY.md` - Kokkuvote
+  - `04-DOKUMENTATSIOONIPUU.md` - Visuaalne ulevaade
+
+### Visioon
+> **"Lego-stiilis ERP suusteem"** - uus moodul valmib 30 minutiga, koik on uhes kohas hallatav
+
+### 3 Peamist printsiipi
+1. **Single Source of Truth** - uks definition.ts fail = kogu moodul
+2. **DRY** - ara korda koodi, kasuta core komponente
+3. **Automaatne registreerimine** - moodul on kohe nahtav koikjal
+
+---
+
+## Tehtud tood (2024-11-30) - Warehouse moodul
 
 ### Faas 1: Põhifunktsionaalsus
 - SQL migratsioonid: `004_warehouse_management.sql`, `005_warehouse_enhanced.sql`
@@ -147,3 +183,25 @@ Meie eelised:
 - Hoolduste planeerimine
 - Tükikaupade/laoseisu jälgimine
 - QR koodid ja mobiilne skaneerimine
+
+---
+
+## Jarmine samm (2025-12-04)
+
+Vaata **implementatsiooni plaani**: `manual/04.12/01-IMPLEMENTATSIOONI-PLAAN.md`
+
+### Soovitatud jarjekord:
+1. PHASE 1: Baassuusteem (2-3h) - DB tabelid
+2. PHASE 2: Oiguste suusteem (3-4h) - RBAC
+3. PHASE 3: Admin paneel (4-5h) - Dashboard
+4. PHASE 4: Registry suusteem (3-4h) - Auto-register
+5. PHASE 5: Design System (2-3h) - Tokens, UI
+6. PHASE 6: Esimene moodul (1-2h) - Vehicles
+7. PHASE 7: Testimine (2-3h) - Unit, integration, E2E
+8. PHASE 8: Dokumentatsioon (1-2h) - SYSTEM.md, TODO.md
+
+**Kokku:** 20-30 tundi
+
+---
+
+**NB!** Uuenda seda faili iga suurema muudatuse jarel!
