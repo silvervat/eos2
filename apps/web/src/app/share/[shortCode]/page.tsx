@@ -294,7 +294,7 @@ export default function SharePage() {
                   </div>
                 </div>
 
-                {shareData.allowDownload && (
+                {shareData?.allowDownload && (
                   <button
                     onClick={() => handleDownload()}
                     disabled={isDownloading}
@@ -355,7 +355,7 @@ export default function SharePage() {
                             {formatFileSize(file.size_bytes)}
                           </p>
                         </div>
-                        {shareData.allowDownload && (
+                        {shareData?.allowDownload && (
                           <button
                             onClick={() => handleDownload(file.id)}
                             disabled={isDownloading}
