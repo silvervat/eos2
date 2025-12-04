@@ -35,12 +35,16 @@ import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
 import { ShareDialog } from '@/components/file-vault/ShareDialog'
 import { FilePreviewDialog } from '@/components/file-vault/FilePreviewDialog'
 import { FileTree, FileTreeRef } from '@/components/file-vault/FileTree'
+import { FileInfoSidebar } from '@/components/file-vault/FileInfoSidebar'
 import {
   User,
   FolderHeart,
   BarChart3,
   PanelLeftClose,
   PanelLeft,
+  PanelRightClose,
+  PanelRight,
+  Info,
 } from 'lucide-react'
 
 // Pagination constants
@@ -167,6 +171,10 @@ export default function FileVaultPage() {
   // Preview dialog state
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
   const [previewFileId, setPreviewFileId] = useState<string | null>(null)
+
+  // Info sidebar state
+  const [showInfoSidebar, setShowInfoSidebar] = useState(false)
+  const [infoFileId, setInfoFileId] = useState<string | null>(null)
 
   // Fetch vault (only called once on initial load)
   const fetchVault = useCallback(async () => {
@@ -409,6 +417,12 @@ export default function FileVaultPage() {
   const handlePreview = useCallback((file: FileItem) => {
     setPreviewFileId(file.id)
     setShowPreviewDialog(true)
+  }, [])
+
+  // Open info sidebar
+  const handleShowInfo = useCallback((file: FileItem) => {
+    setInfoFileId(file.id)
+    setShowInfoSidebar(true)
   }, [])
 
   // Open share dialog - supports single file
@@ -661,6 +675,18 @@ export default function FileVaultPage() {
               <Button
                 variant="ghost"
                 size="icon"
+                className="w-8 h-8"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleShowInfo(item as FileItem)
+                }}
+                title="Info"
+              >
+                <Info className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 className="w-8 h-8 text-red-600 hover:text-red-700"
                 onClick={(e) => {
                   e.stopPropagation()
@@ -675,7 +701,7 @@ export default function FileVaultPage() {
         </div>
       </div>
     )
-  }, [allItems, selectedItems, isItemLoaded, navigateToFolder, toggleSelect, handlePreview, handleDownload, handleShare, handleDelete])
+  }, [allItems, selectedItems, isItemLoaded, navigateToFolder, toggleSelect, handlePreview, handleDownload, handleShare, handleShowInfo, handleDelete])
 
   // Calculate container height for virtual list
   const [listHeight, setListHeight] = useState(500)
@@ -804,6 +830,31 @@ export default function FileVaultPage() {
 
             {/* Right: Actions */}
             <div className="flex items-center gap-2">
+              {/* Toggle info sidebar */}
+              <button
+                onClick={() => {
+                  if (selectedItems.length === 1) {
+                    const file = files.find(f => f.id === selectedItems[0])
+                    if (file) {
+                      setInfoFileId(file.id)
+                      setShowInfoSidebar(!showInfoSidebar)
+                    }
+                  } else {
+                    setShowInfoSidebar(!showInfoSidebar)
+                  }
+                }}
+                className={`hidden lg:flex p-1.5 rounded hover:bg-slate-100 ${
+                  showInfoSidebar ? 'text-[#279989]' : 'text-slate-500'
+                }`}
+                title={showInfoSidebar ? 'Peida info' : 'Näita infot'}
+              >
+                {showInfoSidebar ? (
+                  <PanelRightClose className="w-5 h-5" />
+                ) : (
+                  <PanelRight className="w-5 h-5" />
+                )}
+              </button>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -1045,6 +1096,16 @@ export default function FileVaultPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
+                            handleShowInfo(item as FileItem)
+                          }}
+                          className="p-1.5 bg-white/90 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+                          title="Info"
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
                             handleDelete(item.id, false)
                           }}
                           className="p-1.5 bg-white/90 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
@@ -1184,6 +1245,33 @@ export default function FileVaultPage() {
         {/* End of Content area */}
       </div>
       {/* End of Main Content */}
+
+      {/* Info Sidebar (Right) */}
+      {vault && showInfoSidebar && (
+        <FileInfoSidebar
+          open={showInfoSidebar}
+          onClose={() => setShowInfoSidebar(false)}
+          fileId={infoFileId}
+          onDownload={() => {
+            const file = files.find(f => f.id === infoFileId)
+            if (file) handleDownload(file)
+          }}
+          onShare={() => {
+            const file = files.find(f => f.id === infoFileId)
+            if (file) {
+              setShareFileIds([file.id])
+              setShareFileNames([file.name])
+              setShowShareDialog(true)
+            }
+          }}
+          onDelete={() => {
+            if (infoFileId) {
+              handleDelete(infoFileId, false)
+              setShowInfoSidebar(false)
+            }
+          }}
+        />
+      )}
 
       {/* Upload Dialog */}
       {vault && (
