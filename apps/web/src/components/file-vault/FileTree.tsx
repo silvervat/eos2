@@ -1,16 +1,18 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
 import {
   Folder,
   FolderOpen,
   ChevronRight,
   ChevronDown,
-  Plus,
+  FolderPlus,
   MoreVertical,
   Edit3,
   Trash2,
-  FolderPlus,
+  Plus,
+  Loader2,
+  Files,
 } from 'lucide-react'
 
 interface FolderItem {
@@ -19,6 +21,8 @@ interface FolderItem {
   parentId: string | null
   path: string
   children?: FolderItem[]
+  fileCount?: number
+  newFileCount?: number
 }
 
 interface FileTreeProps {
@@ -28,32 +32,42 @@ interface FileTreeProps {
   onCreateFolder?: (parentId: string | null) => void
   onRenameFolder?: (folder: FolderItem) => void
   onDeleteFolder?: (folder: FolderItem) => void
+  canManageFolders?: boolean
 }
 
-export function FileTree({
+export interface FileTreeRef {
+  refresh: () => Promise<void>
+}
+
+export const FileTree = forwardRef<FileTreeRef, FileTreeProps>(function FileTree({
   vaultId,
   currentFolderId,
   onFolderSelect,
   onCreateFolder,
   onRenameFolder,
   onDeleteFolder,
-}: FileTreeProps) {
+  canManageFolders = true,
+}, ref) {
   const [folders, setFolders] = useState<FolderItem[]>([])
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(true)
-  const [contextMenu, setContextMenu] = useState<{
-    x: number
-    y: number
-    folder: FolderItem
+  const [activeMenu, setActiveMenu] = useState<string | null>(null)
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
+  const [hoveredFolder, setHoveredFolder] = useState<string | null>(null)
+  const [recentFilesHover, setRecentFilesHover] = useState<{
+    folderId: string
+    files: Array<{ id: string; name: string; createdAt: string }>
   } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
-  // Fetch all folders
+  // Fetch all folders with file counts
   const fetchFolders = useCallback(async () => {
     if (!vaultId) return
 
     try {
+      setIsLoading(true)
       const response = await fetch(
-        `/api/file-vault/folders?vaultId=${vaultId}&flat=true`
+        `/api/file-vault/folders?vaultId=${vaultId}&flat=true&includeStats=true`
       )
       if (response.ok) {
         const data = await response.json()
@@ -66,9 +80,11 @@ export function FileTree({
           folderMap.set(folder.id, {
             id: folder.id,
             name: folder.name,
-            parentId: folder.parent_id || folder.parentId,
+            parentId: folder.parent_id || folder.parentId || null,
             path: folder.path,
             children: [],
+            fileCount: folder.file_count || folder.fileCount || 0,
+            newFileCount: folder.new_file_count || folder.newFileCount || 0,
           })
         }
 
@@ -101,6 +117,11 @@ export function FileTree({
     }
   }, [vaultId])
 
+  // Expose refresh method via ref
+  useImperativeHandle(ref, () => ({
+    refresh: fetchFolders,
+  }))
+
   useEffect(() => {
     fetchFolders()
   }, [fetchFolders])
@@ -112,14 +133,19 @@ export function FileTree({
     }
   }, [currentFolderId])
 
-  // Close context menu on click outside
+  // Close menu on click outside
   useEffect(() => {
-    const handleClick = () => setContextMenu(null)
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setActiveMenu(null)
+      }
+    }
     document.addEventListener('click', handleClick)
     return () => document.removeEventListener('click', handleClick)
   }, [])
 
-  const toggleExpand = (folderId: string) => {
+  const toggleExpand = (folderId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
     setExpandedFolders((prev) => {
       const next = new Set(prev)
       if (next.has(folderId)) {
@@ -131,27 +157,79 @@ export function FileTree({
     })
   }
 
-  const handleContextMenu = (e: React.MouseEvent, folder: FolderItem) => {
+  const handleMenuClick = (e: React.MouseEvent, folderId: string) => {
     e.preventDefault()
     e.stopPropagation()
-    setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      folder,
-    })
+
+    const rect = (e.target as HTMLElement).getBoundingClientRect()
+    setMenuPosition({ x: rect.right + 4, y: rect.top })
+    setActiveMenu(activeMenu === folderId ? null : folderId)
   }
+
+  const handleDeleteFolder = async (folder: FolderItem) => {
+    if (!confirm(`Kas oled kindel, et soovid kausta "${folder.name}" kustutada?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/file-vault/folders/${folder.id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        await fetchFolders()
+        if (currentFolderId === folder.id) {
+          onFolderSelect(null)
+        }
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Kausta kustutamine ebaõnnestus')
+      }
+    } catch (error) {
+      console.error('Error deleting folder:', error)
+      alert('Kausta kustutamine ebaõnnestus')
+    }
+
+    setActiveMenu(null)
+    if (onDeleteFolder) onDeleteFolder(folder)
+  }
+
+  // Fetch recent files for hover tooltip
+  const fetchRecentFiles = useCallback(async (folderId: string) => {
+    try {
+      const response = await fetch(
+        `/api/file-vault/files?vaultId=${vaultId}&folderId=${folderId}&limit=5&sort=createdAt&order=desc`
+      )
+      if (response.ok) {
+        const data = await response.json()
+        setRecentFilesHover({
+          folderId,
+          files: (data.files || []).slice(0, 5).map((f: { id: string; name: string; created_at?: string; createdAt?: string }) => ({
+            id: f.id,
+            name: f.name,
+            createdAt: f.created_at || f.createdAt,
+          })),
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching recent files:', error)
+    }
+  }, [vaultId])
 
   const renderFolder = (folder: FolderItem, level: number = 0) => {
     const isExpanded = expandedFolders.has(folder.id)
     const isSelected = currentFolderId === folder.id
     const hasChildren = folder.children && folder.children.length > 0
+    const isHovered = hoveredFolder === folder.id
+    const fileCount = folder.fileCount || 0
+    const newFileCount = folder.newFileCount || 0
 
     return (
       <div key={folder.id}>
         <div
           className={`
             flex items-center gap-1 px-2 py-1.5 cursor-pointer rounded-md
-            transition-colors text-sm
+            transition-colors text-sm group relative
             ${isSelected
               ? 'bg-[#279989]/10 text-[#279989]'
               : 'hover:bg-slate-100 text-slate-700'
@@ -159,15 +237,16 @@ export function FileTree({
           `}
           style={{ paddingLeft: `${level * 16 + 8}px` }}
           onClick={() => onFolderSelect(folder)}
-          onContextMenu={(e) => handleContextMenu(e, folder)}
+          onMouseEnter={() => setHoveredFolder(folder.id)}
+          onMouseLeave={() => {
+            setHoveredFolder(null)
+            setRecentFilesHover(null)
+          }}
         >
           {/* Expand/collapse button */}
           <button
-            onClick={(e) => {
-              e.stopPropagation()
-              toggleExpand(folder.id)
-            }}
-            className={`w-4 h-4 flex items-center justify-center ${
+            onClick={(e) => toggleExpand(folder.id, e)}
+            className={`w-4 h-4 flex items-center justify-center flex-shrink-0 ${
               hasChildren ? '' : 'invisible'
             }`}
           >
@@ -187,6 +266,52 @@ export function FileTree({
 
           {/* Folder name */}
           <span className="truncate flex-1">{folder.name}</span>
+
+          {/* File count and new indicator */}
+          {fileCount > 0 && (
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-slate-400">({fileCount}</span>
+              {newFileCount > 0 && (
+                <span
+                  className="text-[#279989] font-medium cursor-help relative"
+                  onMouseEnter={() => fetchRecentFiles(folder.id)}
+                >
+                  | +{newFileCount}
+                  {/* Hover tooltip for recent files */}
+                  {recentFilesHover?.folderId === folder.id && recentFilesHover.files.length > 0 && (
+                    <div
+                      className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-2 min-w-[200px]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <p className="text-[10px] text-slate-500 font-medium uppercase mb-1">
+                        Viimati lisatud
+                      </p>
+                      {recentFilesHover.files.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center gap-2 py-1 text-xs text-slate-600 hover:text-slate-900"
+                        >
+                          <Files className="w-3 h-3 text-slate-400" />
+                          <span className="truncate">{file.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </span>
+              )}
+              <span className="text-slate-400">)</span>
+            </div>
+          )}
+
+          {/* Three dots menu */}
+          {canManageFolders && isHovered && (
+            <button
+              onClick={(e) => handleMenuClick(e, folder.id)}
+              className="p-0.5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Children */}
@@ -204,7 +329,7 @@ export function FileTree({
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
         <h3 className="text-sm font-medium text-slate-700">Kaustad</h3>
-        {onCreateFolder && (
+        {canManageFolders && onCreateFolder && (
           <button
             onClick={() => onCreateFolder(null)}
             className="p-1 rounded hover:bg-slate-100 text-slate-500"
@@ -219,7 +344,7 @@ export function FileTree({
       <div className="flex-1 overflow-y-auto p-2">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <div className="w-5 h-5 border-2 border-[#279989] border-t-transparent rounded-full animate-spin" />
+            <Loader2 className="w-5 h-5 animate-spin text-[#279989]" />
           </div>
         ) : (
           <>
@@ -253,18 +378,18 @@ export function FileTree({
         )}
       </div>
 
-      {/* Context Menu */}
-      {contextMenu && (
+      {/* Dropdown Menu (Portal-like positioning) */}
+      {activeMenu && (
         <div
+          ref={menuRef}
           className="fixed bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50 min-w-[160px]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(e) => e.stopPropagation()}
+          style={{ left: menuPosition.x, top: menuPosition.y }}
         >
           {onCreateFolder && (
             <button
               onClick={() => {
-                onCreateFolder(contextMenu.folder.id)
-                setContextMenu(null)
+                onCreateFolder(activeMenu)
+                setActiveMenu(null)
               }}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
             >
@@ -275,8 +400,9 @@ export function FileTree({
           {onRenameFolder && (
             <button
               onClick={() => {
-                onRenameFolder(contextMenu.folder)
-                setContextMenu(null)
+                const folder = findFolderById(folders, activeMenu)
+                if (folder) onRenameFolder(folder)
+                setActiveMenu(null)
               }}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
             >
@@ -284,22 +410,32 @@ export function FileTree({
               Nimeta ümber
             </button>
           )}
-          {onDeleteFolder && (
-            <button
-              onClick={() => {
-                onDeleteFolder(contextMenu.folder)
-                setContextMenu(null)
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-            >
-              <Trash2 className="w-4 h-4" />
-              Kustuta
-            </button>
-          )}
+          <button
+            onClick={() => {
+              const folder = findFolderById(folders, activeMenu)
+              if (folder) handleDeleteFolder(folder)
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+          >
+            <Trash2 className="w-4 h-4" />
+            Kustuta
+          </button>
         </div>
       )}
     </div>
   )
+})
+
+// Helper to find folder by ID recursively
+function findFolderById(folders: FolderItem[], id: string): FolderItem | null {
+  for (const folder of folders) {
+    if (folder.id === id) return folder
+    if (folder.children) {
+      const found = findFolderById(folder.children, id)
+      if (found) return found
+    }
+  }
+  return null
 }
 
 export default FileTree

@@ -34,7 +34,14 @@ import { Button, Input, Card } from '@rivest/ui'
 import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
 import { ShareDialog } from '@/components/file-vault/ShareDialog'
 import { FilePreviewDialog } from '@/components/file-vault/FilePreviewDialog'
-import { FileTree } from '@/components/file-vault/FileTree'
+import { FileTree, FileTreeRef } from '@/components/file-vault/FileTree'
+import {
+  User,
+  FolderHeart,
+  BarChart3,
+  PanelLeftClose,
+  PanelLeft,
+} from 'lucide-react'
 
 // Pagination constants
 const PAGE_SIZE = 100
@@ -138,6 +145,10 @@ export default function FileVaultPage() {
   const infiniteLoaderRef = useRef<InfiniteLoader>(null)
   const vaultIdRef = useRef<string | null>(null)
   const isInitialLoadDone = useRef(false)
+  const fileTreeRef = useRef<FileTreeRef>(null)
+
+  // Active tab: 'all' | 'my-files' | 'organize' | 'statistics'
+  const [activeTab, setActiveTab] = useState<'all' | 'my-files' | 'organize' | 'statistics'>('all')
 
   // Dialog state
   const [showUploadDialog, setShowUploadDialog] = useState(false)
@@ -333,6 +344,9 @@ export default function FileVaultPage() {
     setSelectedItems([])
   }, [])
 
+  // State for new folder parent (for creating subfolders from tree)
+  const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null)
+
   // Create folder
   const handleCreateFolder = async () => {
     if (!vault || !newFolderName.trim()) return
@@ -344,7 +358,7 @@ export default function FileVaultPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vaultId: vault.id,
-          parentId: currentFolderId,
+          parentId: newFolderParentId ?? currentFolderId,
           name: newFolderName.trim(),
         }),
       })
@@ -356,7 +370,11 @@ export default function FileVaultPage() {
 
       setNewFolderName('')
       setShowNewFolderDialog(false)
+      setNewFolderParentId(null)
+
+      // Refresh both the folder list and the file tree
       await fetchFolders(vault.id, currentFolderId)
+      fileTreeRef.current?.refresh()
     } catch (err) {
       console.error('Error creating folder:', err)
       alert((err as Error).message)
@@ -364,6 +382,12 @@ export default function FileVaultPage() {
       setIsCreatingFolder(false)
     }
   }
+
+  // Open new folder dialog with optional parent
+  const openNewFolderDialog = useCallback((parentId: string | null = null) => {
+    setNewFolderParentId(parentId)
+    setShowNewFolderDialog(true)
+  }, [])
 
   // Upload complete handler
   const handleUploadComplete = async () => {
@@ -691,53 +715,138 @@ export default function FileVaultPage() {
       {vault && showFileTree && (
         <div className="w-64 flex-shrink-0 hidden lg:block">
           <FileTree
+            ref={fileTreeRef}
             vaultId={vault.id}
             currentFolderId={currentFolderId}
             onFolderSelect={handleTreeFolderSelect}
-            onCreateFolder={() => setShowNewFolderDialog(true)}
+            onCreateFolder={openNewFolderDialog}
+            canManageFolders={true}
           />
         </div>
       )}
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <FolderArchive className="w-7 h-7" style={{ color: '#279989' }} />
-              Failihaldus
-            </h1>
-            <p className="text-slate-600 mt-1">
-              {vault ? (
-                <>
-                  {vault.name} - {formatFileSize(Number(vault.usedBytes))} / {formatFileSize(Number(vault.quotaBytes))} kasutatud
-                  {totalFiles > 0 && <span className="ml-2">({totalFiles} faili)</span>}
-                </>
-              ) : (
-                'Halda oma faile ja dokumente'
-              )}
-            </p>
+      <div className="flex-1 overflow-y-auto">
+        {/* Top Bar with Tabs */}
+        <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
+          <div className="flex items-center justify-between px-6 py-3">
+            {/* Left: Toggle sidebar + Tabs */}
+            <div className="flex items-center gap-4">
+              {/* Toggle file tree button */}
+              <button
+                onClick={() => setShowFileTree(!showFileTree)}
+                className="hidden lg:flex p-1.5 rounded hover:bg-slate-100 text-slate-500"
+                title={showFileTree ? 'Peida failipuu' : 'Näita failipuud'}
+              >
+                {showFileTree ? (
+                  <PanelLeftClose className="w-5 h-5" />
+                ) : (
+                  <PanelLeft className="w-5 h-5" />
+                )}
+              </button>
+
+              {/* Tabs */}
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+                <button
+                  onClick={() => setActiveTab('all')}
+                  className={`
+                    flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors
+                    ${activeTab === 'all'
+                      ? 'bg-[#279989]/10 text-[#279989] font-medium'
+                      : 'text-slate-600 hover:bg-slate-100'
+                    }
+                  `}
+                >
+                  <FolderArchive className="w-4 h-4" />
+                  <span>Kõik failid</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('my-files')}
+                  className={`
+                    flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors
+                    ${activeTab === 'my-files'
+                      ? 'bg-[#279989]/10 text-[#279989] font-medium'
+                      : 'text-slate-600 hover:bg-slate-100'
+                    }
+                  `}
+                >
+                  <User className="w-4 h-4" />
+                  <span>Minu failid</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('organize')}
+                  className={`
+                    flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors
+                    ${activeTab === 'organize'
+                      ? 'bg-[#279989]/10 text-[#279989] font-medium'
+                      : 'text-slate-600 hover:bg-slate-100'
+                    }
+                  `}
+                >
+                  <FolderHeart className="w-4 h-4" />
+                  <span>Organiseeri</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('statistics')}
+                  className={`
+                    flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors
+                    ${activeTab === 'statistics'
+                      ? 'bg-[#279989]/10 text-[#279989] font-medium'
+                      : 'text-slate-600 hover:bg-slate-100'
+                    }
+                  `}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span>Statistika</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Right: Actions */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => openNewFolderDialog()}
+              >
+                <FolderPlus className="w-4 h-4" />
+                <span className="hidden sm:inline">Uus kaust</span>
+              </Button>
+              <Button
+                size="sm"
+                className="gap-2"
+                style={{ backgroundColor: '#279989' }}
+                onClick={() => setShowUploadDialog(true)}
+              >
+                <FileUp className="w-4 h-4" />
+                <span className="hidden sm:inline">Laadi fail</span>
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="gap-2"
-              onClick={() => setShowNewFolderDialog(true)}
-            >
-              <FolderPlus className="w-4 h-4" />
-              <span className="hidden sm:inline">Uus kaust</span>
-            </Button>
-            <Button
-              className="gap-2"
-              style={{ backgroundColor: '#279989' }}
-              onClick={() => setShowUploadDialog(true)}
-            >
-              <FileUp className="w-4 h-4" />
-              <span className="hidden sm:inline">Laadi fail</span>
-            </Button>
-          </div>
+
+          {/* Vault info bar */}
+          {vault && (
+            <div className="flex items-center justify-between px-6 py-2 bg-slate-50 border-t border-slate-100 text-sm">
+              <span className="text-slate-600">
+                {vault.name} - {formatFileSize(Number(vault.usedBytes))} / {formatFileSize(Number(vault.quotaBytes))} kasutatud
+                {totalFiles > 0 && <span className="ml-2 text-slate-400">({totalFiles} faili)</span>}
+              </span>
+              <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.min(vault.usagePercent || 0, 100)}%`,
+                    backgroundColor: (vault.usagePercent || 0) > 90 ? '#ef4444' : '#279989'
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Content area with padding */}
+        <div className="p-6 space-y-6">
 
       {/* Breadcrumbs */}
       <div className="flex items-center gap-1 text-sm">
@@ -1071,6 +1180,11 @@ export default function FileVaultPage() {
         </div>
       )}
 
+        </div>
+        {/* End of Content area */}
+      </div>
+      {/* End of Main Content */}
+
       {/* Upload Dialog */}
       {vault && (
         <FileUploadDialog
@@ -1087,7 +1201,9 @@ export default function FileVaultPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md bg-white rounded-xl shadow-xl">
             <div className="p-6">
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Uus kaust</h3>
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">
+                {newFolderParentId ? 'Uus alamkaust' : 'Uus kaust'}
+              </h3>
               <Input
                 placeholder="Kausta nimi"
                 value={newFolderName}
@@ -1106,6 +1222,7 @@ export default function FileVaultPage() {
                 onClick={() => {
                   setShowNewFolderDialog(false)
                   setNewFolderName('')
+                  setNewFolderParentId(null)
                 }}
                 disabled={isCreatingFolder}
                 className="flex-1"
@@ -1130,9 +1247,6 @@ export default function FileVaultPage() {
           </Card>
         </div>
       )}
-
-      </div>
-      {/* End of Main Content */}
 
       {/* Share Dialog */}
       {vault && shareFileIds.length > 0 && (
