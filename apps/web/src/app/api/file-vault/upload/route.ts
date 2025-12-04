@@ -169,6 +169,14 @@ export async function POST(request: Request) {
       }
     }
 
+    // Generate slug from filename
+    const slug = file.name
+      .replace(/\.[^/.]+$/, '') // Remove extension
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 100)
+
     // Create file record in database
     const { data: fileRecord, error: insertError } = await supabaseAdmin
       .from('files')
@@ -176,10 +184,11 @@ export async function POST(request: Request) {
         vault_id: vaultId,
         folder_id: folderId || null,
         name: file.name,
+        original_name: file.name,
+        slug,
         path: filePath,
         storage_provider: 'supabase',
         storage_bucket: FILE_VAULT_BUCKET,
-        storage_path: storagePath,
         storage_key: storageKey,
         mime_type: mimeType,
         size_bytes: file.size,
@@ -193,7 +202,6 @@ export async function POST(request: Request) {
         thumbnail_large: thumbnailLarge,
         metadata,
         owner_id: user.id,
-        created_by: user.id,
       })
       .select()
       .single()
@@ -214,14 +222,17 @@ export async function POST(request: Request) {
       .update({ used_bytes: newUsedBytes.toString() })
       .eq('id', vaultId)
 
-    // Log file access
-    await supabaseAdmin.from('file_accesses').insert({
+    // Log file activity
+    await supabaseAdmin.from('file_activities').insert({
+      vault_id: vaultId,
       file_id: fileRecord.id,
       action: 'upload',
-      ip_address: request.headers.get('x-forwarded-for') || 'unknown',
-      user_agent: request.headers.get('user-agent'),
       user_id: user.id,
+      user_email: user.email,
+      ip_address: request.headers.get('x-forwarded-for') || null,
+      user_agent: request.headers.get('user-agent'),
       bytes_transferred: file.size,
+      details: { originalName: file.name, mimeType },
     })
 
     return NextResponse.json({

@@ -91,13 +91,19 @@ export async function GET(request: Request) {
         id,
         name,
         description,
+        config,
         quota_bytes,
         used_bytes,
+        file_count,
+        folder_count,
+        is_default,
+        status,
         created_at,
         updated_at
       `)
       .eq('tenant_id', profile.tenant_id)
       .is('deleted_at', null)
+      .order('is_default', { ascending: false })
       .order('created_at', { ascending: true })
 
     if (error) {
@@ -114,6 +120,8 @@ export async function GET(request: Request) {
           name: 'Failid',
           description: 'Peamine failihoidla',
           quota_bytes: 107374182400, // 100GB
+          is_default: true,
+          status: 'active',
           created_by: user.id,
         })
         .select()
@@ -132,9 +140,14 @@ export async function GET(request: Request) {
       id: vault.id,
       name: vault.name,
       description: vault.description,
+      config: vault.config,
       quotaBytes: vault.quota_bytes,
       usedBytes: vault.used_bytes,
-      usagePercent: Math.round((Number(vault.used_bytes) / Number(vault.quota_bytes)) * 100),
+      fileCount: vault.file_count || 0,
+      folderCount: vault.folder_count || 0,
+      usagePercent: Math.round((Number(vault.used_bytes || 0) / Number(vault.quota_bytes)) * 100),
+      isDefault: vault.is_default,
+      status: vault.status,
       createdAt: vault.created_at,
       updatedAt: vault.updated_at,
     })) || []
@@ -192,6 +205,8 @@ export async function POST(request: Request) {
         name: name.trim(),
         description: description || null,
         quota_bytes: quotaBytes || 107374182400, // 100GB default
+        is_default: false,
+        status: 'active',
         created_by: user.id,
       })
       .select()
@@ -206,8 +221,14 @@ export async function POST(request: Request) {
       id: vault.id,
       name: vault.name,
       description: vault.description,
+      config: vault.config,
       quotaBytes: vault.quota_bytes,
-      usedBytes: vault.used_bytes,
+      usedBytes: vault.used_bytes || 0,
+      fileCount: 0,
+      folderCount: 0,
+      usagePercent: 0,
+      isDefault: vault.is_default,
+      status: vault.status,
       createdAt: vault.created_at,
     }, { status: 201 })
   } catch (error) {

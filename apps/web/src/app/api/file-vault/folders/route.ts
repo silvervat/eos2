@@ -67,11 +67,15 @@ export async function GET(request: Request) {
         id,
         name,
         path,
+        slug,
+        depth,
         color,
         icon,
         is_public,
         parent_id,
-        owner_id,
+        file_count,
+        total_size_bytes,
+        created_by,
         created_at,
         updated_at
       `)
@@ -98,11 +102,15 @@ export async function GET(request: Request) {
       id: folder.id,
       name: folder.name,
       path: folder.path,
+      slug: folder.slug,
+      depth: folder.depth,
       color: folder.color,
       icon: folder.icon,
       isPublic: folder.is_public,
       parentId: folder.parent_id,
-      ownerId: folder.owner_id,
+      fileCount: folder.file_count,
+      totalSizeBytes: folder.total_size_bytes,
+      createdBy: folder.created_by,
       createdAt: folder.created_at,
       updatedAt: folder.updated_at,
     })) || []
@@ -202,12 +210,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Vault not found or access denied' }, { status: 404 })
     }
 
-    // Get parent folder path if parentId provided
+    // Get parent folder path and depth if parentId provided
     let parentPath = ''
+    let parentDepth = 0
     if (parentId) {
       const { data: parentFolder, error: parentError } = await supabase
         .from('file_folders')
-        .select('path')
+        .select('path, depth')
         .eq('id', parentId)
         .eq('vault_id', vaultId)
         .is('deleted_at', null)
@@ -217,10 +226,18 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Parent folder not found' }, { status: 404 })
       }
       parentPath = parentFolder.path
+      parentDepth = parentFolder.depth || 0
     }
 
     // Build folder path
     const folderPath = parentPath ? `${parentPath}/${name.trim()}` : `/${name.trim()}`
+
+    // Generate slug from folder name
+    const slug = name.trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 100)
 
     // Check for duplicate folder name in same location
     let duplicateQuery = supabase
@@ -247,9 +264,10 @@ export async function POST(request: Request) {
         parent_id: parentId || null,
         name: name.trim(),
         path: folderPath,
-        color: color || null,
-        icon: icon || null,
-        owner_id: user.id,
+        slug,
+        depth: parentDepth + 1,
+        color: color || '#6B7280',
+        icon: icon || 'folder',
         created_by: user.id,
       })
       .select()
@@ -270,9 +288,13 @@ export async function POST(request: Request) {
       id: newFolder.id,
       name: newFolder.name,
       path: newFolder.path,
+      slug: newFolder.slug,
+      depth: newFolder.depth,
       color: newFolder.color,
       icon: newFolder.icon,
       parentId: newFolder.parent_id,
+      fileCount: 0,
+      totalSizeBytes: 0,
       createdAt: newFolder.created_at,
     }, { status: 201 })
   } catch (error) {
@@ -288,11 +310,15 @@ interface FolderNode {
   id: string
   name: string
   path: string
+  slug?: string
+  depth?: number
   color?: string
   icon?: string
   isPublic: boolean
   parentId: string | null
-  ownerId: string
+  fileCount?: number
+  totalSizeBytes?: number
+  createdBy: string
   createdAt: string
   updatedAt: string
   children?: FolderNode[]

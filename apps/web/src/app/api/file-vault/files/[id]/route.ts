@@ -49,9 +49,7 @@ export async function GET(
       .select(`
         *,
         vault:file_vaults!vault_id(id, tenant_id, name),
-        folder:file_folders!folder_id(id, name, path),
-        tags:file_tags(id, tag),
-        accesses:file_accesses(id, action, created_at, user_id)
+        folder:file_folders!folder_id(id, name, path)
       `)
       .eq('id', fileId)
       .is('deleted_at', null)
@@ -66,52 +64,54 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Log view access
-    await supabaseAdmin.from('file_accesses').insert({
+    // Log view activity
+    await supabaseAdmin.from('file_activities').insert({
+      vault_id: file.vault_id,
       file_id: fileId,
       action: 'view',
-      ip_address: request.headers.get('x-forwarded-for') || 'unknown',
-      user_agent: request.headers.get('user-agent'),
       user_id: user.id,
+      user_email: user.email,
+      ip_address: request.headers.get('x-forwarded-for') || null,
+      user_agent: request.headers.get('user-agent'),
     })
 
     // Transform response
     return NextResponse.json({
       id: file.id,
       name: file.name,
+      originalName: file.original_name,
       path: file.path,
+      slug: file.slug,
       mimeType: file.mime_type,
       sizeBytes: file.size_bytes,
       extension: file.extension,
+      category: file.category,
       width: file.width,
       height: file.height,
-      duration: file.duration,
-      exifData: file.exif_data,
-      cameraMake: file.camera_make,
-      cameraModel: file.camera_model,
-      lens: file.lens,
-      iso: file.iso,
-      aperture: file.aperture,
-      shutterSpeed: file.shutter_speed,
-      focalLength: file.focal_length,
-      takenAt: file.taken_at,
-      gpsLatitude: file.gps_latitude,
-      gpsLongitude: file.gps_longitude,
-      gpsLocation: file.gps_location,
+      durationSeconds: file.duration_seconds,
+      storageKey: file.storage_key,
       thumbnailSmall: file.thumbnail_small,
       thumbnailMedium: file.thumbnail_medium,
       thumbnailLarge: file.thumbnail_large,
+      processingStatus: file.processing_status,
+      previewUrl: file.preview_url,
       metadata: file.metadata,
+      tags: file.tags || [],
+      searchableText: file.searchable_text,
       version: file.version,
+      isLatest: file.is_latest,
       isPublic: file.is_public,
+      isStarred: file.is_starred,
+      isPinned: file.is_pinned,
+      isTrashed: file.is_trashed,
+      trashedAt: file.trashed_at,
       ownerId: file.owner_id,
       checksumMd5: file.checksum_md5,
+      checksumSha256: file.checksum_sha256,
       createdAt: file.created_at,
       updatedAt: file.updated_at,
       vault: file.vault ? { id: file.vault.id, name: file.vault.name } : null,
       folder: file.folder,
-      tags: file.tags?.map((t: { tag: string }) => t.tag) || [],
-      recentAccesses: file.accesses?.slice(0, 10) || [],
     })
   } catch (error) {
     console.error('Error in GET /api/file-vault/files/[id]:', error)
@@ -169,38 +169,51 @@ export async function PATCH(
     // Parse request body
     const body = await request.json()
 
-    // Allowed update fields
-    const allowedFields = [
-      'name',
-      'folder_id',
-      'is_public',
-      'metadata',
-    ]
-
-    const updates: Record<string, unknown> = {
-      updated_by: user.id,
-    }
-
     // Build update object
-    for (const field of allowedFields) {
-      if (body[field] !== undefined) {
-        // Handle camelCase to snake_case conversion
-        if (field === 'folderId') {
-          updates['folder_id'] = body.folderId
-        } else if (field === 'isPublic') {
-          updates['is_public'] = body.isPublic
-        } else {
-          updates[field] = body[field]
-        }
-      }
-    }
+    const updates: Record<string, unknown> = {}
 
-    // Handle name change - update path
-    if (body.name && body.name !== existingFile.name) {
+    // Handle name change - update path and slug
+    if (body.name !== undefined && body.name !== existingFile.name) {
       updates['name'] = body.name
       const pathParts = existingFile.path.split('/')
       pathParts[pathParts.length - 1] = body.name
       updates['path'] = pathParts.join('/')
+      updates['slug'] = body.name
+        .replace(/\.[^/.]+$/, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .substring(0, 100)
+    }
+
+    // Handle folder change
+    if (body.folderId !== undefined) {
+      updates['folder_id'] = body.folderId || null
+    }
+
+    // Handle public status
+    if (body.isPublic !== undefined) {
+      updates['is_public'] = body.isPublic
+    }
+
+    // Handle starred status
+    if (body.isStarred !== undefined) {
+      updates['is_starred'] = body.isStarred
+    }
+
+    // Handle pinned status
+    if (body.isPinned !== undefined) {
+      updates['is_pinned'] = body.isPinned
+    }
+
+    // Handle metadata
+    if (body.metadata !== undefined) {
+      updates['metadata'] = body.metadata
+    }
+
+    // Handle tags (now stored directly in files table as array)
+    if (body.tags !== undefined) {
+      updates['tags'] = body.tags.map((tag: string) => tag.trim().toLowerCase())
     }
 
     // Update file
@@ -216,31 +229,16 @@ export async function PATCH(
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
-    // Handle tags update
-    if (body.tags !== undefined) {
-      // Delete existing tags
-      await supabaseAdmin
-        .from('file_tags')
-        .delete()
-        .eq('file_id', fileId)
-
-      // Insert new tags
-      if (body.tags.length > 0) {
-        await supabaseAdmin.from('file_tags').insert(
-          body.tags.map((tag: string) => ({
-            file_id: fileId,
-            tag: tag.trim().toLowerCase(),
-          }))
-        )
-      }
-    }
-
     return NextResponse.json({
       id: updatedFile.id,
       name: updatedFile.name,
       path: updatedFile.path,
+      slug: updatedFile.slug,
       isPublic: updatedFile.is_public,
+      isStarred: updatedFile.is_starred,
+      isPinned: updatedFile.is_pinned,
       metadata: updatedFile.metadata,
+      tags: updatedFile.tags || [],
       updatedAt: updatedFile.updated_at,
     })
   } catch (error) {
@@ -335,12 +333,12 @@ export async function DELETE(
         .eq('id', existingFile.vault.id)
 
     } else {
-      // Soft delete
+      // Soft delete (move to trash)
       const { error: updateError } = await supabaseAdmin
         .from('files')
         .update({
-          deleted_at: new Date().toISOString(),
-          deleted_by: user.id,
+          is_trashed: true,
+          trashed_at: new Date().toISOString(),
         })
         .eq('id', fileId)
 
@@ -350,13 +348,16 @@ export async function DELETE(
       }
     }
 
-    // Log delete access
-    await supabaseAdmin.from('file_accesses').insert({
+    // Log delete activity
+    await supabaseAdmin.from('file_activities').insert({
+      vault_id: existingFile.vault.id,
       file_id: fileId,
-      action: 'delete',
-      ip_address: request.headers.get('x-forwarded-for') || 'unknown',
-      user_agent: request.headers.get('user-agent'),
+      action: permanent ? 'delete' : 'trash',
       user_id: user.id,
+      user_email: user.email,
+      ip_address: request.headers.get('x-forwarded-for') || null,
+      user_agent: request.headers.get('user-agent'),
+      details: { permanent, fileName: existingFile.name },
     })
 
     return NextResponse.json({ success: true, permanent })

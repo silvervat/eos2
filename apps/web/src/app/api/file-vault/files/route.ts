@@ -75,19 +75,22 @@ export async function GET(request: Request) {
         mime_type,
         size_bytes,
         extension,
+        category,
         width,
         height,
         thumbnail_small,
         thumbnail_medium,
         thumbnail_large,
         metadata,
+        tags,
         version,
         is_public,
+        is_starred,
+        is_trashed,
         owner_id,
         created_at,
         updated_at,
-        folder:file_folders!folder_id(id, name, path),
-        tags:file_tags(tag)
+        folder:file_folders!folder_id(id, name, path)
       `, { count: 'exact' })
       .eq('vault_id', vaultId)
 
@@ -148,19 +151,22 @@ export async function GET(request: Request) {
       mimeType: file.mime_type,
       sizeBytes: file.size_bytes,
       extension: file.extension,
+      category: file.category,
       width: file.width,
       height: file.height,
       thumbnailSmall: file.thumbnail_small,
       thumbnailMedium: file.thumbnail_medium,
       thumbnailLarge: file.thumbnail_large,
       metadata: file.metadata,
+      tags: file.tags || [],
       version: file.version,
       isPublic: file.is_public,
+      isStarred: file.is_starred,
+      isTrashed: file.is_trashed,
       ownerId: file.owner_id,
       createdAt: file.created_at,
       updatedAt: file.updated_at,
       folder: file.folder,
-      tags: file.tags?.map((t: { tag: string }) => t.tag) || [],
     })) || []
 
     return NextResponse.json({
