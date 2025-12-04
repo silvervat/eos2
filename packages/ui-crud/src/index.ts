@@ -29,3 +29,15 @@ export {
   getNestedValue,
   getCellAlignment,
 } from './formatters'
+
+// Page generators
+export {
+  ResourceListPage,
+  ResourceShowPage,
+  ResourceEditPage,
+  ResourceCreatePage,
+  type ResourceListPageProps,
+  type ResourceShowPageProps,
+  type ResourceEditPageProps,
+  type TabDefinition,
+} from './pages'
