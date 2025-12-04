@@ -233,6 +233,8 @@ export default function FileVaultPage() {
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
+  const [newFolderDescription, setNewFolderDescription] = useState('')
+  const [newFolderVisibility, setNewFolderVisibility] = useState<'public' | 'private' | 'groups' | 'users'>('public')
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
 
   // Share dialog state - supports multiple files
@@ -775,6 +777,8 @@ export default function FileVaultPage() {
           vaultId: vault.id,
           parentId: newFolderParentId ?? currentFolderId,
           name: newFolderName.trim(),
+          description: newFolderDescription.trim() || null,
+          visibility: newFolderVisibility,
         }),
       })
 
@@ -783,7 +787,10 @@ export default function FileVaultPage() {
         throw new Error(data.error || 'Failed to create folder')
       }
 
+      // Reset form
       setNewFolderName('')
+      setNewFolderDescription('')
+      setNewFolderVisibility('public')
       setShowNewFolderDialog(false)
       setNewFolderParentId(null)
 
@@ -801,6 +808,9 @@ export default function FileVaultPage() {
   // Open new folder dialog with optional parent
   const openNewFolderDialog = useCallback((parentId: string | null = null) => {
     setNewFolderParentId(parentId)
+    setNewFolderName('')
+    setNewFolderDescription('')
+    setNewFolderVisibility('public')
     setShowNewFolderDialog(true)
   }, [])
 
