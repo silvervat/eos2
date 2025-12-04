@@ -222,13 +222,6 @@ function LoginForm() {
           </button>
         </div>
 
-        {/* Sign up link */}
-        <p className="text-center text-sm text-slate-500 mt-6">
-          Pole veel kontot?{' '}
-          <Link href="/register" className="font-medium hover:underline" style={{ color: '#279989' }}>
-            Registreeru tasuta
-          </Link>
-        </p>
       </div>
     </div>
   )
