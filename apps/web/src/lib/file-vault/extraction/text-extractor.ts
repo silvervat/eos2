@@ -9,7 +9,8 @@
 export async function extractPdfText(buffer: Buffer): Promise<string> {
   try {
     // Dynamic import to handle ESM/CJS compatibility
-    const pdfParse = await import('pdf-parse').then(m => m.default || m)
+    const pdfParseModule = await import('pdf-parse') as { default?: (buf: Buffer) => Promise<{ text: string }> }
+    const pdfParse = pdfParseModule.default ?? (pdfParseModule as unknown as (buf: Buffer) => Promise<{ text: string }>)
     const data = await pdfParse(buffer)
     return data.text?.trim() || ''
   } catch (error) {
