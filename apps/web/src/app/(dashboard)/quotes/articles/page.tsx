@@ -13,13 +13,8 @@ export default function ArticlesPage() {
         <span>Artiklid</span>
       </div>
 
-      {/* Service Catalog Component */}
-      <ServiceCatalog
-        onSelect={(article) => {
-          // In standalone view, just show a notification
-          console.log('Selected article:', article)
-        }}
-      />
+      {/* Service Catalog Component - standalone mode without selection */}
+      <ServiceCatalog />
     </div>
   )
 }
