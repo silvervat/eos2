@@ -45,6 +45,8 @@ import {
   Send,
   TrendingUp,
   Ruler,
+  Clock,
+  CalendarDays,
 } from 'lucide-react'
 import { NotificationDropdown } from '@/components/notifications/notification-dropdown'
 
@@ -62,6 +64,8 @@ const projectTypes = [
 const personnelItems = [
   { href: '/personnel', label: 'Ülevaade', icon: UsersRound },
   { href: '/personnel/employees', label: 'Töötajad', icon: Users },
+  { href: '/personnel/work-hours', label: 'Tööaeg', icon: Clock },
+  { href: '/personnel/leave', label: 'Puhkused', icon: CalendarDays },
   { href: '/personnel/groups', label: 'Grupid', icon: Building2 },
 ]
 
