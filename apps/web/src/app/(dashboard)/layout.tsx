@@ -39,6 +39,12 @@ import {
   ChevronsUpDown,
   PanelLeftClose,
   PanelLeft,
+  Building,
+  Receipt,
+  Mail,
+  Send,
+  TrendingUp,
+  Ruler,
 } from 'lucide-react'
 import { NotificationDropdown } from '@/components/notifications/notification-dropdown'
 
@@ -67,6 +73,16 @@ const warehouseItems = [
   { href: '/warehouse/maintenance', label: 'Hooldused', icon: Wrench },
 ]
 
+// Quotes items
+const quotesItems = [
+  { href: '/quotes', label: 'Kõik', icon: Receipt },
+  { href: '/quotes/inquiries', label: 'Päringud', icon: Mail },
+  { href: '/quotes/sent', label: 'Saadetud', icon: Send },
+  { href: '/quotes/articles', label: 'Artiklid', icon: FileText },
+  { href: '/quotes/units', label: 'Ühikud', icon: Ruler },
+  { href: '/quotes/statistics', label: 'Statistika', icon: TrendingUp },
+]
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -74,6 +90,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [projectsExpanded, setProjectsExpanded] = useState(false)
   const [personnelExpanded, setPersonnelExpanded] = useState(false)
   const [warehouseExpanded, setWarehouseExpanded] = useState(false)
+  const [quotesExpanded, setQuotesExpanded] = useState(false)
   const [allExpanded, setAllExpanded] = useState(false)
 
   // Auto-expand menus based on current path
@@ -81,6 +98,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (pathname?.startsWith('/projects')) setProjectsExpanded(true)
     if (pathname?.startsWith('/personnel')) setPersonnelExpanded(true)
     if (pathname?.startsWith('/warehouse')) setWarehouseExpanded(true)
+    if (pathname?.startsWith('/quotes')) setQuotesExpanded(true)
   }, [pathname])
 
   // Close sidebar on route change (mobile)
@@ -95,6 +113,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setProjectsExpanded(newState)
     setPersonnelExpanded(newState)
     setWarehouseExpanded(newState)
+    setQuotesExpanded(newState)
   }
 
   // Load collapsed state from localStorage
@@ -113,6 +132,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navItems = [
     { href: '/dashboard', label: 'Töölaud', icon: LayoutDashboard },
     { href: '/projects', label: 'Projektid', icon: FolderKanban, hasSubmenu: true, submenuKey: 'projects' },
+    { href: '/partners', label: 'Partnerid', icon: Building },
+    { href: '/quotes', label: 'Pakkumised', icon: Receipt, hasSubmenu: true, submenuKey: 'quotes' },
     { href: '/personnel', label: 'Personaal', icon: UsersRound, hasSubmenu: true, submenuKey: 'personnel' },
     { href: '/warehouse', label: 'Laohaldus', icon: Warehouse, hasSubmenu: true, submenuKey: 'warehouse' },
     { href: '/invoices', label: 'Arved', icon: FileText },
@@ -134,6 +155,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (key === 'projects') return projectTypes
     if (key === 'personnel') return personnelItems
     if (key === 'warehouse') return warehouseItems
+    if (key === 'quotes') return quotesItems
     return []
   }
 
@@ -141,6 +163,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (key === 'projects') return projectsExpanded
     if (key === 'personnel') return personnelExpanded
     if (key === 'warehouse') return warehouseExpanded
+    if (key === 'quotes') return quotesExpanded
     return false
   }
 
@@ -148,6 +171,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (key === 'projects') setProjectsExpanded(!projectsExpanded)
     if (key === 'personnel') setPersonnelExpanded(!personnelExpanded)
     if (key === 'warehouse') setWarehouseExpanded(!warehouseExpanded)
+    if (key === 'quotes') setQuotesExpanded(!quotesExpanded)
   }
 
   return (
