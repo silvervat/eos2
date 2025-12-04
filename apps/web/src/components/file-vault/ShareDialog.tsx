@@ -167,10 +167,14 @@ export function ShareDialog({
     })
   }
 
-  if (!open) return null
-
+  // Use CSS visibility instead of unmounting for faster open/close
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div
+      className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 transition-opacity duration-150 ${
+        open ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'
+      }`}
+      aria-hidden={!open}
+    >
       <Card className="w-full max-w-lg bg-white rounded-xl shadow-xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-200">

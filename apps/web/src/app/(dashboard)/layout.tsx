@@ -187,7 +187,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           fixed lg:static inset-y-0 left-0 z-50
           ${sidebarCollapsed ? 'w-16' : 'w-52'}
           bg-slate-900 text-white flex flex-col
-          transform transition-all duration-200 ease-in-out
+          transform transition-transform duration-150 ease-out will-change-transform
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >

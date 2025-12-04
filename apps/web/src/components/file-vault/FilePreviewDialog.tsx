@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button, Card } from '@rivest/ui'
 import {
   X,
@@ -52,6 +52,10 @@ interface FileData {
 
 type SidebarTab = 'info' | 'comments' | 'versions'
 
+// Simple cache for file data
+const fileCache = new Map<string, { file: FileData; previewUrl: string | null; timestamp: number }>()
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
 // Format file size
 const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 B'
@@ -89,17 +93,15 @@ export function FilePreviewDialog({
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('info')
   const [showSidebar, setShowSidebar] = useState(true)
 
-  useEffect(() => {
-    if (open && fileId) {
-      loadFile()
+  const loadFile = useCallback(async (forceRefresh = false) => {
+    // Check cache first
+    const cached = fileCache.get(fileId)
+    if (!forceRefresh && cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      setFile(cached.file)
+      setPreviewUrl(cached.previewUrl)
+      return
     }
-    return () => {
-      setPreviewUrl(null)
-      setZoom(1)
-    }
-  }, [open, fileId])
 
-  const loadFile = async () => {
     setIsLoading(true)
     try {
       const response = await fetch(`/api/file-vault/files/${fileId}`)
@@ -107,37 +109,63 @@ export function FilePreviewDialog({
         const data = await response.json()
         setFile(data)
 
-        // Get preview URL for supported types
+        let newPreviewUrl: string | null = null
+        // Get preview URL for supported types - fetch in parallel with state update
         if (isPreviewable(data.mimeType)) {
           const downloadResponse = await fetch(`/api/file-vault/download/${fileId}`)
           if (downloadResponse.ok) {
             const downloadData = await downloadResponse.json()
-            setPreviewUrl(downloadData.downloadUrl)
+            newPreviewUrl = downloadData.downloadUrl
+            setPreviewUrl(newPreviewUrl)
           }
         }
+
+        // Cache the result
+        fileCache.set(fileId, {
+          file: data,
+          previewUrl: newPreviewUrl,
+          timestamp: Date.now()
+        })
       }
     } catch (error) {
       console.error('Error loading file:', error)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [fileId])
+
+  useEffect(() => {
+    if (open && fileId) {
+      loadFile()
+    }
+    if (!open) {
+      setZoom(1)
+    }
+  }, [open, fileId, loadFile])
 
   const handleDownload = async () => {
     if (!file) return
     setIsDownloading(true)
     try {
-      const response = await fetch(`/api/file-vault/download/${fileId}?redirect=true`)
-      if (response.redirected) {
-        const link = document.createElement('a')
-        link.href = response.url
-        link.download = file.name
-        link.click()
-      } else {
+      const response = await fetch(`/api/file-vault/download/${fileId}`)
+      if (response.ok) {
         const data = await response.json()
-        if (data.downloadUrl) {
-          window.open(data.downloadUrl, '_blank')
-        }
+
+        // Fetch file as blob to force download
+        const fileResponse = await fetch(data.downloadUrl)
+        const blob = await fileResponse.blob()
+
+        // Create blob URL and trigger download
+        const blobUrl = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = blobUrl
+        link.download = file.name
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(blobUrl)
+      } else {
+        alert('Allalaadimine ebaõnnestus')
       }
     } catch (error) {
       console.error('Error downloading file:', error)
@@ -163,7 +191,7 @@ export function FilePreviewDialog({
         const data = await response.json()
         if (data.extracted) {
           alert(`Tekst edukalt eraldatud (${data.textLength} tähemärki)`)
-          loadFile() // Refresh file data
+          loadFile(true) // Force refresh file data
         } else {
           alert(data.message || 'Teksti ei õnnestunud eraldada')
         }
@@ -416,12 +444,16 @@ export function FilePreviewDialog({
     )
   }
 
-  if (!open) return null
-
   const FileIcon = file ? getFileIcon(file.mimeType) : File
 
+  // Use CSS visibility instead of unmounting for faster open/close
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div
+      className={`fixed inset-0 bg-black/80 flex items-center justify-center z-50 transition-opacity duration-150 ${
+        open ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'
+      }`}
+      aria-hidden={!open}
+    >
       <div className="w-full h-full max-w-7xl max-h-[95vh] m-4 flex bg-white rounded-xl shadow-2xl overflow-hidden">
         {/* Main content */}
         <div className="flex-1 flex flex-col min-w-0">

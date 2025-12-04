@@ -135,6 +135,8 @@ export default function FileVaultPage() {
   // Refs
   const listContainerRef = useRef<HTMLDivElement>(null)
   const infiniteLoaderRef = useRef<InfiniteLoader>(null)
+  const vaultIdRef = useRef<string | null>(null)
+  const isInitialLoadDone = useRef(false)
 
   // Dialog state
   const [showUploadDialog, setShowUploadDialog] = useState(false)
@@ -151,8 +153,13 @@ export default function FileVaultPage() {
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
   const [previewFileId, setPreviewFileId] = useState<string | null>(null)
 
-  // Fetch vault
+  // Fetch vault (only called once on initial load)
   const fetchVault = useCallback(async () => {
+    // Return cached vault if already loaded
+    if (vaultIdRef.current && vault) {
+      return vaultIdRef.current
+    }
+
     try {
       const response = await fetch('/api/file-vault/vaults')
       const data = await response.json()
@@ -168,6 +175,7 @@ export default function FileVaultPage() {
 
       if (data.vaults && data.vaults.length > 0) {
         setVault(data.vaults[0])
+        vaultIdRef.current = data.vaults[0].id
         return data.vaults[0].id
       }
       return null
@@ -176,7 +184,7 @@ export default function FileVaultPage() {
       setError('Failihoidla laadimine ebaonnestus')
       return null
     }
-  }, [])
+  }, [vault])
 
   // Fetch folders (always fetches all folders in current directory)
   const fetchFolders = useCallback(async (vaultId: string, folderId: string | null) => {
@@ -242,26 +250,47 @@ export default function FileVaultPage() {
     setIsLoadingMore(false)
   }, [vault, currentFolderId, files.length, hasMoreFiles, isLoadingMore, fetchFiles])
 
-  // Initial load
+  // Initial load - runs once to fetch vault
   useEffect(() => {
-    const loadData = async () => {
+    if (isInitialLoadDone.current) return
+
+    const loadInitialData = async () => {
       setIsLoading(true)
       setError(null)
-      setFiles([])
-      setFolders([])
-      setHasMoreFiles(true)
 
       const vaultId = await fetchVault()
       if (vaultId) {
         await Promise.all([
-          fetchFolders(vaultId, currentFolderId),
-          fetchFiles(vaultId, currentFolderId, 0, false)
+          fetchFolders(vaultId, null),
+          fetchFiles(vaultId, null, 0, false)
         ])
       }
       setIsLoading(false)
+      isInitialLoadDone.current = true
     }
-    loadData()
-  }, [fetchVault, fetchFolders, fetchFiles, currentFolderId])
+    loadInitialData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Folder navigation - only runs when folder changes (not on initial load)
+  useEffect(() => {
+    if (!isInitialLoadDone.current || !vaultIdRef.current) return
+
+    const loadFolderData = async () => {
+      setIsLoading(true)
+      setFiles([])
+      setFolders([])
+      setHasMoreFiles(true)
+
+      await Promise.all([
+        fetchFolders(vaultIdRef.current!, currentFolderId),
+        fetchFiles(vaultIdRef.current!, currentFolderId, 0, false)
+      ])
+      setIsLoading(false)
+    }
+    loadFolderData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFolderId])
 
   // Refresh content
   const handleRefresh = async () => {
@@ -282,24 +311,23 @@ export default function FileVaultPage() {
     }
   }
 
-  // Navigate to folder
-  const navigateToFolder = async (folder: FolderItem | null) => {
-    if (!vault) return
+  // Navigate to folder - synchronous, useEffect handles data loading
+  const navigateToFolder = useCallback((folder: FolderItem | null) => {
+    if (!vaultIdRef.current) return
 
     if (folder === null) {
       setCurrentFolderId(null)
       setBreadcrumbs([{ id: null, name: 'Failid' }])
     } else {
       setCurrentFolderId(folder.id)
-      const newBreadcrumbs: Array<{ id: string | null; name: string }> = [
+      setBreadcrumbs([
         { id: null, name: 'Failid' },
-      ]
-      newBreadcrumbs.push({ id: folder.id, name: folder.name })
-      setBreadcrumbs(newBreadcrumbs)
+        { id: folder.id, name: folder.name }
+      ])
     }
 
     setSelectedItems([])
-  }
+  }, [])
 
   // Create folder
   const handleCreateFolder = async () => {
@@ -343,24 +371,24 @@ export default function FileVaultPage() {
   }
 
   // Toggle selection
-  const toggleSelect = (id: string) => {
+  const toggleSelect = useCallback((id: string) => {
     setSelectedItems((prev) =>
       prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
     )
-  }
+  }, [])
 
   // Open file preview
-  const handlePreview = (file: FileItem) => {
+  const handlePreview = useCallback((file: FileItem) => {
     setPreviewFileId(file.id)
     setShowPreviewDialog(true)
-  }
+  }, [])
 
   // Open share dialog
-  const handleShare = (file: FileItem) => {
+  const handleShare = useCallback((file: FileItem) => {
     setShareFileId(file.id)
     setShareFileName(file.name)
     setShowShareDialog(true)
-  }
+  }, [])
 
   // Share selected files
   const handleShareSelected = () => {
@@ -372,19 +400,28 @@ export default function FileVaultPage() {
     }
   }
 
-  // Download file
-  const handleDownload = async (file: FileItem) => {
+  // Download file - fetch as blob to force download instead of opening
+  const handleDownload = useCallback(async (file: FileItem) => {
     try {
       const response = await fetch(`/api/file-vault/download/${file.id}`)
       if (response.ok) {
         const data = await response.json()
-        // Create temporary link and trigger download
+
+        // Fetch the actual file as a blob to force download
+        const fileResponse = await fetch(data.downloadUrl)
+        const blob = await fileResponse.blob()
+
+        // Create blob URL and trigger download
+        const blobUrl = URL.createObjectURL(blob)
         const link = document.createElement('a')
-        link.href = data.downloadUrl
+        link.href = blobUrl
         link.download = file.name
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
+
+        // Clean up blob URL
+        URL.revokeObjectURL(blobUrl)
       } else {
         alert('Allalaadimine ebaõnnestus')
       }
@@ -392,7 +429,7 @@ export default function FileVaultPage() {
       console.error('Download error:', error)
       alert('Allalaadimine ebaõnnestus')
     }
-  }
+  }, [])
 
   // Download selected files
   const handleDownloadSelected = async () => {
@@ -404,28 +441,34 @@ export default function FileVaultPage() {
     }
   }
 
-  // Delete file
-  const handleDelete = async (fileId: string, permanent: boolean = false) => {
+  // Delete file - optimistic update
+  const handleDelete = useCallback(async (fileId: string, permanent: boolean = false) => {
     if (!confirm(permanent ? 'Kas oled kindel, et soovid faili lõplikult kustutada?' : 'Kas oled kindel, et soovid faili prügikasti teisaldada?')) {
       return
     }
+
+    // Optimistic update - remove from UI immediately
+    const previousFiles = files
+    setFiles(prev => prev.filter(f => f.id !== fileId))
+    setSelectedItems(prev => prev.filter(id => id !== fileId))
 
     try {
       const url = `/api/file-vault/files/${fileId}${permanent ? '?permanent=true' : ''}`
       const response = await fetch(url, { method: 'DELETE' })
 
-      if (response.ok) {
-        setFiles(files.filter(f => f.id !== fileId))
-        setSelectedItems(selectedItems.filter(id => id !== fileId))
-      } else {
+      if (!response.ok) {
+        // Revert on error
+        setFiles(previousFiles)
         const data = await response.json()
         alert(data.error || 'Kustutamine ebaõnnestus')
       }
     } catch (error) {
+      // Revert on error
+      setFiles(previousFiles)
       console.error('Delete error:', error)
       alert('Kustutamine ebaõnnestus')
     }
-  }
+  }, [files])
 
   // Delete selected files
   const handleDeleteSelected = async () => {
@@ -439,22 +482,15 @@ export default function FileVaultPage() {
   }
 
   // Star/unstar file
-  const handleStar = async (fileId: string) => {
-    try {
-      const file = files.find(f => f.id === fileId)
-      if (!file) return
-
-      // Toggle star status (would need backend support)
-      // For now, just show visual feedback
-      setFiles(files.map(f =>
-        f.id === fileId
-          ? { ...f, isStarred: !(f as FileItem & { isStarred?: boolean }).isStarred }
-          : f
-      ))
-    } catch (error) {
-      console.error('Star error:', error)
-    }
-  }
+  const handleStar = useCallback((fileId: string) => {
+    // Toggle star status (would need backend support)
+    // For now, just show visual feedback - instant update
+    setFiles(prev => prev.map(f =>
+      f.id === fileId
+        ? { ...f, isStarred: !(f as FileItem & { isStarred?: boolean }).isStarred }
+        : f
+    ))
+  }, [])
 
   // Filter by search (client-side for already loaded items)
   const filteredFolders = useMemo(() =>
