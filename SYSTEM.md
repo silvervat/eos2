@@ -1,7 +1,7 @@
 # EOS2 SYSTEM DOCUMENTATION
 
 **Viimati uuendatud:** 2025-12-04
-**Versioon:** 2.0.0
+**Versioon:** 2.1.0
 **Projekt:** EOS2 - Enterprise Operating System 2
 
 ---
@@ -17,7 +17,22 @@
 
 ## VISIOON
 
-> **"Lego-stiilis ERP suusteem"** - modulaarne arhitektuur, kus uus moodul valmib 30 minutiga ja kook on uhes kohas hallatav.
+> **"Lego-stiilis ERP süsteem"** - modulaarne arhitektuur, kus uus moodul valmib 30 minutiga ja kood on ühes kohas hallatav.
+
+---
+
+## IMPLEMENTATSIOONI SEIS
+
+| Faas | Staatus | Kirjeldus |
+|------|---------|-----------|
+| PHASE 1 | ✅ DONE | Baassüsteem - migratsioonid |
+| PHASE 2 | ✅ DONE | Õiguste süsteem |
+| PHASE 3 | ✅ DONE | Admin paneel |
+| PHASE 4 | ✅ DONE | Registry süsteem |
+| PHASE 5 | ✅ DONE | Design System |
+| PHASE 6 | ✅ DONE | Vehicles näidismoodul |
+| PHASE 7 | ✅ DONE | Testimine |
+| PHASE 8 | ✅ DONE | Dokumentatsioon |
 
 ---
 
@@ -27,37 +42,109 @@
 eos2/
 ├── SYSTEM.md              # See fail - LOE ALATI ESIMESENA
 ├── TODO.md                # Pooleli asjad ja planeeritud
-├── CLAUDE_MEMORY.md       # Claude'i malu - tehtu ulevaade
-├── README.md              # Projekti uldine kirjeldus
+├── CLAUDE_MEMORY.md       # Claude'i mälu - tehtu ülevaade
+├── README.md              # Projekti üldine kirjeldus
 │
 ├── apps/
 │   └── web/               # Next.js 14 rakendus
+│       └── src/
+│           ├── core/      # ✅ Core süsteemid
+│           │   ├── permissions/  # Õiguste süsteem
+│           │   └── registry/     # Moodulite registry
+│           ├── design/    # ✅ Design System
+│           └── modules/   # ✅ Moodulid
+│               ├── _template/    # Mooduli template
+│               └── vehicles/     # Näidismoodul
 │
 ├── packages/
 │   ├── data-provider/     # Data layer
 │   ├── db/                # Prisma + Supabase
 │   ├── resources/         # Ressursside definitsioonid
-│   ├── types/             # TypeScript tuubid
+│   ├── types/             # TypeScript tüübid
 │   ├── ui/                # Jagatud UI komponendid
 │   └── ui-crud/           # CRUD komponendid
 │
 ├── manual/                # Dokumentatsioon
-│   ├── 04.12/             # EOS2 modulaarse suusteemi juhendid
+│   ├── 04.12/             # EOS2 modulaarse süsteemi juhendid
 │   ├── warehouse/         # Laohalduse dokumentatsioon
 │   ├── tables/            # Tabelite dokumentatsioon
 │   └── files/             # File Vault dokumentatsioon
 │
 ├── supabase/
 │   └── migrations/        # SQL migratsioonid
+│       └── 008_modules_system.sql  # ✅ Moodulite süsteem
 │
 ├── plop-templates/        # Koodi genereerimise mallid
-│   ├── api/
-│   ├── component/
-│   ├── hook/
-│   └── page/
 │
 └── scripts/               # Automatiseerimise skriptid
 ```
+
+---
+
+## CORE SÜSTEEMID (Uus!)
+
+### Permissions System
+
+**Asukoht:** `apps/web/src/core/permissions/`
+
+| Fail | Kirjeldus |
+|------|-----------|
+| `roles.ts` | 5 rolli definitsioon (owner, admin, manager, user, viewer) |
+| `actions.ts` | Toimingute definitsioonid (CRUD + custom) |
+| `matrix.ts` | Õiguste maatriks - kes mida teha saab |
+| `check.ts` | hasPermission, canAccessResource jm funktsioonid |
+| `hooks.ts` | usePermission, useModulePermissions React hookid |
+| `components.tsx` | ProtectedComponent, AdminOnly komponendid |
+
+**Kasutamine:**
+```typescript
+import { usePermission, ProtectedComponent, AdminOnly } from '@/core/permissions'
+
+// Hook
+const canEdit = usePermission('project:update')
+
+// Komponent
+<ProtectedComponent permission="project:delete">
+  <DeleteButton />
+</ProtectedComponent>
+
+// Admin-only
+<AdminOnly>
+  <AdminPanel />
+</AdminOnly>
+```
+
+### Registry System
+
+**Asukoht:** `apps/web/src/core/registry/`
+
+| Fail | Kirjeldus |
+|------|-----------|
+| `types.ts` | ModuleDefinition, FieldDefinition jm tüübid |
+| `defineModule.ts` | defineModule() helper valideerimisega |
+| `registerModule.ts` | registerModule(), getModule() funktsioonid |
+
+**Kasutamine:**
+```typescript
+import { defineModule, registerModule } from '@/core/registry'
+
+export default defineModule({
+  name: 'vehicles',
+  label: 'Sõidukid',
+  // ... täielik definitsioon
+})
+```
+
+### Design System
+
+**Asukoht:** `apps/web/src/design/`
+
+| Fail | Kirjeldus |
+|------|-----------|
+| `tokens.ts` | Design tokens - värvid, spacing, typography jne |
+| `theme.ts` | Ant Design theme konfiguratsioon |
+
+**Brand värv:** `#279989` (Rivest teal)
 
 ---
 
@@ -67,65 +154,74 @@ eos2/
 
 | Moodul | Staatus | Kirjeldus |
 |--------|---------|-----------|
-| **warehouse** | Active | Laohaldus - varad, ulekanded, hooldused |
-| **file-vault** | Beta | Failihalduse suusteem |
+| **warehouse** | ✅ Active | Laohaldus - varad, ülekanded, hooldused |
+| **file-vault** | 🔶 Beta | Failihalduse süsteem |
+| **vehicles** | ✅ Active | Sõidukipargi haldus (näidismoodul) |
 
-### Planeeritud (vastavalt dokumentatsioonile)
+### Mooduli Template
 
-| Moodul | Prioriteet | Kirjeldus |
-|--------|------------|-----------|
-| projects | Korge | Projektide haldus |
-| clients | Korge | Klientide haldus |
-| invoices | Korge | Arvete haldus |
-| vehicles | Keskmine | Soidukipargi haldus |
-| gantt-planner | Madal | Gantt planeerimine |
-| reports | Madal | Raportid ja eksport |
+**Asukoht:** `apps/web/src/modules/_template/`
+
+Uue mooduli loomiseks:
+```bash
+cp -r modules/_template modules/[uus-moodul]
+```
 
 ---
 
-## CORE KOMPONENDID
+## ADMIN PANEEL (Uus!)
 
-### Packages
+**Asukoht:** `apps/web/src/app/(dashboard)/admin/`
 
-| Pakett | Kirjeldus |
-|--------|-----------|
-| `@rivest/ui` | Jagatud UI komponendid |
-| `@rivest/db` | Prisma + Supabase |
-| `@rivest/types` | TypeScript tuubid |
-| `packages/data-provider` | Data layer hookid |
-| `packages/ui-crud` | CRUD komponendid |
-
-### Olemasolevad komponendid (warehouse)
-
-- `AssetsTable.tsx` - Varade tabel filtritega
-- `WarehouseStats.tsx` - Statistika kaardid
-- `LowStockAlerts.tsx` - Madala laoseisu hoiatused
-- `StockMovements.tsx` - Laoseisu liikumised
-- `PhotoGallery.tsx` - Fotogalerii lightboxiga
-- `QRCodeModal.tsx` - QR koodi genereerimine
+| Leht | Kirjeldus |
+|------|-----------|
+| `/admin` | Dashboard - süsteemi ülevaade |
+| `/admin/modules` | Moodulite haldus |
+| `/admin/permissions` | Õiguste maatriks |
 
 ---
 
-## DESIGN SYSTEM
+## TESTID (Uus!)
 
-### Brandi varv
-```
-Primary: #279989 (Rivest teal)
-```
+| Fail | Kirjeldus |
+|------|-----------|
+| `core/permissions/check.test.ts` | Õiguste kontroll testid |
+| `core/permissions/matrix.test.ts` | Maatriksi testid |
+| `core/registry/defineModule.test.ts` | Mooduli defineerimise testid |
+| `core/registry/registerModule.test.ts` | Registreerimise testid |
+| `design/tokens.test.ts` | Design tokens testid |
 
-### UI Framework
-- **Ant Design** - UI komponendid
-- **Tailwind CSS** - Utiliit klassid
-- **shadcn/ui** - Lisaomponendid
+---
 
-### Kasutamise reeglid
-```typescript
-// OIGE - kasuta @rivest/ui paketti
-import { Button } from '@rivest/ui'
+## ANDMEBAAS
 
-// VALE - ara kasuta @/components/ui/
-import { Button } from '@/components/ui/button'
-```
+### Migratsioonid
+
+| Fail | Kirjeldus |
+|------|-----------|
+| `008_modules_system.sql` | ✅ Moodulite süsteem (tabelid, rollid, funktsioonid) |
+
+### Uued tabelid (008_modules_system.sql)
+
+| Tabel | Kirjeldus |
+|-------|-----------|
+| `modules` | Moodulite register |
+| `components` | Komponentide register |
+| `module_actions` | Moodulite toimingud |
+| `roles` | Rollid (5 vaikerolli) |
+| `user_module_access` | Kasutaja-mooduli õigused |
+| `user_component_access` | Kasutaja-komponendi õigused |
+| `module_relations` | Moodulite seosed |
+
+### Rollid (vaikeväärtused)
+
+| Roll | Level | Kirjeldus |
+|------|-------|-----------|
+| owner | 100 | Täielik ligipääs |
+| admin | 80 | Administraator |
+| manager | 60 | Juhataja |
+| user | 40 | Tavakasutaja |
+| viewer | 20 | Ainult vaatamine |
 
 ---
 
@@ -142,29 +238,7 @@ import { Button } from '@/components/ui/button'
 
 ---
 
-## ANDMEBAAS
-
-### Test tenant
-```
-ID: 16e26c26-2c98-4b58-a956-b86ac3becf14
-```
-
-### RLS (Row Level Security)
-- Koik tabelid on tenant-isolated
-- RLS poliitikad failides `supabase/migrations/`
-
-### Tabelid (warehouse)
-- `warehouses` - Laod
-- `assets` - Varad
-- `asset_categories` - Kategooriad
-- `asset_photos` - Fotod
-- `asset_transfers` - Ulekanded
-- `asset_maintenances` - Hooldused
-- `stock_movements` - Laoseisu liikumised
-
----
-
-## KASUD
+## KÄSUD
 
 ```bash
 # Arendus
@@ -187,13 +261,19 @@ pnpm lint
 
 ## VIIMASED MUUDATUSED
 
-### 2025-12-04
-- [ADDED] EOS2 modulaarse suusteemi dokumentatsioon (manual/04.12/)
-- [ADDED] SYSTEM.md ja TODO.md failid
-- [UPDATED] CLAUDE_MEMORY.md uuendatud
+### 2025-12-04 (PHASE 1-8 implementatsioon)
+- [ADDED] Core permissions süsteem
+- [ADDED] Core registry süsteem
+- [ADDED] Design System (tokens, theme)
+- [ADDED] Admin paneel (dashboard, modules, permissions)
+- [ADDED] Vehicles näidismoodul
+- [ADDED] Mooduli template
+- [ADDED] Unit testid
+- [ADDED] SQL migratsioon 008_modules_system.sql
+- [UPDATED] SYSTEM.md, TODO.md, CLAUDE_MEMORY.md
 
 ### Varasemad (warehouse)
-- [ADDED] Warehouse mooduli pohifunktsionaalsus
+- [ADDED] Warehouse mooduli põhifunktsionaalsus
 - [ADDED] Stock movements API
 - [ADDED] Low stock alerts
 - [ADDED] Photo gallery
@@ -203,27 +283,20 @@ pnpm lint
 
 ---
 
-## TEADAOLEVAD PROBLEEMID
+## JÄRGMINE SAMM
 
-Hetkel ei ole kriitilisi bugisid.
-
----
-
-## JARMINE SAMM
-
-1. **LOE:** `manual/04.12/02-QUICK-START.md`
-2. **TUTVU:** `manual/04.12/00-CLAUDE-CODE-MASTER-JUHEND.md`
-3. **PLANEERI:** `manual/04.12/01-IMPLEMENTATSIOONI-PLAAN.md`
-4. **ALUSTA** implementatsiooniga vastavalt PHASE 1-8
+1. **Supabase integratsioon:** Vehicles migratsioon + RLS
+2. **Core komponendid:** DataTable, FormBuilder, StatusBadge
+3. **Uued moodulid:** projects, clients, invoices
 
 ---
 
 ## KONTAKT
 
 **Projekt:** EOS2 - Enterprise Operating System 2
-**Ettevote:** Rivest OU
+**Ettevõte:** Rivest OÜ
 **Arendaja:** Silver
 
 ---
 
-**NB!** See fail tuleb uuendada iga suurema muudatuse jarel!
+**NB!** See fail tuleb uuendada iga suurema muudatuse järel!
