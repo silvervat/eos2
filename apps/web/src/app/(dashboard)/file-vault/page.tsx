@@ -32,6 +32,8 @@ import {
 } from 'lucide-react'
 import { Button, Input, Card } from '@rivest/ui'
 import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
+import { ShareDialog } from '@/components/file-vault/ShareDialog'
+import { FilePreviewDialog } from '@/components/file-vault/FilePreviewDialog'
 
 // Pagination constants
 const PAGE_SIZE = 100
@@ -139,6 +141,15 @@ export default function FileVaultPage() {
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+
+  // Share dialog state
+  const [showShareDialog, setShowShareDialog] = useState(false)
+  const [shareFileId, setShareFileId] = useState<string | null>(null)
+  const [shareFileName, setShareFileName] = useState<string>('')
+
+  // Preview dialog state
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false)
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null)
 
   // Fetch vault
   const fetchVault = useCallback(async () => {
@@ -338,6 +349,113 @@ export default function FileVaultPage() {
     )
   }
 
+  // Open file preview
+  const handlePreview = (file: FileItem) => {
+    setPreviewFileId(file.id)
+    setShowPreviewDialog(true)
+  }
+
+  // Open share dialog
+  const handleShare = (file: FileItem) => {
+    setShareFileId(file.id)
+    setShareFileName(file.name)
+    setShowShareDialog(true)
+  }
+
+  // Share selected files
+  const handleShareSelected = () => {
+    if (selectedItems.length === 1) {
+      const file = files.find(f => f.id === selectedItems[0])
+      if (file) {
+        handleShare(file)
+      }
+    }
+  }
+
+  // Download file
+  const handleDownload = async (file: FileItem) => {
+    try {
+      const response = await fetch(`/api/file-vault/download/${file.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        // Create temporary link and trigger download
+        const link = document.createElement('a')
+        link.href = data.downloadUrl
+        link.download = file.name
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      } else {
+        alert('Allalaadimine ebaõnnestus')
+      }
+    } catch (error) {
+      console.error('Download error:', error)
+      alert('Allalaadimine ebaõnnestus')
+    }
+  }
+
+  // Download selected files
+  const handleDownloadSelected = async () => {
+    for (const id of selectedItems) {
+      const file = files.find(f => f.id === id)
+      if (file) {
+        await handleDownload(file)
+      }
+    }
+  }
+
+  // Delete file
+  const handleDelete = async (fileId: string, permanent: boolean = false) => {
+    if (!confirm(permanent ? 'Kas oled kindel, et soovid faili lõplikult kustutada?' : 'Kas oled kindel, et soovid faili prügikasti teisaldada?')) {
+      return
+    }
+
+    try {
+      const url = `/api/file-vault/files/${fileId}${permanent ? '?permanent=true' : ''}`
+      const response = await fetch(url, { method: 'DELETE' })
+
+      if (response.ok) {
+        setFiles(files.filter(f => f.id !== fileId))
+        setSelectedItems(selectedItems.filter(id => id !== fileId))
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Kustutamine ebaõnnestus')
+      }
+    } catch (error) {
+      console.error('Delete error:', error)
+      alert('Kustutamine ebaõnnestus')
+    }
+  }
+
+  // Delete selected files
+  const handleDeleteSelected = async () => {
+    if (!confirm(`Kas oled kindel, et soovid ${selectedItems.length} faili prügikasti teisaldada?`)) {
+      return
+    }
+
+    for (const id of selectedItems) {
+      await handleDelete(id, false)
+    }
+  }
+
+  // Star/unstar file
+  const handleStar = async (fileId: string) => {
+    try {
+      const file = files.find(f => f.id === fileId)
+      if (!file) return
+
+      // Toggle star status (would need backend support)
+      // For now, just show visual feedback
+      setFiles(files.map(f =>
+        f.id === fileId
+          ? { ...f, isStarred: !(f as FileItem & { isStarred?: boolean }).isStarred }
+          : f
+      ))
+    } catch (error) {
+      console.error('Star error:', error)
+    }
+  }
+
   // Filter by search (client-side for already loaded items)
   const filteredFolders = useMemo(() =>
     folders.filter((folder) =>
@@ -435,19 +553,62 @@ export default function FileVaultPage() {
           {formatDate(item.createdAt)}
         </div>
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" className="w-8 h-8">
-            <Eye className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="w-8 h-8">
-            <Star className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="w-8 h-8">
-            <MoreVertical className="w-4 h-4" />
-          </Button>
+          {!isFolder && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handlePreview(item as FileItem)
+                }}
+                title="Eelvaade"
+              >
+                <Eye className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDownload(item as FileItem)
+                }}
+                title="Laadi alla"
+              >
+                <Download className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleShare(item as FileItem)
+                }}
+                title="Jaga"
+              >
+                <Share2 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 text-red-600 hover:text-red-700"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDelete(item.id, false)
+                }}
+                title="Kustuta"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
     )
-  }, [allItems, selectedItems, isItemLoaded, navigateToFolder, toggleSelect])
+  }, [allItems, selectedItems, isItemLoaded, navigateToFolder, toggleSelect, handlePreview, handleDownload, handleShare, handleDelete])
 
   // Calculate container height for virtual list
   const [listHeight, setListHeight] = useState(500)
@@ -584,15 +745,31 @@ export default function FileVaultPage() {
           <div className="flex items-center gap-4 mt-4 pt-4 border-t">
             <span className="text-sm text-slate-600">{selectedItems.length} valitud</span>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1"
+                onClick={handleDownloadSelected}
+              >
                 <Download className="w-4 h-4" />
                 Laadi alla
               </Button>
-              <Button variant="ghost" size="sm" className="gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1"
+                onClick={handleShareSelected}
+                disabled={selectedItems.length !== 1}
+              >
                 <Share2 className="w-4 h-4" />
                 Jaga
               </Button>
-              <Button variant="ghost" size="sm" className="gap-1 text-red-600 hover:text-red-700">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-red-600 hover:text-red-700"
+                onClick={handleDeleteSelected}
+              >
                 <Trash2 className="w-4 h-4" />
                 Kustuta
               </Button>
@@ -631,7 +808,7 @@ export default function FileVaultPage() {
                 return (
                   <Card
                     key={item.id}
-                    className={`p-4 cursor-pointer transition-all hover:shadow-md ${
+                    className={`p-4 cursor-pointer transition-all hover:shadow-md group relative ${
                       isSelected ? 'ring-2 ring-offset-2' : ''
                     }`}
                     style={{
@@ -642,18 +819,63 @@ export default function FileVaultPage() {
                       if (isFolder) {
                         navigateToFolder(item as FolderItem)
                       } else {
-                        toggleSelect(item.id)
-                      }
-                    }}
-                    onDoubleClick={() => {
-                      if (isFolder) {
-                        navigateToFolder(item as FolderItem)
+                        handlePreview(item as FileItem)
                       }
                     }}
                   >
+                    {/* Action buttons overlay - only for files */}
+                    {!isFolder && (
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleSelect(item.id)
+                          }}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isSelected
+                              ? 'bg-[#279989] text-white'
+                              : 'bg-white/90 text-slate-600 hover:bg-slate-100'
+                          }`}
+                          title="Vali"
+                        >
+                          <Star className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownload(item as FileItem)
+                          }}
+                          className="p-1.5 bg-white/90 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+                          title="Laadi alla"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleShare(item as FileItem)
+                          }}
+                          className="p-1.5 bg-white/90 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+                          title="Jaga"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(item.id, false)
+                          }}
+                          className="p-1.5 bg-white/90 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                          title="Kustuta"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex flex-col items-center text-center">
                       {!isFolder && (item as FileItem).thumbnailSmall ? (
-                        <div className="w-12 h-12 rounded-lg overflow-hidden mb-3 bg-slate-100">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden mb-3 bg-slate-100">
                           <img
                             src={(item as FileItem).thumbnailSmall}
                             alt={item.name}
@@ -663,12 +885,12 @@ export default function FileVaultPage() {
                         </div>
                       ) : (
                         <div
-                          className={`w-12 h-12 rounded-lg flex items-center justify-center mb-3 ${
+                          className={`w-16 h-16 rounded-lg flex items-center justify-center mb-3 ${
                             isFolder ? 'bg-amber-100' : 'bg-slate-100'
                           }`}
                         >
                           <Icon
-                            className="w-6 h-6"
+                            className="w-8 h-8"
                             style={{ color: isFolder ? '#f59e0b' : '#64748b' }}
                           />
                         </div>
@@ -834,6 +1056,43 @@ export default function FileVaultPage() {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* Share Dialog */}
+      {vault && shareFileId && (
+        <ShareDialog
+          open={showShareDialog}
+          onOpenChange={(open) => {
+            setShowShareDialog(open)
+            if (!open) {
+              setShareFileId(null)
+              setShareFileName('')
+            }
+          }}
+          vaultId={vault.id}
+          fileId={shareFileId}
+          fileName={shareFileName}
+        />
+      )}
+
+      {/* Preview Dialog */}
+      {vault && previewFileId && (
+        <FilePreviewDialog
+          open={showPreviewDialog}
+          onOpenChange={(open) => {
+            setShowPreviewDialog(open)
+            if (!open) setPreviewFileId(null)
+          }}
+          fileId={previewFileId}
+          vaultId={vault.id}
+          onShare={() => {
+            const file = files.find(f => f.id === previewFileId)
+            if (file) {
+              setShowPreviewDialog(false)
+              handleShare(file)
+            }
+          }}
+        />
       )}
     </div>
   )
