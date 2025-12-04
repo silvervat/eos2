@@ -343,7 +343,7 @@ export default function QuotesPage() {
                           {quote.quote_number}
                         </div>
                         <div className="text-xs text-slate-500">{quote.title}</div>
-                        <QuoteStatusTimeline status={quote.status as QuoteStatus} size="sm" className="mt-1" />
+                        <QuoteStatusTimeline currentStatus={quote.status as QuoteStatus} size="sm" className="mt-1" />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -355,7 +355,7 @@ export default function QuotesPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={quote.status as QuoteStatus} />
+                        <StatusBadge status={quote.status as QuoteStatus} type="quote" />
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className="text-sm font-medium text-slate-900">{formatCurrency(quote.total_amount)}</span>

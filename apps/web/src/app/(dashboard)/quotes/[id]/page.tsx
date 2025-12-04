@@ -383,16 +383,16 @@ export default function QuoteDetailPage() {
                           <td className="px-4 py-3 text-sm font-mono text-slate-600">{item.code || '-'}</td>
                           <td className="px-4 py-3">
                             <div className="text-sm font-medium text-slate-900">
-                              {quote.language === 'et' ? item.nameEt : item.nameEn}
+                              {quote.language === 'et' ? item.name.et : item.name.en}
                             </div>
-                            {(quote.language === 'et' ? item.descriptionEt : item.descriptionEn) && (
+                            {item.description && (quote.language === 'et' ? item.description.et : item.description.en) && (
                               <div className="text-xs text-slate-500">
-                                {quote.language === 'et' ? item.descriptionEt : item.descriptionEn}
+                                {quote.language === 'et' ? item.description.et : item.description.en}
                               </div>
                             )}
                           </td>
                           <td className="px-4 py-3 text-sm text-right text-slate-900">{item.quantity}</td>
-                          <td className="px-4 py-3 text-sm text-slate-600">{item.unit}</td>
+                          <td className="px-4 py-3 text-sm text-slate-600">{item.unitCode}</td>
                           <td className="px-4 py-3 text-sm text-right text-slate-900">{formatCurrency(item.unitPrice)}</td>
                           <td className="px-4 py-3 text-sm text-right font-medium text-slate-900">{formatCurrency(item.total)}</td>
                         </tr>
@@ -418,11 +418,11 @@ export default function QuoteDetailPage() {
             </div>
 
             {/* Notes */}
-            {(quote.notesEt || quote.notesEn) && (
+            {quote.notes && (quote.notes.et || quote.notes.en) && (
               <div className="bg-white border border-slate-200 rounded-lg p-6">
                 <h2 className="text-lg font-semibold text-slate-900 mb-4">Märkused</h2>
                 <p className="text-slate-700 whitespace-pre-wrap">
-                  {quote.language === 'et' ? quote.notesEt : quote.notesEn}
+                  {quote.language === 'et' ? quote.notes.et : quote.notes.en}
                 </p>
               </div>
             )}
