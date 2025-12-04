@@ -245,6 +245,28 @@ export default function FileVaultPage() {
   const [sharesSortBy, setSharesSortBy] = useState<'created_at' | 'expires_at' | 'access_count'>('created_at')
   const [sharesSortOrder, setSharesSortOrder] = useState<'asc' | 'desc'>('desc')
 
+  // Search preview state (recursive search across all folders)
+  interface SearchPreviewFile {
+    id: string
+    name: string
+    mimeType: string
+    sizeBytes: number
+    thumbnailSmall?: string
+    folderId: string | null
+    folder: { id: string | null; name: string; path: string } | null
+  }
+  interface SearchFolderGroup {
+    folder: { id: string | null; name: string; path: string }
+    files: SearchPreviewFile[]
+    totalCount: number
+  }
+  const [searchPreviewGroups, setSearchPreviewGroups] = useState<SearchFolderGroup[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showSearchPreview, setShowSearchPreview] = useState(false)
+  const [selectedSearchFolder, setSelectedSearchFolder] = useState<string | null>(null)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
   // Fetch vault (only called once on initial load)
   const fetchVault = useCallback(async () => {
     // Return cached vault if already loaded
@@ -442,6 +464,101 @@ export default function FileVaultPage() {
       console.error('Failed to copy:', error)
     }
   }
+
+  // Recursive search with folder grouping
+  const performSearch = useCallback(async (query: string) => {
+    if (!vaultIdRef.current || !query.trim()) {
+      setSearchPreviewGroups([])
+      setShowSearchPreview(false)
+      return
+    }
+
+    setIsSearching(true)
+    setShowSearchPreview(true)
+
+    try {
+      const params = new URLSearchParams({
+        vaultId: vaultIdRef.current,
+        q: query.trim(),
+        recursive: 'true',
+        groupByFolder: 'true',
+        previewLimit: '3',
+      })
+
+      const response = await fetch(`/api/file-vault/search?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.grouped) {
+          setSearchPreviewGroups(data.folderGroups || [])
+        }
+      }
+    } catch (error) {
+      console.error('Search error:', error)
+    } finally {
+      setIsSearching(false)
+    }
+  }, [])
+
+  // Debounced search
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value)
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // If empty, clear results
+    if (!value.trim()) {
+      setSearchPreviewGroups([])
+      setShowSearchPreview(false)
+      return
+    }
+
+    // Debounce search (300ms)
+    searchTimeoutRef.current = setTimeout(() => {
+      performSearch(value)
+    }, 300)
+  }, [performSearch])
+
+  // Navigate to folder from search results
+  const handleSearchFolderSelect = useCallback((folderId: string | null) => {
+    setShowSearchPreview(false)
+    setSelectedSearchFolder(folderId)
+
+    if (folderId === null) {
+      setCurrentFolderId(null)
+      setBreadcrumbs([{ id: null, name: 'Failid' }])
+    } else {
+      const group = searchPreviewGroups.find(g => g.folder.id === folderId)
+      if (group) {
+        setCurrentFolderId(folderId)
+        setBreadcrumbs([
+          { id: null, name: 'Failid' },
+          { id: folderId, name: group.folder.name }
+        ])
+      }
+    }
+
+    // Keep search query for filtering
+    setSelectedItems([])
+  }, [searchPreviewGroups])
+
+  // Close search preview when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchInputRef.current && !searchInputRef.current.contains(e.target as Node)) {
+        // Only close if clicking outside search area
+        const searchArea = (e.target as HTMLElement).closest('[data-search-area]')
+        if (!searchArea) {
+          setShowSearchPreview(false)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Create new collection
   const handleCreateCollection = async () => {
@@ -1540,15 +1657,106 @@ export default function FileVaultPage() {
       {/* Toolbar */}
       <Card className="p-4">
         <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          {/* Search with preview */}
+          <div className="relative flex-1" data-search-area>
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+            {isSearching && (
+              <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 animate-spin z-10" />
+            )}
             <Input
-              placeholder="Otsi faile..."
+              ref={searchInputRef}
+              placeholder="Otsi failidest kõikides kaustades..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onFocus={() => {
+                if (searchPreviewGroups.length > 0) {
+                  setShowSearchPreview(true)
+                }
+              }}
+              className="pl-10 pr-10"
             />
+
+            {/* Search Preview Dropdown */}
+            {showSearchPreview && searchPreviewGroups.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg border border-slate-200 shadow-xl z-50 max-h-[400px] overflow-y-auto">
+                <div className="p-2 border-b border-slate-100 bg-slate-50 sticky top-0">
+                  <p className="text-xs text-slate-500">
+                    Leitud <span className="font-medium text-slate-700">{searchPreviewGroups.reduce((sum, g) => sum + g.totalCount, 0)}</span> faili{' '}
+                    <span className="font-medium text-slate-700">{searchPreviewGroups.length}</span> kaustast
+                  </p>
+                </div>
+
+                {searchPreviewGroups.map((group) => {
+                  const FolderIcon = Folder
+
+                  return (
+                    <div key={group.folder.id || 'root'} className="border-b border-slate-100 last:border-b-0">
+                      {/* Folder header - clickable to navigate */}
+                      <button
+                        onClick={() => handleSearchFolderSelect(group.folder.id)}
+                        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-[#279989]/5 transition-colors text-left"
+                      >
+                        <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center flex-shrink-0">
+                          <FolderIcon className="w-4 h-4 text-slate-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-900 truncate">
+                            {group.folder.name}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">{group.folder.path}</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#279989]/10 text-[#279989]">
+                            {group.totalCount} faili
+                          </span>
+                          <ChevronRight className="w-4 h-4 text-slate-400" />
+                        </div>
+                      </button>
+
+                      {/* Preview files */}
+                      <div className="pl-11 pr-3 pb-2">
+                        {group.files.map((file) => {
+                          const FileIcon = getFileIcon(file.mimeType)
+                          return (
+                            <div
+                              key={file.id}
+                              className="flex items-center gap-2 py-1 text-sm text-slate-600"
+                            >
+                              {file.thumbnailSmall ? (
+                                <img
+                                  src={file.thumbnailSmall}
+                                  alt=""
+                                  className="w-5 h-5 rounded object-cover"
+                                />
+                              ) : (
+                                <FileIcon className="w-4 h-4 text-slate-400" />
+                              )}
+                              <span className="truncate">{file.name}</span>
+                              <span className="text-xs text-slate-400 flex-shrink-0">
+                                {formatFileSize(file.sizeBytes)}
+                              </span>
+                            </div>
+                          )
+                        })}
+                        {group.totalCount > group.files.length && (
+                          <p className="text-xs text-slate-400 mt-1">
+                            + veel {group.totalCount - group.files.length} faili
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* No results message */}
+            {showSearchPreview && searchPreviewGroups.length === 0 && !isSearching && searchQuery.trim() && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg border border-slate-200 shadow-xl z-50 p-4 text-center">
+                <Search className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                <p className="text-sm text-slate-500">Faile ei leitud</p>
+              </div>
+            )}
           </div>
 
           {/* Actions */}

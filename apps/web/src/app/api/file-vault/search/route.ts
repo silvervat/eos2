@@ -1,6 +1,7 @@
 /**
  * FILE SEARCH API
  * GET /api/file-vault/search - Full-text search across files
+ * Supports recursive search across all folders with grouping
  */
 
 import { createClient } from '@/lib/supabase/server'
@@ -19,6 +20,9 @@ export async function GET(request: Request) {
     const folderId = searchParams.get('folderId')
     const mimeType = searchParams.get('mimeType')
     const extension = searchParams.get('extension')
+    const recursive = searchParams.get('recursive') === 'true' // Search all subfolders
+    const groupByFolder = searchParams.get('groupByFolder') === 'true' // Return results grouped
+    const previewLimit = parseInt(searchParams.get('previewLimit') || '3') // Files per folder in preview
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
@@ -51,22 +55,21 @@ export async function GET(request: Request) {
         created_at,
         updated_at,
         tags,
-        folder:file_folders!folder_id(id, name, path)
+        folder_id,
+        folder:file_folders!folder_id(id, name, path, parent_id)
       `, { count: 'exact' })
       .eq('vault_id', vaultId)
       .is('deleted_at', null)
 
     // Full-text search on name and extracted_text
     if (query && query.trim()) {
-      // Use PostgreSQL full-text search
-      const searchTerms = query.trim().split(/\s+/).join(' & ')
       searchQuery = searchQuery.or(
         `name.ilike.%${query}%,extracted_text.ilike.%${query}%`
       )
     }
 
-    // Filter by folder
-    if (folderId) {
+    // Filter by folder (only if not recursive or if groupByFolder with specific folder)
+    if (folderId && !recursive) {
       if (folderId === 'root') {
         searchQuery = searchQuery.is('folder_id', null)
       } else {
@@ -84,10 +87,11 @@ export async function GET(request: Request) {
       searchQuery = searchQuery.eq('extension', extension.toLowerCase())
     }
 
-    // Order and paginate
+    // Order and paginate (higher limit for grouping)
+    const effectiveLimit = groupByFolder ? 200 : limit
     searchQuery = searchQuery
       .order('updated_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+      .range(offset, offset + effectiveLimit - 1)
 
     const { data: files, error, count } = await searchQuery
 
@@ -109,8 +113,58 @@ export async function GET(request: Request) {
       createdAt: file.created_at,
       updatedAt: file.updated_at,
       tags: file.tags,
+      folderId: file.folder_id,
       folder: Array.isArray(file.folder) ? file.folder[0] : file.folder,
     })) || []
+
+    // If groupByFolder, group results by folder
+    if (groupByFolder && query) {
+      interface FolderInfo {
+        id: string | null
+        name: string
+        path: string
+      }
+
+      interface GroupedResult {
+        folder: FolderInfo
+        files: typeof results
+        totalCount: number
+      }
+
+      const groupedResults: Map<string, GroupedResult> = new Map()
+
+      for (const file of results) {
+        const folderKey = file.folderId || 'root'
+
+        if (!groupedResults.has(folderKey)) {
+          groupedResults.set(folderKey, {
+            folder: file.folder || { id: null, name: 'Juurkaust', path: '/' },
+            files: [],
+            totalCount: 0,
+          })
+        }
+
+        const group = groupedResults.get(folderKey)!
+        group.totalCount++
+
+        // Only add files up to preview limit
+        if (group.files.length < previewLimit) {
+          group.files.push(file)
+        }
+      }
+
+      // Convert to array and sort by total count (most matches first)
+      const folderGroups = Array.from(groupedResults.values())
+        .sort((a, b) => b.totalCount - a.totalCount)
+
+      return NextResponse.json({
+        grouped: true,
+        folderGroups,
+        totalFolders: folderGroups.length,
+        totalFiles: count || 0,
+        query: query || null,
+      })
+    }
 
     return NextResponse.json({
       files: results,
