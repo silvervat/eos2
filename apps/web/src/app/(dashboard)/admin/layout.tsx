@@ -29,6 +29,12 @@ const menuItems = [
     path: '/admin/modules',
   },
   {
+    key: 'components',
+    label: 'Komponendid',
+    icon: '🧩',
+    path: '/admin/components',
+  },
+  {
     key: 'users',
     label: 'Kasutajad',
     icon: '👥',
@@ -39,6 +45,12 @@ const menuItems = [
     label: 'Õigused',
     icon: '🔐',
     path: '/admin/permissions',
+  },
+  {
+    key: 'todos',
+    label: 'TODO',
+    icon: '✅',
+    path: '/admin/todos',
   },
   {
     key: 'system',
