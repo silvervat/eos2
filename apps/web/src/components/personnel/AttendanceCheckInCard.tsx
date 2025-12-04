@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   Play,
   Square,
+  Pause,
   Clock,
   MapPin,
   Building2,
@@ -11,6 +12,7 @@ import {
   CheckCircle,
   AlertCircle,
 } from 'lucide-react'
+import { useWorkSession } from '@/contexts/WorkSessionContext'
 
 interface Project {
   id: string
@@ -20,31 +22,8 @@ interface Project {
 
 interface AttendanceCheckInCardProps {
   employeeId?: string
-  onCheckIn?: (data: CheckInData) => void
-  onCheckOut?: (data: CheckOutData) => void
-}
-
-interface CheckInData {
-  projectId?: string
-  latitude?: number
-  longitude?: number
-  gpsAccuracy?: number
-  notes?: string
-}
-
-interface CheckOutData {
-  latitude?: number
-  longitude?: number
-  gpsAccuracy?: number
-  notes?: string
-}
-
-interface ActiveSession {
-  id: string
-  project_id?: string
-  project_name?: string
-  timestamp: string
-  elapsed_seconds: number
+  onCheckIn?: () => void
+  onCheckOut?: () => void
 }
 
 export default function AttendanceCheckInCard({
@@ -52,14 +31,22 @@ export default function AttendanceCheckInCard({
   onCheckIn,
   onCheckOut,
 }: AttendanceCheckInCardProps) {
+  const {
+    activeSession,
+    elapsedSeconds,
+    isLoading: contextLoading,
+    startWork,
+    pauseWork,
+    resumeWork,
+    stopWork,
+  } = useWorkSession()
+
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<string>('')
   const [notes, setNotes] = useState('')
-  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null)
-  const [elapsedTime, setElapsedTime] = useState(0)
   const [gpsLocation, setGpsLocation] = useState<{
     latitude: number
     longitude: number
@@ -82,56 +69,6 @@ export default function AttendanceCheckInCard({
     }
     fetchProjects()
   }, [])
-
-  // Check for active session
-  useEffect(() => {
-    async function checkActiveSession() {
-      try {
-        const today = new Date().toISOString().split('T')[0]
-        const response = await fetch(
-          `/api/personnel/attendance?employeeId=${employeeId || ''}&startDate=${today}&endDate=${today}&limit=10`
-        )
-        const result = await response.json()
-
-        if (result.data && result.data.length > 0) {
-          // Find the last check_in without a corresponding check_out
-          const checkIns = result.data.filter((r: { type: string }) => r.type === 'check_in')
-          const checkOuts = result.data.filter((r: { type: string }) => r.type === 'check_out')
-
-          if (checkIns.length > checkOuts.length) {
-            const lastCheckIn = checkIns[0]
-            const checkInTime = new Date(lastCheckIn.timestamp)
-            const now = new Date()
-            const elapsed = Math.floor((now.getTime() - checkInTime.getTime()) / 1000)
-
-            setActiveSession({
-              id: lastCheckIn.id,
-              project_id: lastCheckIn.project_id,
-              project_name: lastCheckIn.project?.name,
-              timestamp: lastCheckIn.timestamp,
-              elapsed_seconds: elapsed,
-            })
-            setElapsedTime(elapsed)
-          }
-        }
-      } catch (err) {
-        console.error('Error checking active session:', err)
-      }
-    }
-
-    checkActiveSession()
-  }, [employeeId])
-
-  // Timer for elapsed time
-  useEffect(() => {
-    if (!activeSession) return
-
-    const interval = setInterval(() => {
-      setElapsedTime((prev) => prev + 1)
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [activeSession])
 
   // Format elapsed time as HH:MM:SS
   const formatElapsedTime = useCallback((seconds: number) => {
@@ -182,44 +119,14 @@ export default function AttendanceCheckInCard({
     setSuccess(null)
 
     try {
-      const response = await fetch('/api/personnel/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'check_in',
-          projectId: selectedProject || null,
-          latitude: gpsLocation?.latitude,
-          longitude: gpsLocation?.longitude,
-          gpsAccuracy: gpsLocation?.accuracy,
-          notes: notes || null,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Check-in failed')
-      }
+      const projectName = projects.find((p) => p.id === selectedProject)?.name
+      await startWork(selectedProject || undefined, projectName)
 
       setSuccess('Töö alustatud!')
-      setActiveSession({
-        id: result.id,
-        project_id: result.project_id,
-        project_name: projects.find((p) => p.id === selectedProject)?.name,
-        timestamp: result.timestamp,
-        elapsed_seconds: 0,
-      })
-      setElapsedTime(0)
       setNotes('')
 
       if (onCheckIn) {
-        onCheckIn({
-          projectId: selectedProject || undefined,
-          latitude: gpsLocation?.latitude,
-          longitude: gpsLocation?.longitude,
-          gpsAccuracy: gpsLocation?.accuracy,
-          notes: notes || undefined,
-        })
+        onCheckIn()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Check-in failed')
@@ -234,38 +141,14 @@ export default function AttendanceCheckInCard({
     setSuccess(null)
 
     try {
-      const response = await fetch('/api/personnel/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'check_out',
-          projectId: activeSession?.project_id || null,
-          latitude: gpsLocation?.latitude,
-          longitude: gpsLocation?.longitude,
-          gpsAccuracy: gpsLocation?.accuracy,
-          notes: notes || null,
-        }),
-      })
+      await stopWork()
 
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Check-out failed')
-      }
-
-      const hoursWorked = (elapsedTime / 3600).toFixed(2)
+      const hoursWorked = (elapsedSeconds / 3600).toFixed(2)
       setSuccess(`Töö lõpetatud! Töötasid ${hoursWorked} tundi.`)
-      setActiveSession(null)
-      setElapsedTime(0)
       setNotes('')
 
       if (onCheckOut) {
-        onCheckOut({
-          latitude: gpsLocation?.latitude,
-          longitude: gpsLocation?.longitude,
-          gpsAccuracy: gpsLocation?.accuracy,
-          notes: notes || undefined,
-        })
+        onCheckOut()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Check-out failed')
@@ -274,6 +157,16 @@ export default function AttendanceCheckInCard({
     }
   }
 
+  const handlePauseResume = () => {
+    if (activeSession?.isPaused) {
+      resumeWork()
+    } else {
+      pauseWork()
+    }
+  }
+
+  const loading = isLoading || contextLoading
+
   return (
     <div className="bg-white rounded-xl border shadow-sm">
       <div className="p-6">
@@ -281,17 +174,31 @@ export default function AttendanceCheckInCard({
           <div className="flex items-center gap-3">
             <div
               className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                activeSession ? 'bg-green-100' : 'bg-gray-100'
+                activeSession
+                  ? activeSession.isPaused
+                    ? 'bg-yellow-100'
+                    : 'bg-green-100'
+                  : 'bg-gray-100'
               }`}
             >
               <Clock
-                className={`w-6 h-6 ${activeSession ? 'text-green-600' : 'text-gray-500'}`}
+                className={`w-6 h-6 ${
+                  activeSession
+                    ? activeSession.isPaused
+                      ? 'text-yellow-600'
+                      : 'text-green-600'
+                    : 'text-gray-500'
+                }`}
               />
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-800">Tööaja arvestus</h3>
               <p className="text-sm text-gray-500">
-                {activeSession ? 'Töö käib' : 'Pole tööl'}
+                {activeSession
+                  ? activeSession.isPaused
+                    ? 'Paus'
+                    : 'Töö käib'
+                  : 'Pole tööl'}
               </p>
             </div>
           </div>
@@ -322,13 +229,16 @@ export default function AttendanceCheckInCard({
         {/* Timer display when active */}
         {activeSession && (
           <div className="mb-6 text-center">
-            <div className="text-5xl font-mono font-bold text-gray-800 mb-2">
-              {formatElapsedTime(elapsedTime)}
+            <div className={`text-5xl font-mono font-bold mb-2 ${activeSession.isPaused ? 'text-yellow-600' : 'text-gray-800'}`}>
+              {formatElapsedTime(elapsedSeconds)}
             </div>
-            {activeSession.project_name && (
+            {activeSession.isPaused && (
+              <div className="text-sm text-yellow-600 mb-2">Paus</div>
+            )}
+            {activeSession.projectName && (
               <div className="flex items-center justify-center gap-2 text-gray-600">
                 <Building2 className="w-4 h-4" />
-                <span>{activeSession.project_name}</span>
+                <span>{activeSession.projectName}</span>
               </div>
             )}
           </div>
@@ -389,10 +299,10 @@ export default function AttendanceCheckInCard({
           {!activeSession ? (
             <button
               onClick={handleCheckIn}
-              disabled={isLoading}
+              disabled={loading}
               className="flex-1 px-6 py-3 bg-[#279989] text-white rounded-lg hover:bg-[#1f7a6d] transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? (
+              {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <Play className="w-5 h-5" />
@@ -400,18 +310,44 @@ export default function AttendanceCheckInCard({
               Alusta tööd
             </button>
           ) : (
-            <button
-              onClick={handleCheckOut}
-              disabled={isLoading}
-              className="flex-1 px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Square className="w-5 h-5" />
-              )}
-              Lõpeta töö
-            </button>
+            <>
+              {/* Pause/Resume button */}
+              <button
+                onClick={handlePauseResume}
+                disabled={loading}
+                className={`flex-1 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  activeSession.isPaused
+                    ? 'bg-green-500 hover:bg-green-600 text-white'
+                    : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                }`}
+              >
+                {activeSession.isPaused ? (
+                  <>
+                    <Play className="w-5 h-5" />
+                    Jätka
+                  </>
+                ) : (
+                  <>
+                    <Pause className="w-5 h-5" />
+                    Paus
+                  </>
+                )}
+              </button>
+
+              {/* Stop button */}
+              <button
+                onClick={handleCheckOut}
+                disabled={loading}
+                className="flex-1 px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Square className="w-5 h-5" />
+                )}
+                Lõpeta töö
+              </button>
+            </>
           )}
         </div>
       </div>
