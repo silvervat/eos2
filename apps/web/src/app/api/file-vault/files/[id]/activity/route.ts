@@ -52,9 +52,10 @@ export async function GET(
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    // Type assertion for the joined vault data
-    const vaultData = file.file_vaults as { tenant_id: string } | null
-    if (vaultData?.tenant_id !== profile.tenant_id) {
+    // Type assertion for the joined vault data (Supabase returns array for joins)
+    const vaultArray = file.file_vaults as unknown as Array<{ tenant_id: string }> | null
+    const vaultTenantId = vaultArray?.[0]?.tenant_id
+    if (vaultTenantId !== profile.tenant_id) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
