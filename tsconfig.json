@@ -19,7 +19,8 @@
       "@rivest/db": ["packages/db/src"],
       "@rivest/types": ["packages/types/src"],
       "@eos2/data-provider": ["packages/data-provider/src"],
-      "@eos2/resources": ["packages/resources/src"]
+      "@eos2/resources": ["packages/resources/src"],
+      "@eos2/ui-crud": ["packages/ui-crud/src"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],

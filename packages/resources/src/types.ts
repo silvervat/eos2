@@ -109,6 +109,12 @@ export interface ColumnDefinition {
   align?: 'left' | 'center' | 'right'
   /** Tooltip text */
   tooltip?: string
+  /** Hide in show/detail view */
+  showInShow?: boolean
+  /** Group section name for show view */
+  section?: string
+  /** Description/help text */
+  description?: string
 }
 
 export type ColumnType =

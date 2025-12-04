@@ -1,0 +1,29 @@
+{
+  "name": "@eos2/ui-crud",
+  "version": "0.1.0",
+  "description": "Auto-generated CRUD UI components for EOS2",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "next": "^14.0.0"
+  },
+  "dependencies": {
+    "@eos2/data-provider": "workspace:*",
+    "@eos2/resources": "workspace:*",
+    "lucide-react": "^0.378.0",
+    "date-fns": "^3.6.0",
+    "clsx": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -53,6 +53,9 @@ importers:
       '@eos2/resources':
         specifier: workspace:*
         version: link:../../packages/resources
+      '@eos2/ui-crud':
+        specifier: workspace:*
+        version: link:../../packages/ui-crud
       '@hello-pangea/dnd':
         specifier: ^16.6.0
         version: 16.6.0(@types/react-dom@18.3.7(@types/react@18.3.27))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -307,6 +310,37 @@ importers:
       '@types/react-dom':
         specifier: ^18.3.0
         version: 18.3.7(@types/react@18.3.27)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
+  packages/ui-crud:
+    dependencies:
+      '@eos2/data-provider':
+        specifier: workspace:*
+        version: link:../data-provider
+      '@eos2/resources':
+        specifier: workspace:*
+        version: link:../resources
+      clsx:
+        specifier: ^2.1.0
+        version: 2.1.1
+      date-fns:
+        specifier: ^3.6.0
+        version: 3.6.0
+      lucide-react:
+        specifier: ^0.378.0
+        version: 0.378.0(react@18.3.1)
+      next:
+        specifier: ^14.0.0
+        version: 14.2.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react:
+        specifier: ^18.0.0
+        version: 18.3.1
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.0
+        version: 18.3.27
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
