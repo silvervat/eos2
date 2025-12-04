@@ -235,13 +235,15 @@ export function FileUploadDialog({
 
       if (!response.ok) {
         const error = await response.json()
+        const errorMessage = (error.error || '').toLowerCase()
 
-        // Check for duplicate error
-        if (error.error?.includes('duplikaat') || error.error?.includes('duplicate') || error.code === 'DUPLICATE') {
+        // Check for duplicate error (status 409 or error message contains duplicate)
+        if (response.status === 409 || errorMessage.includes('duplikaat') || errorMessage.includes('duplicate')) {
+          const existingName = error.existingFile?.name || 'olemasolev fail'
           setFiles(prev =>
             prev.map(f =>
               f.id === uploadFile.id
-                ? { ...f, status: 'duplicate', error: 'Fail juba eksisteerib' }
+                ? { ...f, status: 'duplicate', error: `Sama sisuga fail "${existingName}" on juba olemas` }
                 : f
             )
           )
@@ -486,13 +488,23 @@ export function FileUploadDialog({
                           <AlertCircle className="w-4 h-4 text-red-500" />
                         )}
                         {file.status === 'duplicate' && (
-                          <button
-                            onClick={() => handleDuplicateRename(file.id)}
-                            className="p-1 rounded hover:bg-amber-100 text-amber-600"
-                            title="Nimeta ümber ja proovi uuesti"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleDuplicateRename(file.id)}
+                              className="px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs font-medium flex items-center gap-1"
+                              title="Nimeta ümber ja proovi uuesti"
+                            >
+                              <Copy className="w-3 h-3" />
+                              Muuda nime
+                            </button>
+                            <button
+                              onClick={() => toggleEditName(file.id)}
+                              className="p-1 rounded hover:bg-amber-100 text-amber-600"
+                              title="Muuda nime käsitsi"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
                         )}
                         {file.status === 'pending' && (
                           <button
