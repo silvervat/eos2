@@ -970,7 +970,7 @@ export default function FileVaultPage() {
 
   const itemCount = hasMoreFiles ? allItems.length + 1 : allItems.length
 
-  // Virtual list row renderer
+  // Virtual list row renderer with enhanced features
   const VirtualListRow = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
     // Loading row
     if (!isItemLoaded(index)) {
@@ -986,129 +986,148 @@ export default function FileVaultPage() {
     if (!item) return null
 
     const isFolder = item.type === 'folder'
-    const Icon = isFolder ? Folder : getFileIcon((item as FileItem).mimeType)
+    const fileItem = item as FileItem
+    const Icon = isFolder ? Folder : getFileIcon(fileItem.mimeType, fileItem.extension)
     const isSelected = selectedItems.includes(item.id)
 
     return (
       <div
         style={style}
-        className={`flex items-center gap-4 px-4 cursor-pointer transition-colors hover:bg-slate-50 border-b border-slate-100 ${
-          isSelected ? 'bg-slate-50' : ''
+        className={`flex items-center border-b border-slate-100 hover:bg-slate-50 transition-colors ${
+          isSelected ? 'bg-[#279989]/5' : ''
         }`}
-        onClick={() => {
-          if (isFolder) {
-            navigateToFolder(item as FolderItem)
-          } else {
-            toggleSelect(item.id)
+        onDoubleClick={() => {
+          if (!isFolder) {
+            handlePreview(fileItem)
           }
         }}
       >
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => toggleSelect(item.id)}
-          onClick={(e) => e.stopPropagation()}
-          className="w-4 h-4 rounded"
-        />
-        {!isFolder && (item as FileItem).thumbnailSmall ? (
-          <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
-            <img
-              src={(item as FileItem).thumbnailSmall}
-              alt={item.name}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          </div>
-        ) : (
-          <div
-            className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-              isFolder ? 'bg-amber-100' : 'bg-slate-100'
-            }`}
-          >
-            <Icon
-              className="w-5 h-5"
-              style={{ color: isFolder ? '#f59e0b' : '#64748b' }}
-            />
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-slate-900 truncate">{item.name}</p>
-          <p className="text-xs text-slate-500">
-            {isFolder ? 'Kaust' : formatFileSize((item as FileItem).sizeBytes)}
-          </p>
+        {/* Checkbox - only this selects */}
+        <div className="w-10 px-3 flex-shrink-0">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => toggleSelect(item.id)}
+            className="w-4 h-4 rounded cursor-pointer"
+          />
         </div>
-        <div className="text-sm text-slate-500 hidden sm:block">
+
+        {/* Name with icon/thumbnail */}
+        <div className="flex-1 min-w-[200px] px-3 py-2 flex items-center gap-3">
+          {/* Icon/Thumbnail - clicking opens file preview or navigates folder */}
+          <div
+            className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0 cursor-pointer bg-slate-100"
+            onClick={() => {
+              if (isFolder) {
+                navigateToFolder(item as FolderItem)
+              } else {
+                handlePreview(fileItem)
+              }
+            }}
+            onMouseEnter={(e) => {
+              if (!isFolder && fileItem.thumbnailMedium) {
+                const rect = e.currentTarget.getBoundingClientRect()
+                setHoverPreviewFile(fileItem)
+                setHoverPreviewPosition({ x: rect.right + 10, y: rect.top })
+              }
+            }}
+            onMouseLeave={() => setHoverPreviewFile(null)}
+          >
+            {!isFolder && fileItem.thumbnailSmall ? (
+              <img
+                src={fileItem.thumbnailSmall}
+                alt=""
+                className="w-full h-full object-cover rounded"
+              />
+            ) : (
+              <Icon
+                className="w-4 h-4"
+                style={{ color: '#64748b' }}
+              />
+            )}
+          </div>
+
+          {/* File name */}
+          <span
+            className={`text-sm text-slate-900 truncate ${isFolder ? 'cursor-pointer hover:text-[#279989]' : ''}`}
+            onClick={() => {
+              if (isFolder) {
+                navigateToFolder(item as FolderItem)
+              }
+            }}
+          >
+            {item.name}
+          </span>
+        </div>
+
+        {/* Type badge */}
+        <div className="w-20 px-3 flex-shrink-0 hidden sm:block">
+          {!isFolder ? (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getFileTypeColor(fileItem.mimeType, fileItem.extension)}`}>
+              {getFileTypeLabel(fileItem.mimeType, fileItem.extension)}
+            </span>
+          ) : (
+            <span className="text-xs text-slate-400">Kaust</span>
+          )}
+        </div>
+
+        {/* Size */}
+        <div className="w-24 px-3 text-sm text-slate-500 flex-shrink-0 hidden md:block">
+          {isFolder ? '-' : formatFileSize(fileItem.sizeBytes)}
+        </div>
+
+        {/* Date */}
+        <div className="w-28 px-3 text-sm text-slate-500 flex-shrink-0 hidden lg:block">
           {formatDate(item.createdAt)}
         </div>
-        <div className="flex gap-1">
-          {!isFolder && (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-8 h-8"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handlePreview(item as FileItem)
-                }}
-                title="Eelvaade"
-              >
-                <Eye className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-8 h-8"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDownload(item as FileItem)
-                }}
-                title="Laadi alla"
-              >
-                <Download className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-8 h-8"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleShare(item as FileItem)
-                }}
-                title="Jaga"
-              >
-                <Share2 className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-8 h-8"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleShowInfo(item as FileItem)
-                }}
-                title="Info"
-              >
-                <Info className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-8 h-8 text-red-600 hover:text-red-700"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDelete(item.id, false)
-                }}
-                title="Kustuta"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </>
-          )}
+
+        {/* Actions */}
+        <div className="w-28 px-3 flex-shrink-0">
+          <div className="flex items-center justify-end gap-1">
+            {!isFolder && (
+              <>
+                <button
+                  onClick={() => handlePreview(fileItem)}
+                  className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
+                  title="Eelvaade"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDownload(fileItem)}
+                  className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
+                  title="Laadi alla"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleShare(fileItem)}
+                  className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
+                  title="Jaga"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleShowInfo(fileItem)}
+                  className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
+                  title="Info"
+                >
+                  <Info className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(item.id, false)}
+                  className="p-1.5 rounded hover:bg-red-50 text-slate-500 hover:text-red-600"
+                  title="Kustuta"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     )
-  }, [allItems, selectedItems, isItemLoaded, navigateToFolder, toggleSelect, handlePreview, handleDownload, handleShare, handleShowInfo, handleDelete])
+  }, [allItems, selectedItems, isItemLoaded, navigateToFolder, toggleSelect, handlePreview, handleDownload, handleShare, handleShowInfo, handleDelete, setHoverPreviewFile, setHoverPreviewPosition])
 
   // Calculate container height for virtual list
   const [listHeight, setListHeight] = useState(500)
@@ -2020,306 +2039,131 @@ export default function FileVaultPage() {
               )}
             </div>
           ) : (
-            /* Table View - uses browser scroll */
+            /* List View with Virtual Scrolling */
             <Card className="overflow-hidden">
-              {allItems.length > 0 ? (
-                <>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50">
-                          <th className="w-10 px-3 py-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedItems.length === filteredFiles.length && filteredFiles.length > 0}
-                              onChange={() => {
-                                if (selectedItems.length === filteredFiles.length) {
-                                  setSelectedItems([])
-                                } else {
-                                  setSelectedItems(filteredFiles.map(f => f.id))
-                                }
-                              }}
-                              className="w-4 h-4 rounded"
-                            />
-                          </th>
-                          <th className="text-left px-3 py-2 text-xs font-medium text-slate-500 uppercase min-w-[200px]">
-                            <button
-                              onClick={() => {
-                                if (sortColumn === 'name') {
-                                  setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
-                                } else {
-                                  setSortColumn('name')
-                                  setSortDirection('asc')
-                                }
-                              }}
-                              className="flex items-center gap-1 hover:text-slate-700"
-                            >
-                              Nimi
-                              {sortColumn === 'name' && (
-                                <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                              )}
-                            </button>
-                          </th>
-                          <th className="text-left px-3 py-2 text-xs font-medium text-slate-500 uppercase w-20">
-                            <button
-                              onClick={() => {
-                                if (sortColumn === 'mimeType') {
-                                  setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
-                                } else {
-                                  setSortColumn('mimeType')
-                                  setSortDirection('asc')
-                                }
-                              }}
-                              className="flex items-center gap-1 hover:text-slate-700"
-                            >
-                              Tüüp
-                              {sortColumn === 'mimeType' && (
-                                <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                              )}
-                            </button>
-                          </th>
-                          <th className="text-left px-3 py-2 text-xs font-medium text-slate-500 uppercase w-24">
-                            <button
-                              onClick={() => {
-                                if (sortColumn === 'sizeBytes') {
-                                  setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
-                                } else {
-                                  setSortColumn('sizeBytes')
-                                  setSortDirection('desc')
-                                }
-                              }}
-                              className="flex items-center gap-1 hover:text-slate-700"
-                            >
-                              Suurus
-                              {sortColumn === 'sizeBytes' && (
-                                <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                              )}
-                            </button>
-                          </th>
-                          <th className="text-left px-3 py-2 text-xs font-medium text-slate-500 uppercase w-32">
-                            <button
-                              onClick={() => {
-                                if (sortColumn === 'createdAt') {
-                                  setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
-                                } else {
-                                  setSortColumn('createdAt')
-                                  setSortDirection('desc')
-                                }
-                              }}
-                              className="flex items-center gap-1 hover:text-slate-700"
-                            >
-                              Lisatud
-                              {sortColumn === 'createdAt' && (
-                                <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                              )}
-                            </button>
-                          </th>
-                          <th className="text-right px-3 py-2 text-xs font-medium text-slate-500 uppercase w-28">
-                            Tegevused
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {/* Sort items based on current sort settings */}
-                        {[...allItems].sort((a, b) => {
-                          const aIsFolder = a.type === 'folder'
-                          const bIsFolder = b.type === 'folder'
-                          // Folders always first
-                          if (aIsFolder && !bIsFolder) return -1
-                          if (!aIsFolder && bIsFolder) return 1
-
-                          let comparison = 0
-                          if (sortColumn === 'name') {
-                            comparison = a.name.localeCompare(b.name)
-                          } else if (sortColumn === 'createdAt') {
-                            comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-                          } else if (sortColumn === 'sizeBytes' && !aIsFolder && !bIsFolder) {
-                            comparison = (a as FileItem).sizeBytes - (b as FileItem).sizeBytes
-                          } else if (sortColumn === 'mimeType' && !aIsFolder && !bIsFolder) {
-                            comparison = (a as FileItem).mimeType.localeCompare((b as FileItem).mimeType)
-                          }
-                          return sortDirection === 'asc' ? comparison : -comparison
-                        }).map((item) => {
-                          const isFolder = item.type === 'folder'
-                          const Icon = isFolder ? Folder : getFileIcon((item as FileItem).mimeType, (item as FileItem).extension)
-                          const isSelected = selectedItems.includes(item.id)
-                          const fileItem = item as FileItem
-
-                          return (
-                            <tr
-                              key={item.id}
-                              className={`hover:bg-slate-50 transition-colors h-12 ${isSelected ? 'bg-[#279989]/5' : ''}`}
-                              onDoubleClick={() => {
-                                if (!isFolder) {
-                                  handlePreview(fileItem)
-                                }
-                              }}
-                            >
-                              {/* Checkbox - only this selects */}
-                              <td className="px-3 py-1">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => toggleSelect(item.id)}
-                                  className="w-4 h-4 rounded cursor-pointer"
-                                />
-                              </td>
-
-                              {/* Name with icon/thumbnail - clicking icon opens preview, clicking name navigates folders */}
-                              <td className="px-3 py-1">
-                                <div className="flex items-center gap-3">
-                                  {/* Icon/Thumbnail - clicking opens file preview */}
-                                  <div
-                                    className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 cursor-pointer relative group/thumb ${
-                                      isFolder ? 'bg-slate-100' : 'bg-slate-100'
-                                    }`}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      if (isFolder) {
-                                        navigateToFolder(item as FolderItem)
-                                      } else {
-                                        handlePreview(fileItem)
-                                      }
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      if (!isFolder && fileItem.thumbnailMedium) {
-                                        const rect = e.currentTarget.getBoundingClientRect()
-                                        setHoverPreviewFile(fileItem)
-                                        setHoverPreviewPosition({ x: rect.right + 10, y: rect.top })
-                                      }
-                                    }}
-                                    onMouseLeave={() => setHoverPreviewFile(null)}
-                                  >
-                                    {!isFolder && fileItem.thumbnailSmall ? (
-                                      <img
-                                        src={fileItem.thumbnailSmall}
-                                        alt=""
-                                        className="w-full h-full object-cover rounded"
-                                      />
-                                    ) : (
-                                      <Icon
-                                        className="w-4 h-4"
-                                        style={{ color: isFolder ? '#64748b' : '#64748b' }}
-                                      />
-                                    )}
-                                  </div>
-
-                                  {/* File name - clicking on folder name navigates */}
-                                  <span
-                                    className={`text-sm text-slate-900 truncate ${isFolder ? 'cursor-pointer hover:text-[#279989]' : ''}`}
-                                    onClick={() => {
-                                      if (isFolder) {
-                                        navigateToFolder(item as FolderItem)
-                                      }
-                                    }}
-                                  >
-                                    {item.name}
-                                  </span>
-                                </div>
-                              </td>
-
-                              {/* Type badge */}
-                              <td className="px-3 py-1">
-                                {!isFolder && (
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getFileTypeColor(fileItem.mimeType, fileItem.extension)}`}>
-                                    {getFileTypeLabel(fileItem.mimeType, fileItem.extension)}
-                                  </span>
-                                )}
-                                {isFolder && (
-                                  <span className="text-xs text-slate-400">Kaust</span>
-                                )}
-                              </td>
-
-                              {/* Size */}
-                              <td className="px-3 py-1 text-sm text-slate-500">
-                                {isFolder ? '-' : formatFileSize(fileItem.sizeBytes)}
-                              </td>
-
-                              {/* Date */}
-                              <td className="px-3 py-1 text-sm text-slate-500">
-                                {formatDate(item.createdAt)}
-                              </td>
-
-                              {/* Actions */}
-                              <td className="px-3 py-1">
-                                <div className="flex items-center justify-end gap-1">
-                                  {!isFolder && (
-                                    <>
-                                      <button
-                                        onClick={() => handlePreview(fileItem)}
-                                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
-                                        title="Eelvaade"
-                                      >
-                                        <Eye className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDownload(fileItem)}
-                                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
-                                        title="Laadi alla"
-                                      >
-                                        <Download className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleShare(fileItem)}
-                                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
-                                        title="Jaga"
-                                      >
-                                        <Share2 className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleShowInfo(fileItem)}
-                                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
-                                        title="Info"
-                                      >
-                                        <Info className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDelete(item.id, false)}
-                                        className="p-1.5 rounded hover:bg-red-50 text-slate-500 hover:text-red-600"
-                                        title="Kustuta"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Load more button */}
-                  {hasMoreFiles && (
-                    <div className="p-4 border-t border-slate-100 text-center">
-                      <Button
-                        variant="outline"
-                        onClick={loadMoreFiles}
-                        disabled={isLoadingMore}
-                        className="gap-2"
-                      >
-                        {isLoadingMore ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Laadin...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="w-4 h-4" />
-                            Laadi rohkem
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="py-8 text-center text-slate-500">
-                  Andmeid ei leitud
+              {/* Table Header - stays fixed */}
+              <div className="flex items-center border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500 uppercase">
+                <div className="w-10 px-3 py-2 flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={selectedItems.length === filteredFiles.length && filteredFiles.length > 0}
+                    onChange={() => {
+                      if (selectedItems.length === filteredFiles.length) {
+                        setSelectedItems([])
+                      } else {
+                        setSelectedItems(filteredFiles.map(f => f.id))
+                      }
+                    }}
+                    className="w-4 h-4 rounded"
+                  />
                 </div>
-              )}
+                <div className="flex-1 min-w-[200px] px-3 py-2">
+                  <button
+                    onClick={() => {
+                      if (sortColumn === 'name') {
+                        setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                      } else {
+                        setSortColumn('name')
+                        setSortDirection('asc')
+                      }
+                    }}
+                    className="flex items-center gap-1 hover:text-slate-700"
+                  >
+                    Nimi
+                    {sortColumn === 'name' && (
+                      <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </button>
+                </div>
+                <div className="w-20 px-3 py-2 flex-shrink-0 hidden sm:block">
+                  <button
+                    onClick={() => {
+                      if (sortColumn === 'mimeType') {
+                        setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                      } else {
+                        setSortColumn('mimeType')
+                        setSortDirection('asc')
+                      }
+                    }}
+                    className="flex items-center gap-1 hover:text-slate-700"
+                  >
+                    Tüüp
+                    {sortColumn === 'mimeType' && (
+                      <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </button>
+                </div>
+                <div className="w-24 px-3 py-2 flex-shrink-0 hidden md:block">
+                  <button
+                    onClick={() => {
+                      if (sortColumn === 'sizeBytes') {
+                        setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                      } else {
+                        setSortColumn('sizeBytes')
+                        setSortDirection('desc')
+                      }
+                    }}
+                    className="flex items-center gap-1 hover:text-slate-700"
+                  >
+                    Suurus
+                    {sortColumn === 'sizeBytes' && (
+                      <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </button>
+                </div>
+                <div className="w-28 px-3 py-2 flex-shrink-0 hidden lg:block">
+                  <button
+                    onClick={() => {
+                      if (sortColumn === 'createdAt') {
+                        setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                      } else {
+                        setSortColumn('createdAt')
+                        setSortDirection('desc')
+                      }
+                    }}
+                    className="flex items-center gap-1 hover:text-slate-700"
+                  >
+                    Lisatud
+                    {sortColumn === 'createdAt' && (
+                      <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </button>
+                </div>
+                <div className="w-28 px-3 py-2 text-right flex-shrink-0">
+                  Tegevused
+                </div>
+              </div>
+
+              {/* Virtual Scrolling Body */}
+              <div ref={listContainerRef}>
+                {allItems.length > 0 ? (
+                  <InfiniteLoader
+                    ref={infiniteLoaderRef}
+                    isItemLoaded={isItemLoaded}
+                    itemCount={itemCount}
+                    loadMoreItems={loadMoreFiles}
+                    threshold={10}
+                  >
+                    {({ onItemsRendered, ref }) => (
+                      <VirtualList
+                        ref={ref}
+                        height={listHeight}
+                        itemCount={itemCount}
+                        itemSize={LIST_ROW_HEIGHT}
+                        width="100%"
+                        onItemsRendered={onItemsRendered}
+                        overscanCount={5}
+                      >
+                        {VirtualListRow}
+                      </VirtualList>
+                    )}
+                  </InfiniteLoader>
+                ) : (
+                  <div className="py-8 text-center text-slate-500">
+                    Andmeid ei leitud
+                  </div>
+                )}
+              </div>
             </Card>
           )}
         </>
