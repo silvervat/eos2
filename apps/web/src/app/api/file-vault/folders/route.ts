@@ -292,7 +292,7 @@ export async function POST(request: Request) {
             group_id: groupId,
             permission_type: 'view',
             created_by: user.id,
-          })
+          }).then()
         )
       }
     }
@@ -306,7 +306,7 @@ export async function POST(request: Request) {
             user_id: userId,
             permission_type: 'view',
             created_by: user.id,
-          })
+          }).then()
         )
       }
     }
@@ -320,7 +320,7 @@ export async function POST(request: Request) {
             user_id: userId,
             permission_type: 'deny',
             created_by: user.id,
-          })
+          }).then()
         )
       }
     }
