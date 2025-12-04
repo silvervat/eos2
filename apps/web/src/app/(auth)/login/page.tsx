@@ -31,6 +31,7 @@ function LoginForm() {
       })
 
       if (authError) {
+        setIsLoading(false)
         if (authError.message.includes('Invalid login credentials')) {
           setError('Vale e-posti aadress või parool')
         } else if (authError.message.includes('Email not confirmed')) {
@@ -41,24 +42,29 @@ function LoginForm() {
         return
       }
 
-      // Check user role and redirect accordingly
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('auth_user_id', data.user?.id)
-        .single()
+      // Fetch profile in parallel, but don't wait if it fails
+      // Default to dashboard, redirect to admin if user is admin
+      let targetPath = '/dashboard'
 
-      // Redirect based on role
-      if (profile?.role === 'admin' || profile?.role === 'superadmin') {
-        router.push('/admin/cms')
-      } else {
-        router.push('/dashboard')
+      try {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('auth_user_id', data.user?.id)
+          .single()
+
+        if (profile?.role === 'admin' || profile?.role === 'superadmin') {
+          targetPath = '/admin/cms'
+        }
+      } catch {
+        // If profile fetch fails, just go to dashboard
       }
-      router.refresh()
+
+      // Navigate - keep loading state while transitioning
+      router.push(targetPath)
     } catch {
-      setError('Midagi läks valesti. Proovi uuesti.')
-    } finally {
       setIsLoading(false)
+      setError('Midagi läks valesti. Proovi uuesti.')
     }
   }
 
