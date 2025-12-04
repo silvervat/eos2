@@ -50,6 +50,9 @@ importers:
       '@eos2/data-provider':
         specifier: workspace:*
         version: link:../../packages/data-provider
+      '@eos2/resources':
+        specifier: workspace:*
+        version: link:../../packages/resources
       '@hello-pangea/dnd':
         specifier: ^16.6.0
         version: 16.6.0(@types/react-dom@18.3.7(@types/react@18.3.27))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -239,6 +242,22 @@ importers:
       prisma:
         specifier: ^5.14.0
         version: 5.22.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
+  packages/resources:
+    dependencies:
+      lucide-react:
+        specifier: ^0.378.0
+        version: 0.378.0(react@18.3.1)
+      react:
+        specifier: ^18.0.0
+        version: 18.3.1
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.0
+        version: 18.3.27
       typescript:
         specifier: ^5.4.0
         version: 5.9.3

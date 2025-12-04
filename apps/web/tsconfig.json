@@ -20,7 +20,8 @@
       "@rivest/ui": ["../../packages/ui/src"],
       "@rivest/db": ["../../packages/db/src"],
       "@rivest/types": ["../../packages/types/src"],
-      "@eos2/data-provider": ["../../packages/data-provider/src"]
+      "@eos2/data-provider": ["../../packages/data-provider/src"],
+      "@eos2/resources": ["../../packages/resources/src"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
