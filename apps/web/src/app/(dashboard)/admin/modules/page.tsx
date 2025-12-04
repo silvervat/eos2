@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface Module {
   id: string
@@ -103,8 +104,13 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function ModulesPage() {
-  const [modules] = useState<Module[]>(mockModules)
+  const router = useRouter()
+  const [modules, setModules] = useState<Module[]>(mockModules)
   const [filter, setFilter] = useState<string>('all')
+  const [selectedModule, setSelectedModule] = useState<Module | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const filteredModules = filter === 'all'
     ? modules
@@ -118,6 +124,42 @@ export default function ModulesPage() {
     todo: modules.filter(m => m.status === 'todo').length,
   }
 
+  const handleView = (module: Module) => {
+    setSelectedModule(module)
+    // Navigate to module detail or open modal
+    alert(`Vaatan moodulit: ${module.label}\n\nMoodul: ${module.name}\nStaatus: ${module.status}\nVersioon: ${module.version}\nKomponente: ${module.components}`)
+  }
+
+  const handleEdit = (module: Module) => {
+    setSelectedModule(module)
+    setShowEditModal(true)
+  }
+
+  const handleDelete = (module: Module) => {
+    setSelectedModule(module)
+    setShowDeleteConfirm(true)
+  }
+
+  const confirmDelete = () => {
+    if (selectedModule) {
+      setModules(modules.filter(m => m.id !== selectedModule.id))
+      setShowDeleteConfirm(false)
+      setSelectedModule(null)
+    }
+  }
+
+  const handleAddModule = () => {
+    setShowAddModal(true)
+  }
+
+  const handleStatusChange = (moduleId: string, newStatus: Module['status']) => {
+    setModules(modules.map(m =>
+      m.id === moduleId ? { ...m, status: newStatus } : m
+    ))
+    setShowEditModal(false)
+    setSelectedModule(null)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -126,7 +168,10 @@ export default function ModulesPage() {
           <h1 className="text-2xl font-bold text-gray-800">Moodulite haldus</h1>
           <p className="text-gray-500">Süsteemi moodulite ülevaade ja seaded</p>
         </div>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        <button
+          onClick={handleAddModule}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
           + Lisa moodul
         </button>
       </div>
@@ -237,13 +282,25 @@ export default function ModulesPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <button className="p-2 text-gray-400 hover:text-blue-600 transition-colors">
+                    <button
+                      onClick={() => handleView(module)}
+                      className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                      title="Vaata"
+                    >
                       👁️
                     </button>
-                    <button className="p-2 text-gray-400 hover:text-green-600 transition-colors">
+                    <button
+                      onClick={() => handleEdit(module)}
+                      className="p-2 text-gray-400 hover:text-green-600 transition-colors"
+                      title="Muuda"
+                    >
                       ✏️
                     </button>
-                    <button className="p-2 text-gray-400 hover:text-red-600 transition-colors">
+                    <button
+                      onClick={() => handleDelete(module)}
+                      className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                      title="Kustuta"
+                    >
                       🗑️
                     </button>
                   </div>
@@ -262,6 +319,99 @@ export default function ModulesPage() {
           või kopeeri <code className="bg-yellow-100 px-2 py-1 rounded">modules/_template/</code> kaust.
         </p>
       </div>
+
+      {/* Add Module Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+            <h2 className="text-xl font-bold mb-4">Lisa uus moodul</h2>
+            <p className="text-gray-600 mb-4">
+              Uue mooduli loomiseks kasuta käsurida:
+            </p>
+            <code className="block bg-gray-100 p-3 rounded-lg mb-4 text-sm">
+              pnpm new-module [mooduli-nimi]
+            </code>
+            <p className="text-sm text-gray-500 mb-4">
+              Või kopeeri <code className="bg-gray-100 px-1 rounded">modules/_template/</code> kaust
+              ja muuda definition.ts faili.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Sulge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Module Modal */}
+      {showEditModal && selectedModule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+            <h2 className="text-xl font-bold mb-4">Muuda moodulit: {selectedModule.label}</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Staatus</label>
+                <select
+                  defaultValue={selectedModule.status}
+                  onChange={(e) => handleStatusChange(selectedModule.id, e.target.value as Module['status'])}
+                  className="w-full p-2 border rounded-lg"
+                >
+                  <option value="active">Aktiivne</option>
+                  <option value="beta">Beeta</option>
+                  <option value="development">Arenduses</option>
+                  <option value="todo">Planeeritud</option>
+                  <option value="disabled">Keelatud</option>
+                </select>
+              </div>
+              <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-800">
+                <strong>NB!</strong> Mooduli koodi muutmiseks ava fail:{' '}
+                <code className="bg-yellow-100 px-1 rounded">modules/{selectedModule.name}/definition.ts</code>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => { setShowEditModal(false); setSelectedModule(null); }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Tühista
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && selectedModule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+            <h2 className="text-xl font-bold mb-4 text-red-600">Kustuta moodul?</h2>
+            <p className="text-gray-600 mb-4">
+              Kas oled kindel, et soovid kustutada mooduli <strong>{selectedModule.label}</strong>?
+            </p>
+            <p className="text-sm text-red-500 mb-4">
+              See tegevus on pöördumatu!
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setSelectedModule(null); }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Tühista
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Kustuta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
