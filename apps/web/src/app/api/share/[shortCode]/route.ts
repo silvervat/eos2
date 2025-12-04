@@ -32,6 +32,7 @@ export async function GET(
         expires_at,
         download_limit,
         downloads_count,
+        access_count,
         password_hash,
         title,
         message
@@ -57,7 +58,7 @@ export async function GET(
     await supabaseAdmin
       .from('file_shares')
       .update({
-        access_count: (share as { access_count?: number }).access_count ? (share as { access_count: number }).access_count + 1 : 1,
+        access_count: (share.access_count || 0) + 1,
         last_accessed_at: new Date().toISOString(),
       })
       .eq('id', share.id)
