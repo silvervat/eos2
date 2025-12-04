@@ -281,38 +281,8 @@ export default function QuotesPage() {
         </div>
       ) : viewMode === 'kanban' ? (
         <QuoteKanban
-          quotes={filteredQuotes.map(q => ({
-            id: q.id,
-            quoteNumber: q.quote_number,
-            title: { et: q.title, en: q.title },
-            companyId: q.company_id,
-            companyName: q.company_name,
-            contactId: q.contact_id,
-            contactName: q.contact_name,
-            status: q.status as QuoteStatus,
-            language: (q.language || 'et') as 'et' | 'en',
-            subtotal: q.total_amount,
-            vatAmount: 0,
-            totalAmount: q.total_amount,
-            validUntil: q.valid_until,
-            createdAt: q.created_at,
-            year: parseInt(q.quote_number?.split('-')[0] || new Date().getFullYear().toString()),
-            sequenceNumber: parseInt(q.quote_number?.split('-')[1] || '1'),
-            revisionNumber: q.revision || 0,
-          }))}
-          onQuoteClick={(quoteId) => router.push(`/quotes/${quoteId}`)}
-          onStatusChange={async (quoteId, newStatus) => {
-            try {
-              await fetch(`/api/quotes/${quoteId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus }),
-              })
-              fetchQuotes()
-            } catch (error) {
-              console.error('Failed to update quote status:', error)
-            }
-          }}
+          onSelectQuote={(quote) => router.push(`/quotes/${quote.id}`)}
+          onCreateQuote={() => setShowAddModal(true)}
         />
       ) : (
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
