@@ -9,52 +9,16 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import {
-  Card,
-  Descriptions,
-  Tag,
-  Button,
-  Space,
-  Spin,
-  Result,
-  Tabs,
-  Timeline,
-  Table,
-  Modal,
-  message,
-  Row,
-  Col,
-  Statistic,
-} from 'antd'
-import {
-  ArrowLeftOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  CarOutlined,
-  ToolOutlined,
-  SafetyCertificateOutlined,
-  HistoryOutlined,
-  DashboardOutlined,
-  ExclamationCircleOutlined,
-} from '@ant-design/icons'
+import { Button, Card } from '@rivest/ui'
+import { ArrowLeft, Edit, Trash2, Car, Shield, Wrench, Gauge, History } from 'lucide-react'
 import { ProtectedComponent } from '@/core/permissions'
 import type { Vehicle } from '../components/VehicleCard'
 
-/**
- * Staatuse värvid
- */
-const statusColors: Record<string, string> = {
-  available: 'green',
-  in_use: 'blue',
-  maintenance: 'orange',
-  retired: 'default',
-}
-
-const statusLabels: Record<string, string> = {
-  available: 'Saadaval',
-  in_use: 'Kasutuses',
-  maintenance: 'Hoolduses',
-  retired: 'Kasutusest väljas',
+const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
+  available: { bg: 'bg-green-100', text: 'text-green-800', label: 'Saadaval' },
+  in_use: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Kasutuses' },
+  maintenance: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Hoolduses' },
+  retired: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Kasutusest väljas' },
 }
 
 const fuelLabels: Record<string, string> = {
@@ -73,19 +37,12 @@ export default function VehicleDetailPage() {
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'info' | 'deadlines' | 'history'>('info')
 
-  // Laadi sõiduki andmed
   useEffect(() => {
     async function loadVehicle() {
       try {
         setLoading(true)
-        // TODO: Asenda Supabase päringuga
-        // const { data, error } = await supabase
-        //   .from('vehicles')
-        //   .select('*')
-        //   .eq('id', vehicleId)
-        //   .single()
-
         // Mock data for development
         await new Promise((resolve) => setTimeout(resolve, 500))
         setVehicle({
@@ -115,51 +72,34 @@ export default function VehicleDetailPage() {
     }
   }, [vehicleId])
 
-  // Kustutamise kinnitus
   const handleDelete = () => {
-    Modal.confirm({
-      title: 'Kas oled kindel?',
-      icon: <ExclamationCircleOutlined />,
-      content: `Sõiduk ${vehicle?.registration_number} kustutatakse jäädavalt.`,
-      okText: 'Jah, kustuta',
-      okType: 'danger',
-      cancelText: 'Tühista',
-      onOk: async () => {
-        try {
-          // TODO: Supabase delete
-          message.success('Sõiduk kustutatud')
-          router.push('/vehicles')
-        } catch (err) {
-          message.error('Kustutamine ebaõnnestus')
-        }
-      },
-    })
+    if (confirm(`Kas oled kindel, et soovid sõiduki ${vehicle?.registration_number} kustutada?`)) {
+      // TODO: Supabase delete
+      router.push('/vehicles')
+    }
   }
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: 100 }}>
-        <Spin size="large" />
+      <div className="flex items-center justify-center p-24">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
       </div>
     )
   }
 
   if (error || !vehicle) {
     return (
-      <Result
-        status="error"
-        title="Sõidukit ei leitud"
-        subTitle={error || 'Soovitud sõidukit ei eksisteeri'}
-        extra={
-          <Button type="primary" onClick={() => router.push('/vehicles')}>
-            Tagasi nimekirja
-          </Button>
-        }
-      />
+      <div className="p-6 text-center">
+        <div className="text-6xl mb-4">❌</div>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">Sõidukit ei leitud</h2>
+        <p className="text-gray-500 mb-4">{error || 'Soovitud sõidukit ei eksisteeri'}</p>
+        <Button onClick={() => router.push('/vehicles')}>Tagasi nimekirja</Button>
+      </div>
     )
   }
 
-  // Tähtaegade staatus
+  const status = statusConfig[vehicle.status] || statusConfig.available
+
   const getDeadlineStatus = (dateStr?: string) => {
     if (!dateStr) return null
     const date = new Date(dateStr)
@@ -172,228 +112,183 @@ export default function VehicleDetailPage() {
   const techInfo = getDeadlineStatus(vehicle.tech_inspection_until)
   const maintenanceInfo = getDeadlineStatus(vehicle.next_maintenance)
 
-  const tabItems = [
-    {
-      key: 'info',
-      label: (
-        <span>
-          <CarOutlined /> Põhiinfo
-        </span>
-      ),
-      children: (
-        <Descriptions bordered column={{ xs: 1, sm: 2, lg: 3 }}>
-          <Descriptions.Item label="Registreerimisnumber">
-            <strong>{vehicle.registration_number}</strong>
-          </Descriptions.Item>
-          <Descriptions.Item label="Staatus">
-            <Tag color={statusColors[vehicle.status]}>{statusLabels[vehicle.status]}</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Mark">{vehicle.brand}</Descriptions.Item>
-          <Descriptions.Item label="Mudel">{vehicle.model}</Descriptions.Item>
-          <Descriptions.Item label="Aasta">{vehicle.year || '-'}</Descriptions.Item>
-          <Descriptions.Item label="Värv">{vehicle.color || '-'}</Descriptions.Item>
-          <Descriptions.Item label="Kütuse tüüp">
-            {vehicle.fuel_type ? fuelLabels[vehicle.fuel_type] : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="Läbisõit">
-            {vehicle.mileage ? `${vehicle.mileage.toLocaleString()} km` : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="VIN kood">{(vehicle as any).vin || '-'}</Descriptions.Item>
-        </Descriptions>
-      ),
-    },
-    {
-      key: 'deadlines',
-      label: (
-        <span>
-          <SafetyCertificateOutlined /> Tähtajad
-        </span>
-      ),
-      children: (
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={8}>
-            <Card size="small">
-              <Statistic
-                title="Kindlustus kehtib"
-                value={
-                  insuranceInfo
-                    ? insuranceInfo.date.toLocaleDateString('et-EE')
-                    : 'Määramata'
-                }
-                prefix={<SafetyCertificateOutlined />}
-                valueStyle={{
-                  color:
-                    insuranceInfo && insuranceInfo.diffDays < 0
-                      ? '#ff4d4f'
-                      : insuranceInfo && insuranceInfo.diffDays < 30
-                        ? '#faad14'
-                        : '#52c41a',
-                }}
-              />
-              {insuranceInfo && (
-                <div style={{ marginTop: 8 }}>
-                  {insuranceInfo.diffDays < 0 ? (
-                    <Tag color="red">Aegunud {Math.abs(insuranceInfo.diffDays)} päeva</Tag>
-                  ) : (
-                    <Tag color={insuranceInfo.diffDays < 30 ? 'orange' : 'green'}>
-                      {insuranceInfo.diffDays} päeva
-                    </Tag>
-                  )}
-                </div>
-              )}
-            </Card>
-          </Col>
-          <Col xs={24} sm={8}>
-            <Card size="small">
-              <Statistic
-                title="Tehnoülevaatus kehtib"
-                value={techInfo ? techInfo.date.toLocaleDateString('et-EE') : 'Määramata'}
-                prefix={<ToolOutlined />}
-                valueStyle={{
-                  color:
-                    techInfo && techInfo.diffDays < 0
-                      ? '#ff4d4f'
-                      : techInfo && techInfo.diffDays < 30
-                        ? '#faad14'
-                        : '#52c41a',
-                }}
-              />
-              {techInfo && (
-                <div style={{ marginTop: 8 }}>
-                  {techInfo.diffDays < 0 ? (
-                    <Tag color="red">Aegunud {Math.abs(techInfo.diffDays)} päeva</Tag>
-                  ) : (
-                    <Tag color={techInfo.diffDays < 30 ? 'orange' : 'green'}>
-                      {techInfo.diffDays} päeva
-                    </Tag>
-                  )}
-                </div>
-              )}
-            </Card>
-          </Col>
-          <Col xs={24} sm={8}>
-            <Card size="small">
-              <Statistic
-                title="Järgmine hooldus"
-                value={
-                  maintenanceInfo
-                    ? maintenanceInfo.date.toLocaleDateString('et-EE')
-                    : 'Määramata'
-                }
-                prefix={<DashboardOutlined />}
-                valueStyle={{
-                  color:
-                    maintenanceInfo && maintenanceInfo.diffDays < 0
-                      ? '#ff4d4f'
-                      : maintenanceInfo && maintenanceInfo.diffDays < 30
-                        ? '#faad14'
-                        : '#52c41a',
-                }}
-              />
-              {maintenanceInfo && (
-                <div style={{ marginTop: 8 }}>
-                  {maintenanceInfo.diffDays < 0 ? (
-                    <Tag color="red">Hilinenud {Math.abs(maintenanceInfo.diffDays)} päeva</Tag>
-                  ) : (
-                    <Tag color={maintenanceInfo.diffDays < 30 ? 'orange' : 'green'}>
-                      {maintenanceInfo.diffDays} päeva
-                    </Tag>
-                  )}
-                </div>
-              )}
-            </Card>
-          </Col>
-        </Row>
-      ),
-    },
-    {
-      key: 'history',
-      label: (
-        <span>
-          <HistoryOutlined /> Ajalugu
-        </span>
-      ),
-      children: (
-        <Timeline
-          items={[
-            {
-              color: 'green',
-              children: (
-                <>
-                  <strong>Sõiduk lisatud</strong>
-                  <br />
-                  <span style={{ color: '#888' }}>01.01.2024 09:00</span>
-                </>
-              ),
-            },
-            {
-              color: 'blue',
-              children: (
-                <>
-                  <strong>Hooldus tehtud</strong>
-                  <br />
-                  <span style={{ color: '#888' }}>15.02.2024 14:30</span>
-                  <br />
-                  <span>Läbisõit: 42,000 km</span>
-                </>
-              ),
-            },
-            {
-              color: 'gray',
-              children: (
-                <>
-                  <strong>TODO: Ajaloo laadimine andmebaasist</strong>
-                </>
-              ),
-            },
-          ]}
-        />
-      ),
-    },
-  ]
-
   return (
-    <div style={{ padding: 24 }}>
+    <div className="p-6 space-y-6">
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/vehicles')}>
-            Tagasi
-          </Button>
-        </Space>
+      <div className="flex items-center gap-4">
+        <Button variant="outline" onClick={() => router.push('/vehicles')}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Tagasi
+        </Button>
       </div>
 
-      {/* Pealkiri */}
-      <Card
-        title={
-          <Space>
-            <CarOutlined style={{ color: '#279989' }} />
-            <span>
-              {vehicle.brand} {vehicle.model}
-            </span>
-            <Tag>{vehicle.registration_number}</Tag>
-            <Tag color={statusColors[vehicle.status]}>{statusLabels[vehicle.status]}</Tag>
-          </Space>
-        }
-        extra={
-          <Space>
+      {/* Main Card */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-teal-50 rounded-lg">
+              <Car className="w-8 h-8 text-teal-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {vehicle.brand} {vehicle.model}
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-gray-500">{vehicle.registration_number}</span>
+                <span className={`px-2 py-0.5 text-xs rounded-full ${status.bg} ${status.text}`}>
+                  {status.label}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
             <ProtectedComponent permission="vehicles:update">
-              <Button
-                icon={<EditOutlined />}
-                onClick={() => router.push(`/vehicles/${vehicleId}/edit`)}
-              >
+              <Button variant="outline" onClick={() => router.push(`/vehicles/${vehicleId}/edit`)}>
+                <Edit className="w-4 h-4 mr-2" />
                 Muuda
               </Button>
             </ProtectedComponent>
             <ProtectedComponent permission="vehicles:delete">
-              <Button icon={<DeleteOutlined />} danger onClick={handleDelete}>
+              <Button variant="outline" className="text-red-600" onClick={handleDelete}>
+                <Trash2 className="w-4 h-4 mr-2" />
                 Kustuta
               </Button>
             </ProtectedComponent>
-          </Space>
-        }
-      >
-        <Tabs items={tabItems} defaultActiveKey="info" />
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b mb-6">
+          <div className="flex gap-4">
+            <button
+              className={`pb-2 px-1 ${activeTab === 'info' ? 'border-b-2 border-teal-600 text-teal-600' : 'text-gray-500'}`}
+              onClick={() => setActiveTab('info')}
+            >
+              <Car className="w-4 h-4 inline mr-1" /> Põhiinfo
+            </button>
+            <button
+              className={`pb-2 px-1 ${activeTab === 'deadlines' ? 'border-b-2 border-teal-600 text-teal-600' : 'text-gray-500'}`}
+              onClick={() => setActiveTab('deadlines')}
+            >
+              <Shield className="w-4 h-4 inline mr-1" /> Tähtajad
+            </button>
+            <button
+              className={`pb-2 px-1 ${activeTab === 'history' ? 'border-b-2 border-teal-600 text-teal-600' : 'text-gray-500'}`}
+              onClick={() => setActiveTab('history')}
+            >
+              <History className="w-4 h-4 inline mr-1" /> Ajalugu
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'info' && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-500">Registreerimisnumber</p>
+              <p className="font-semibold">{vehicle.registration_number}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-500">Mark</p>
+              <p className="font-semibold">{vehicle.brand}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-500">Mudel</p>
+              <p className="font-semibold">{vehicle.model}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-500">Aasta</p>
+              <p className="font-semibold">{vehicle.year || '-'}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-500">Värv</p>
+              <p className="font-semibold">{vehicle.color || '-'}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-500">Kütuse tüüp</p>
+              <p className="font-semibold">{vehicle.fuel_type ? fuelLabels[vehicle.fuel_type] : '-'}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-500">Läbisõit</p>
+              <p className="font-semibold">{vehicle.mileage ? `${vehicle.mileage.toLocaleString()} km` : '-'}</p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'deadlines' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="w-5 h-5 text-teal-600" />
+                <span className="text-sm text-gray-500">Kindlustus kehtib</span>
+              </div>
+              <p className={`text-xl font-bold ${insuranceInfo && insuranceInfo.diffDays < 0 ? 'text-red-600' : insuranceInfo && insuranceInfo.diffDays < 30 ? 'text-orange-500' : 'text-green-600'}`}>
+                {insuranceInfo ? insuranceInfo.date.toLocaleDateString('et-EE') : 'Määramata'}
+              </p>
+              {insuranceInfo && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {insuranceInfo.diffDays < 0 ? `Aegunud ${Math.abs(insuranceInfo.diffDays)} päeva` : `${insuranceInfo.diffDays} päeva`}
+                </p>
+              )}
+            </Card>
+
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Wrench className="w-5 h-5 text-teal-600" />
+                <span className="text-sm text-gray-500">Tehnoülevaatus kehtib</span>
+              </div>
+              <p className={`text-xl font-bold ${techInfo && techInfo.diffDays < 0 ? 'text-red-600' : techInfo && techInfo.diffDays < 30 ? 'text-orange-500' : 'text-green-600'}`}>
+                {techInfo ? techInfo.date.toLocaleDateString('et-EE') : 'Määramata'}
+              </p>
+              {techInfo && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {techInfo.diffDays < 0 ? `Aegunud ${Math.abs(techInfo.diffDays)} päeva` : `${techInfo.diffDays} päeva`}
+                </p>
+              )}
+            </Card>
+
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Gauge className="w-5 h-5 text-teal-600" />
+                <span className="text-sm text-gray-500">Järgmine hooldus</span>
+              </div>
+              <p className={`text-xl font-bold ${maintenanceInfo && maintenanceInfo.diffDays < 0 ? 'text-red-600' : maintenanceInfo && maintenanceInfo.diffDays < 30 ? 'text-orange-500' : 'text-green-600'}`}>
+                {maintenanceInfo ? maintenanceInfo.date.toLocaleDateString('et-EE') : 'Määramata'}
+              </p>
+              {maintenanceInfo && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {maintenanceInfo.diffDays < 0 ? `Hilinenud ${Math.abs(maintenanceInfo.diffDays)} päeva` : `${maintenanceInfo.diffDays} päeva`}
+                </p>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="w-3 h-3 bg-green-500 rounded-full mt-1.5"></div>
+              <div>
+                <p className="font-medium">Sõiduk lisatud</p>
+                <p className="text-sm text-gray-500">01.01.2024 09:00</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="w-3 h-3 bg-blue-500 rounded-full mt-1.5"></div>
+              <div>
+                <p className="font-medium">Hooldus tehtud</p>
+                <p className="text-sm text-gray-500">15.02.2024 14:30</p>
+                <p className="text-sm text-gray-400">Läbisõit: 42,000 km</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="w-3 h-3 bg-gray-300 rounded-full mt-1.5"></div>
+              <div>
+                <p className="font-medium text-gray-400">TODO: Ajaloo laadimine andmebaasist</p>
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   )

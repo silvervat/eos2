@@ -6,20 +6,8 @@
 
 'use client'
 
-import { Card, Tag, Space, Typography, Row, Col, Tooltip, Button, Dropdown } from 'antd'
-import type { MenuProps } from 'antd'
-import {
-  CarOutlined,
-  ToolOutlined,
-  SafetyCertificateOutlined,
-  DashboardOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  MoreOutlined,
-  EyeOutlined,
-} from '@ant-design/icons'
-
-const { Text, Title } = Typography
+import { Card } from '@rivest/ui'
+import { Car, Wrench, Shield, Gauge, MoreVertical, Eye, Edit, Trash2 } from 'lucide-react'
 
 /**
  * Sõiduki andmed
@@ -44,32 +32,21 @@ export interface VehicleCardProps {
   onView?: (id: string) => void
   onEdit?: (id: string) => void
   onDelete?: (id: string) => void
-  /** Kas näidata tegevusnuppe */
   showActions?: boolean
 }
 
 /**
  * Staatuse värvid
  */
-const statusColors: Record<string, string> = {
-  available: 'green',
-  in_use: 'blue',
-  maintenance: 'orange',
-  retired: 'default',
+const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
+  available: { bg: 'bg-green-100', text: 'text-green-800', label: 'Saadaval' },
+  in_use: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Kasutuses' },
+  maintenance: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Hoolduses' },
+  retired: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Kasutusest väljas' },
 }
 
 /**
- * Staatuse tekst
- */
-const statusLabels: Record<string, string> = {
-  available: 'Saadaval',
-  in_use: 'Kasutuses',
-  maintenance: 'Hoolduses',
-  retired: 'Kasutusest väljas',
-}
-
-/**
- * Kütuse tüübi ikoonid/tekst
+ * Kütuse tüübi tekst
  */
 const fuelLabels: Record<string, string> = {
   petrol: 'Bensiin',
@@ -101,142 +78,119 @@ export function VehicleCard({
   showActions = true,
 }: VehicleCardProps) {
   const insuranceStatus = getDateStatus(vehicle.insurance_valid_until)
-  const techStatus = getDateStatus(vehicle.tech_inspection_until)
   const maintenanceStatus = getDateStatus(vehicle.next_maintenance)
-
-  const menuItems: MenuProps['items'] = [
-    {
-      key: 'view',
-      icon: <EyeOutlined />,
-      label: 'Vaata',
-      onClick: () => onView?.(vehicle.id),
-    },
-    {
-      key: 'edit',
-      icon: <EditOutlined />,
-      label: 'Muuda',
-      onClick: () => onEdit?.(vehicle.id),
-    },
-    { type: 'divider' },
-    {
-      key: 'delete',
-      icon: <DeleteOutlined />,
-      label: 'Kustuta',
-      danger: true,
-      onClick: () => onDelete?.(vehicle.id),
-    },
-  ]
+  const status = statusConfig[vehicle.status] || statusConfig.available
 
   return (
     <Card
-      hoverable
-      size="small"
+      className="p-4 hover:shadow-md transition-shadow cursor-pointer"
       onClick={() => onView?.(vehicle.id)}
-      style={{ cursor: 'pointer' }}
-      extra={
-        showActions && (
-          <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-            <Button
-              type="text"
-              icon={<MoreOutlined />}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </Dropdown>
-        )
-      }
     >
-      <Row gutter={[16, 8]}>
+      <div className="flex justify-between items-start">
         {/* Peamine info */}
-        <Col xs={24} sm={12}>
-          <Space direction="vertical" size={0}>
-            <Space>
-              <CarOutlined style={{ fontSize: 20, color: '#279989' }} />
-              <Title level={5} style={{ margin: 0 }}>
-                {vehicle.registration_number}
-              </Title>
-              <Tag color={statusColors[vehicle.status]}>{statusLabels[vehicle.status]}</Tag>
-            </Space>
-            <Text type="secondary">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-teal-50 rounded-lg">
+            <Car className="w-5 h-5 text-teal-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900">{vehicle.registration_number}</h3>
+              <span className={`px-2 py-0.5 text-xs rounded-full ${status.bg} ${status.text}`}>
+                {status.label}
+              </span>
+            </div>
+            <p className="text-sm text-gray-500">
               {vehicle.brand} {vehicle.model} {vehicle.year && `(${vehicle.year})`}
-            </Text>
-          </Space>
-        </Col>
+            </p>
+          </div>
+        </div>
 
-        {/* Lisainfo */}
-        <Col xs={24} sm={12}>
-          <Space size={16} wrap>
-            {vehicle.mileage && (
-              <Tooltip title="Läbisõit">
-                <Space size={4}>
-                  <DashboardOutlined />
-                  <Text type="secondary">{vehicle.mileage.toLocaleString()} km</Text>
-                </Space>
-              </Tooltip>
-            )}
+        {/* Tegevusnupud */}
+        {showActions && (
+          <div className="relative group">
+            <button
+              className="p-1 hover:bg-gray-100 rounded"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="w-4 h-4 text-gray-400" />
+            </button>
+            <div className="absolute right-0 mt-1 w-32 bg-white rounded-md shadow-lg border hidden group-hover:block z-10">
+              <button
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onView?.(vehicle.id)
+                }}
+              >
+                <Eye className="w-4 h-4" /> Vaata
+              </button>
+              <button
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEdit?.(vehicle.id)
+                }}
+              >
+                <Edit className="w-4 h-4" /> Muuda
+              </button>
+              <button
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete?.(vehicle.id)
+                }}
+              >
+                <Trash2 className="w-4 h-4" /> Kustuta
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
-            {vehicle.fuel_type && (
-              <Text type="secondary">{fuelLabels[vehicle.fuel_type]}</Text>
-            )}
+      {/* Lisainfo */}
+      <div className="mt-3 flex flex-wrap gap-3 text-sm text-gray-500">
+        {vehicle.mileage && (
+          <span className="flex items-center gap-1">
+            <Gauge className="w-4 h-4" />
+            {vehicle.mileage.toLocaleString()} km
+          </span>
+        )}
+        {vehicle.fuel_type && <span>{fuelLabels[vehicle.fuel_type]}</span>}
+        {vehicle.color && <span>{vehicle.color}</span>}
+      </div>
 
-            {vehicle.color && <Text type="secondary">{vehicle.color}</Text>}
-          </Space>
-        </Col>
+      {/* Tähtajad */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {vehicle.next_maintenance && (
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded ${
+              maintenanceStatus === 'danger'
+                ? 'bg-red-100 text-red-800'
+                : maintenanceStatus === 'warning'
+                  ? 'bg-orange-100 text-orange-800'
+                  : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            <Wrench className="w-3 h-3" />
+            Hooldus: {new Date(vehicle.next_maintenance).toLocaleDateString('et-EE')}
+          </span>
+        )}
 
-        {/* Tähtajad */}
-        <Col xs={24}>
-          <Space size={16} wrap>
-            {vehicle.next_maintenance && (
-              <Tooltip title="Järgmine hooldus">
-                <Tag
-                  icon={<ToolOutlined />}
-                  color={
-                    maintenanceStatus === 'danger'
-                      ? 'red'
-                      : maintenanceStatus === 'warning'
-                        ? 'orange'
-                        : 'default'
-                  }
-                >
-                  Hooldus: {new Date(vehicle.next_maintenance).toLocaleDateString('et-EE')}
-                </Tag>
-              </Tooltip>
-            )}
-
-            {vehicle.insurance_valid_until && (
-              <Tooltip title="Kindlustus kehtib kuni">
-                <Tag
-                  icon={<SafetyCertificateOutlined />}
-                  color={
-                    insuranceStatus === 'danger'
-                      ? 'red'
-                      : insuranceStatus === 'warning'
-                        ? 'orange'
-                        : 'default'
-                  }
-                >
-                  Kindlustus: {new Date(vehicle.insurance_valid_until).toLocaleDateString('et-EE')}
-                </Tag>
-              </Tooltip>
-            )}
-
-            {vehicle.tech_inspection_until && (
-              <Tooltip title="Tehnoülevaatus kehtib kuni">
-                <Tag
-                  color={
-                    techStatus === 'danger'
-                      ? 'red'
-                      : techStatus === 'warning'
-                        ? 'orange'
-                        : 'default'
-                  }
-                >
-                  Ülevaatus: {new Date(vehicle.tech_inspection_until).toLocaleDateString('et-EE')}
-                </Tag>
-              </Tooltip>
-            )}
-          </Space>
-        </Col>
-      </Row>
+        {vehicle.insurance_valid_until && (
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded ${
+              insuranceStatus === 'danger'
+                ? 'bg-red-100 text-red-800'
+                : insuranceStatus === 'warning'
+                  ? 'bg-orange-100 text-orange-800'
+                  : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            <Shield className="w-3 h-3" />
+            Kindlustus: {new Date(vehicle.insurance_valid_until).toLocaleDateString('et-EE')}
+          </span>
+        )}
+      </div>
     </Card>
   )
 }

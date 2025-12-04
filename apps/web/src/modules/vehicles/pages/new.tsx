@@ -9,8 +9,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, message, Button, Space } from 'antd'
-import { ArrowLeftOutlined, CarOutlined } from '@ant-design/icons'
+import { Button, Card } from '@rivest/ui'
+import { ArrowLeft, Car } from 'lucide-react'
 import { VehicleForm, type VehicleFormData } from '../components/VehicleForm'
 
 export default function NewVehiclePage() {
@@ -35,11 +35,11 @@ export default function NewVehiclePage() {
       // Mock delay
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      message.success('Sõiduk lisatud!')
+      alert('Sõiduk lisatud!')
       router.push('/vehicles')
     } catch (error) {
       console.error('Sõiduki lisamine ebaõnnestus:', error)
-      message.error('Sõiduki lisamine ebaõnnestus')
+      alert('Sõiduki lisamine ebaõnnestus')
     } finally {
       setLoading(false)
     }
@@ -50,25 +50,24 @@ export default function NewVehiclePage() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={handleCancel}>
-            Tagasi
-          </Button>
-        </Space>
+      <div className="flex items-center gap-4">
+        <Button variant="outline" onClick={handleCancel}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Tagasi
+        </Button>
       </div>
 
       {/* Form */}
-      <Card
-        title={
-          <Space>
-            <CarOutlined style={{ color: '#279989' }} />
-            <span>Lisa uus sõiduk</span>
-          </Space>
-        }
-      >
+      <Card className="p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-teal-50 rounded-lg">
+            <Car className="w-6 h-6 text-teal-600" />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900">Lisa uus sõiduk</h1>
+        </div>
+
         <VehicleForm onSubmit={handleSubmit} onCancel={handleCancel} loading={loading} />
       </Card>
     </div>

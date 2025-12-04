@@ -9,8 +9,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Card, message, Button, Space, Spin, Result } from 'antd'
-import { ArrowLeftOutlined, CarOutlined } from '@ant-design/icons'
+import { Button, Card } from '@rivest/ui'
+import { ArrowLeft, Car } from 'lucide-react'
 import { VehicleForm, type VehicleFormData } from '../components/VehicleForm'
 
 export default function EditVehiclePage() {
@@ -23,19 +23,12 @@ export default function EditVehiclePage() {
   const [vehicle, setVehicle] = useState<VehicleFormData | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Laadi sõiduki andmed
   useEffect(() => {
     async function loadVehicle() {
       try {
         setLoading(true)
 
         // TODO: Asenda Supabase päringuga
-        // const { data, error } = await supabase
-        //   .from('vehicles')
-        //   .select('*')
-        //   .eq('id', vehicleId)
-        //   .single()
-
         // Mock data
         await new Promise((resolve) => setTimeout(resolve, 500))
         setVehicle({
@@ -70,24 +63,14 @@ export default function EditVehiclePage() {
       setSaving(true)
 
       // TODO: Asenda Supabase update päringuga
-      // const { data, error } = await supabase
-      //   .from('vehicles')
-      //   .update({
-      //     ...values,
-      //     updated_at: new Date().toISOString(),
-      //   })
-      //   .eq('id', vehicleId)
-      //   .select()
-      //   .single()
-
       // Mock delay
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      message.success('Sõiduk uuendatud!')
+      alert('Sõiduk uuendatud!')
       router.push(`/vehicles/${vehicleId}`)
     } catch (error) {
       console.error('Sõiduki uuendamine ebaõnnestus:', error)
-      message.error('Sõiduki uuendamine ebaõnnestus')
+      alert('Sõiduki uuendamine ebaõnnestus')
     } finally {
       setSaving(false)
     }
@@ -99,47 +82,44 @@ export default function EditVehiclePage() {
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: 100 }}>
-        <Spin size="large" />
+      <div className="flex items-center justify-center p-24">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
       </div>
     )
   }
 
   if (error || !vehicle) {
     return (
-      <Result
-        status="error"
-        title="Sõidukit ei leitud"
-        subTitle={error || 'Soovitud sõidukit ei eksisteeri'}
-        extra={
-          <Button type="primary" onClick={() => router.push('/vehicles')}>
-            Tagasi nimekirja
-          </Button>
-        }
-      />
+      <div className="p-6 text-center">
+        <div className="text-6xl mb-4">❌</div>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">Sõidukit ei leitud</h2>
+        <p className="text-gray-500 mb-4">{error || 'Soovitud sõidukit ei eksisteeri'}</p>
+        <Button onClick={() => router.push('/vehicles')}>Tagasi nimekirja</Button>
+      </div>
     )
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={handleCancel}>
-            Tagasi
-          </Button>
-        </Space>
+      <div className="flex items-center gap-4">
+        <Button variant="outline" onClick={handleCancel}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Tagasi
+        </Button>
       </div>
 
       {/* Form */}
-      <Card
-        title={
-          <Space>
-            <CarOutlined style={{ color: '#279989' }} />
-            <span>Muuda sõidukit: {vehicle.registration_number}</span>
-          </Space>
-        }
-      >
+      <Card className="p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-teal-50 rounded-lg">
+            <Car className="w-6 h-6 text-teal-600" />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900">
+            Muuda sõidukit: {vehicle.registration_number}
+          </h1>
+        </div>
+
         <VehicleForm
           initialValues={vehicle}
           onSubmit={handleSubmit}
