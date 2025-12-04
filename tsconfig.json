@@ -17,7 +17,8 @@
     "paths": {
       "@rivest/ui": ["packages/ui/src"],
       "@rivest/db": ["packages/db/src"],
-      "@rivest/types": ["packages/types/src"]
+      "@rivest/types": ["packages/types/src"],
+      "@eos2/data-provider": ["packages/data-provider/src"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
