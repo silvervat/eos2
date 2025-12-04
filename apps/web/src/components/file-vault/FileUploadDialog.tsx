@@ -211,9 +211,8 @@ export function FileUploadDialog({
   const uploadFile = async (uploadFile: UploadFile): Promise<UploadedFile | null> => {
     const formData = new FormData()
 
-    // Create a new file with the possibly renamed name
-    const renamedFile = new File([uploadFile.file], uploadFile.name, { type: uploadFile.file.type })
-    formData.append('file', renamedFile)
+    // Append file with possibly renamed name (third argument sets filename)
+    formData.append('file', uploadFile.file, uploadFile.name)
     formData.append('vaultId', vaultId)
     if (folderId) {
       formData.append('folderId', folderId)
