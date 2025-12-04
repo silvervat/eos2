@@ -9,6 +9,9 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
+  testEnvironmentOptions: {
+    customExportConditions: [''],
+  },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
@@ -21,6 +24,10 @@ const customJestConfig = {
     '!src/**/*.d.ts',
     '!src/app/layout.tsx',
     '!src/app/**/layout.tsx',
+  ],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/__tests__/', // Skip until canvas native module is compiled
   ],
 }
 

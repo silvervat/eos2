@@ -183,9 +183,18 @@ importers:
         specifier: ^4.5.0
         version: 4.5.7(@types/react@18.3.27)(immer@11.0.1)(react@18.3.1)
     devDependencies:
+      '@testing-library/jest-dom':
+        specifier: ^6.4.0
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: ^14.2.0
+        version: 14.3.1(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@types/file-saver':
         specifier: ^2.0.7
         version: 2.0.7
+      '@types/jest':
+        specifier: ^29.5.0
+        version: 29.5.14
       '@types/papaparse':
         specifier: ^5.5.0
         version: 5.5.0
@@ -204,6 +213,12 @@ importers:
       autoprefixer:
         specifier: ^10.4.0
         version: 10.4.22(postcss@8.5.6)
+      jest:
+        specifier: ^29.7.0
+        version: 29.7.0(@types/node@20.19.25)(ts-node@10.9.2(@types/node@20.19.25)(typescript@5.9.3))
+      jest-environment-jsdom:
+        specifier: ^29.7.0
+        version: 29.7.0(canvas@2.11.2)
       postcss:
         specifier: ^8.4.0
         version: 8.5.6
@@ -322,12 +337,21 @@ importers:
         specifier: ^2.3.0
         version: 2.6.0
     devDependencies:
+      '@types/jest':
+        specifier: ^29.5.0
+        version: 29.5.14
       '@types/react':
         specifier: ^18.3.0
         version: 18.3.27
       '@types/react-dom':
         specifier: ^18.3.0
         version: 18.3.7(@types/react@18.3.27)
+      jest:
+        specifier: ^29.7.0
+        version: 29.7.0(@types/node@20.19.25)(ts-node@10.9.2(@types/node@20.19.25)(typescript@5.9.3))
+      ts-jest:
+        specifier: ^29.1.0
+        version: 29.4.6(@babel/core@7.28.5)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.28.5))(jest-util@29.7.0)(jest@29.7.0(@types/node@20.19.25)(ts-node@10.9.2(@types/node@20.19.25)(typescript@5.9.3)))(typescript@5.9.3)
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
