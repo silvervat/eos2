@@ -169,6 +169,113 @@ const components: Component[] = [
     status: 'active',
     description: 'Tabeli komponent',
   },
+  // File-vault komponendid
+  {
+    id: '17',
+    name: 'FileVaultPage',
+    module: 'file-vault',
+    type: 'page',
+    path: '/file-vault',
+    status: 'active',
+    description: 'Failihoidla pealeht',
+  },
+  {
+    id: '18',
+    name: 'FileUploadDialog',
+    module: 'file-vault',
+    type: 'component',
+    path: 'components/file-vault/FileUploadDialog.tsx',
+    status: 'active',
+    description: 'Failide üleslaadimise dialoog',
+  },
+  // Documents komponendid
+  {
+    id: '19',
+    name: 'DocumentsPage',
+    module: 'documents',
+    type: 'page',
+    path: '/documents',
+    status: 'active',
+    description: 'Dokumentide nimekiri',
+  },
+  {
+    id: '20',
+    name: 'DocumentDetailPage',
+    module: 'documents',
+    type: 'page',
+    path: '/documents/[id]',
+    status: 'active',
+    description: 'Dokumendi detailvaade ja redigeerimine',
+  },
+  // Employees komponendid
+  {
+    id: '21',
+    name: 'EmployeesPage',
+    module: 'employees',
+    type: 'page',
+    path: '/employees',
+    status: 'active',
+    description: 'Töötajate nimekiri',
+  },
+  // Reports komponendid
+  {
+    id: '22',
+    name: 'ReportsPage',
+    module: 'reports',
+    type: 'page',
+    path: '/reports',
+    status: 'active',
+    description: 'Raportite ja graafikute leht',
+  },
+  // Invoices komponendid
+  {
+    id: '23',
+    name: 'InvoicesPage',
+    module: 'invoices',
+    type: 'page',
+    path: '/invoices',
+    status: 'active',
+    description: 'Arvete nimekiri',
+  },
+  // Projects komponendid
+  {
+    id: '24',
+    name: 'ProjectsPage',
+    module: 'projects',
+    type: 'page',
+    path: '/projects',
+    status: 'active',
+    description: 'Projektide nimekiri',
+  },
+  // Trash komponendid
+  {
+    id: '25',
+    name: 'TrashPage',
+    module: 'core',
+    type: 'page',
+    path: '/trash',
+    status: 'active',
+    description: 'Kustutatud elemendid',
+  },
+  // API endpoints
+  {
+    id: '26',
+    name: 'FileVaultAPI',
+    module: 'file-vault',
+    type: 'api',
+    path: '/api/file-vault/*',
+    status: 'active',
+    description: 'Failihoidla API (files, folders, upload)',
+  },
+  {
+    id: '27',
+    name: 'WarehouseAPI',
+    module: 'warehouse',
+    type: 'api',
+    path: '/api/warehouse/*',
+    status: 'active',
+    description: 'Laohalduse API (assets, categories, transfers)',
+  },
 ]
 
 const typeConfig: Record<string, { label: string; color: string; bg: string; icon: string }> = {
