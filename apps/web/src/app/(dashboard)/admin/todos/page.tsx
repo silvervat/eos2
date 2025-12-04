@@ -109,10 +109,50 @@ const projectTodos: Todo[] = [
     commit: 'd8a1b13',
     completedAt: '2024-12-04',
   },
+  {
+    id: 'DONE-005',
+    title: 'TODO leht redesign',
+    description: 'Kompaktsem TODO nimekiri ja Changelog tab',
+    priority: 'medium',
+    status: 'done',
+    module: 'admin',
+    commit: '94e70f9',
+    completedAt: '2024-12-04',
+  },
+  {
+    id: 'DONE-006',
+    title: 'File-vault ja teised moodulid lisatud',
+    description: 'Moodulite ja komponentide lehed näitavad kõiki süsteemi osi',
+    priority: 'high',
+    status: 'done',
+    module: 'admin',
+    commit: '6821777',
+    completedAt: '2024-12-04',
+  },
 ]
 
 // Build versioonid
 const buildVersions: BuildVersion[] = [
+  {
+    version: '2.0.7',
+    date: '2024-12-04',
+    commit: '6821777',
+    changes: [
+      'Lisatud file-vault, documents, employees, notifications, reports moodulid',
+      'Komponendid lehel nüüd 27 komponenti',
+      'API endpoints nähtavad komponentide all',
+    ],
+  },
+  {
+    version: '2.0.6',
+    date: '2024-12-04',
+    commit: '94e70f9',
+    changes: [
+      'TODO leht ümberkujundatud - kompaktsem',
+      'Changelog tab versioonide jälgimiseks',
+      'Tehtud tööd näitavad commit ID-d',
+    ],
+  },
   {
     version: '2.0.5',
     date: '2024-12-04',
