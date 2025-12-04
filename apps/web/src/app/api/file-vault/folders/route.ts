@@ -281,7 +281,7 @@ export async function POST(request: Request) {
     }
 
     // Add permissions if specified
-    const permissionPromises: Promise<unknown>[] = []
+    const permissionPromises: PromiseLike<unknown>[] = []
 
     // Add group permissions
     if (allowedGroups.length > 0) {
