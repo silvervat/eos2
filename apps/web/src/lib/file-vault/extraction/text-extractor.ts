@@ -3,14 +3,13 @@
  * Extracts text from PDF, DOCX, and images (OCR)
  */
 
-import pdfParse from 'pdf-parse'
-import mammoth from 'mammoth'
-
 /**
  * Extract text from a PDF file
  */
 export async function extractPdfText(buffer: Buffer): Promise<string> {
   try {
+    // Dynamic import to handle ESM/CJS compatibility
+    const pdfParse = await import('pdf-parse').then(m => m.default || m)
     const data = await pdfParse(buffer)
     return data.text?.trim() || ''
   } catch (error) {
@@ -24,6 +23,7 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
  */
 export async function extractDocxText(buffer: Buffer): Promise<string> {
   try {
+    const mammoth = await import('mammoth')
     const result = await mammoth.extractRawText({ buffer })
     return result.value?.trim() || ''
   } catch (error) {
