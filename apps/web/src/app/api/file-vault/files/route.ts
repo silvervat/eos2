@@ -47,6 +47,7 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
     const includeDeleted = searchParams.get('includeDeleted') === 'true'
+    const uploadedByMe = searchParams.get('uploadedByMe') === 'true'
 
     // Validate vault access
     if (!vaultId) {
@@ -100,6 +101,11 @@ export async function GET(request: Request) {
     // Apply soft delete filter
     if (!includeDeleted) {
       query = query.is('deleted_at', null)
+    }
+
+    // Filter by current user's uploads
+    if (uploadedByMe) {
+      query = query.eq('uploaded_by', user.id)
     }
 
     // Apply search filter

@@ -259,9 +259,9 @@ export const FileTree = forwardRef<FileTreeRef, FileTreeProps>(function FileTree
 
           {/* Folder icon */}
           {isExpanded ? (
-            <FolderOpen className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            <FolderOpen className="w-4 h-4 flex-shrink-0" style={{ color: isSelected ? '#279989' : '#64748b' }} />
           ) : (
-            <Folder className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            <Folder className="w-4 h-4 flex-shrink-0" style={{ color: isSelected ? '#279989' : '#64748b' }} />
           )}
 
           {/* Folder name */}

@@ -25,7 +25,7 @@ function generateShortCode(length: number = 8): string {
   return result
 }
 
-// GET /api/file-vault/shares - List shares for a file or folder
+// GET /api/file-vault/shares - List shares for a file or folder, or all user's shares
 export async function GET(request: Request) {
   try {
     const supabase = createClient()
@@ -56,6 +56,13 @@ export async function GET(request: Request) {
     const vaultId = searchParams.get('vaultId')
     const fileId = searchParams.get('fileId')
     const folderId = searchParams.get('folderId')
+    const listAll = searchParams.get('listAll') === 'true' // List all user's shares
+    const search = searchParams.get('search') || ''
+    const status = searchParams.get('status') // 'active' | 'expired' | null
+    const sortBy = searchParams.get('sortBy') || 'created_at'
+    const sortOrder = searchParams.get('sortOrder') || 'desc'
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const offset = parseInt(searchParams.get('offset') || '0')
 
     if (!vaultId) {
       return NextResponse.json({ error: 'Vault ID is required' }, { status: 400 })
@@ -74,7 +81,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Vault not found or access denied' }, { status: 404 })
     }
 
-    // Build query
+    // Build query - include file info for display
     let query = supabase
       .from('file_shares')
       .select(`
@@ -91,50 +98,149 @@ export async function GET(request: Request) {
         last_accessed_at,
         title,
         message,
+        password_hash,
+        shared_with_email,
         created_at,
-        created_by
-      `)
+        created_by,
+        files:file_id (
+          id,
+          name,
+          mime_type,
+          size_bytes
+        ),
+        file_folders:folder_id (
+          id,
+          name,
+          path
+        )
+      `, { count: 'exact' })
       .eq('vault_id', vaultId)
 
-    if (fileId) {
-      query = query.eq('file_id', fileId)
+    // If listing all user's shares, filter by created_by
+    if (listAll) {
+      query = query.eq('created_by', user.id)
+    } else {
+      // Original behavior: filter by specific file/folder
+      if (fileId) {
+        query = query.eq('file_id', fileId)
+      }
+
+      if (folderId) {
+        query = query.eq('folder_id', folderId)
+      }
     }
 
-    if (folderId) {
-      query = query.eq('folder_id', folderId)
+    // Filter by status (active/expired)
+    const now = new Date().toISOString()
+    if (status === 'active') {
+      query = query.or(`expires_at.is.null,expires_at.gt.${now}`)
+    } else if (status === 'expired') {
+      query = query.not('expires_at', 'is', null).lt('expires_at', now)
     }
 
-    query = query.order('created_at', { ascending: false })
+    // Sorting
+    const validSortFields = ['created_at', 'expires_at', 'downloads_count', 'access_count']
+    const sortField = validSortFields.includes(sortBy) ? sortBy : 'created_at'
+    query = query.order(sortField, { ascending: sortOrder === 'asc' })
 
-    const { data: shares, error } = await query
+    // Pagination for listAll mode
+    if (listAll) {
+      query = query.range(offset, offset + limit - 1)
+    }
+
+    const { data: shares, error, count } = await query
 
     if (error) {
       console.error('Error fetching shares:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Transform response
-    const transformedShares = shares?.map(share => ({
-      id: share.id,
-      shortCode: share.short_code,
-      shareUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/share/${share.short_code}`,
-      fileId: share.file_id,
-      folderId: share.folder_id,
-      allowDownload: share.allow_download,
-      allowUpload: share.allow_upload,
-      expiresAt: share.expires_at,
-      downloadLimit: share.download_limit,
-      downloadsCount: share.downloads_count,
-      accessCount: share.access_count,
-      lastAccessedAt: share.last_accessed_at,
-      title: share.title,
-      message: share.message,
-      createdAt: share.created_at,
-      createdBy: share.created_by,
-      hasPassword: false, // Don't expose password presence from list
-    })) || []
+    // Transform response - Supabase returns arrays for joined tables
+    const transformedShares = (shares || []).map((share: {
+      id: string
+      short_code: string
+      file_id: string | null
+      folder_id: string | null
+      allow_download: boolean
+      allow_upload: boolean
+      expires_at: string | null
+      download_limit: number | null
+      downloads_count: number
+      access_count: number
+      last_accessed_at: string | null
+      title: string | null
+      message: string | null
+      password_hash: string | null
+      shared_with_email: string | null
+      created_at: string
+      created_by: string
+      files: { id: string; name: string; mime_type: string; size_bytes: number }[] | { id: string; name: string; mime_type: string; size_bytes: number } | null
+      file_folders: { id: string; name: string; path: string }[] | { id: string; name: string; path: string } | null
+    }) => {
+      const isExpired = share.expires_at && new Date(share.expires_at) < new Date()
+      const isLimitReached = share.download_limit && share.downloads_count >= share.download_limit
 
-    return NextResponse.json({ shares: transformedShares })
+      // Handle both array and single object cases from Supabase
+      const fileInfo = Array.isArray(share.files) ? share.files[0] : share.files
+      const folderInfo = Array.isArray(share.file_folders) ? share.file_folders[0] : share.file_folders
+
+      return {
+        id: share.id,
+        shortCode: share.short_code,
+        shareUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/share/${share.short_code}`,
+        fileId: share.file_id,
+        folderId: share.folder_id,
+        // File/folder info for display
+        fileName: fileInfo?.name || null,
+        fileMimeType: fileInfo?.mime_type || null,
+        fileSizeBytes: fileInfo?.size_bytes || null,
+        folderName: folderInfo?.name || null,
+        folderPath: folderInfo?.path || null,
+        // Share settings
+        allowDownload: share.allow_download,
+        allowUpload: share.allow_upload,
+        expiresAt: share.expires_at,
+        downloadLimit: share.download_limit,
+        downloadsCount: share.downloads_count,
+        accessCount: share.access_count,
+        lastAccessedAt: share.last_accessed_at,
+        title: share.title,
+        message: share.message,
+        sharedWithEmail: share.shared_with_email,
+        createdAt: share.created_at,
+        createdBy: share.created_by,
+        hasPassword: !!share.password_hash,
+        // Status
+        status: isExpired ? 'expired' : isLimitReached ? 'limit_reached' : 'active',
+      }
+    })
+
+    // Filter by search (after query due to nested fields)
+    let filteredShares = transformedShares
+    if (search && listAll) {
+      const searchLower = search.toLowerCase()
+      filteredShares = transformedShares.filter((share: {
+        fileName: string | null
+        folderName: string | null
+        sharedWithEmail: string | null
+        title: string | null
+      }) =>
+        (share.fileName?.toLowerCase().includes(searchLower)) ||
+        (share.folderName?.toLowerCase().includes(searchLower)) ||
+        (share.sharedWithEmail?.toLowerCase().includes(searchLower)) ||
+        (share.title?.toLowerCase().includes(searchLower))
+      )
+    }
+
+    return NextResponse.json({
+      shares: filteredShares,
+      pagination: listAll ? {
+        total: count || 0,
+        limit,
+        offset,
+        hasMore: (count || 0) > offset + limit,
+      } : undefined,
+    })
   } catch (error) {
     console.error('Error in GET /api/file-vault/shares:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
