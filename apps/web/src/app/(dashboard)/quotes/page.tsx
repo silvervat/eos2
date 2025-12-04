@@ -308,7 +308,7 @@ export default function QuotesPage() {
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
                         <span className="text-sm text-slate-600">{formatDate(quote.valid_until)}</span>
-                        {expiringSoon && <AlertCircle className="w-3.5 h-3.5 text-amber-500" title="Aegub peagi" />}
+                        {expiringSoon && <span title="Aegub peagi"><AlertCircle className="w-3.5 h-3.5 text-amber-500" /></span>}
                       </div>
                     </td>
                     <td className="px-4 py-3">
