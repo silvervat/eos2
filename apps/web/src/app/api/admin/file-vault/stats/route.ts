@@ -137,6 +137,14 @@ export async function GET() {
       .order('created_at', { ascending: false })
       .limit(10)
 
+    // Helper to extract file name from Supabase relation
+    const getFileName = (file: unknown): string | null => {
+      if (!file) return null
+      if (Array.isArray(file) && file.length > 0) return file[0]?.name || null
+      if (typeof file === 'object' && file !== null && 'name' in file) return (file as { name: string }).name
+      return null
+    }
+
     return NextResponse.json({
       overview: {
         totalFiles,
@@ -161,14 +169,14 @@ export async function GET() {
         createdAt: activity.created_at,
         userId: activity.user_id,
         bytesTransferred: activity.bytes_transferred,
-        fileName: activity.file?.name || null,
+        fileName: getFileName(activity.file),
       })) || [],
       activeShares: activeShares?.map(share => ({
         id: share.id,
         shortCode: share.short_code,
         fileId: share.file_id,
         folderId: share.folder_id,
-        fileName: share.file?.name || null,
+        fileName: getFileName(share.file),
         expiresAt: share.expires_at,
         downloadsCount: share.downloads_count,
         accessCount: share.access_count,
