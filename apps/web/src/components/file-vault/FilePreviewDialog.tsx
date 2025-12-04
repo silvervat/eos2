@@ -147,17 +147,25 @@ export function FilePreviewDialog({
     if (!file) return
     setIsDownloading(true)
     try {
-      const response = await fetch(`/api/file-vault/download/${fileId}?redirect=true`)
-      if (response.redirected) {
-        const link = document.createElement('a')
-        link.href = response.url
-        link.download = file.name
-        link.click()
-      } else {
+      const response = await fetch(`/api/file-vault/download/${fileId}`)
+      if (response.ok) {
         const data = await response.json()
-        if (data.downloadUrl) {
-          window.open(data.downloadUrl, '_blank')
-        }
+
+        // Fetch file as blob to force download
+        const fileResponse = await fetch(data.downloadUrl)
+        const blob = await fileResponse.blob()
+
+        // Create blob URL and trigger download
+        const blobUrl = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = blobUrl
+        link.download = file.name
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(blobUrl)
+      } else {
+        alert('Allalaadimine ebaõnnestus')
       }
     } catch (error) {
       console.error('Error downloading file:', error)

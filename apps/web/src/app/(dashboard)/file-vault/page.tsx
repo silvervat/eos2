@@ -400,19 +400,28 @@ export default function FileVaultPage() {
     }
   }
 
-  // Download file
+  // Download file - fetch as blob to force download instead of opening
   const handleDownload = useCallback(async (file: FileItem) => {
     try {
       const response = await fetch(`/api/file-vault/download/${file.id}`)
       if (response.ok) {
         const data = await response.json()
-        // Create temporary link and trigger download
+
+        // Fetch the actual file as a blob to force download
+        const fileResponse = await fetch(data.downloadUrl)
+        const blob = await fileResponse.blob()
+
+        // Create blob URL and trigger download
+        const blobUrl = URL.createObjectURL(blob)
         const link = document.createElement('a')
-        link.href = data.downloadUrl
+        link.href = blobUrl
         link.download = file.name
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
+
+        // Clean up blob URL
+        URL.revokeObjectURL(blobUrl)
       } else {
         alert('Allalaadimine ebaõnnestus')
       }
