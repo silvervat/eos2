@@ -93,6 +93,18 @@ export function FilePreviewDialog({
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('info')
   const [showSidebar, setShowSidebar] = useState(true)
 
+  // Close on ESC key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && open) {
+        onOpenChange(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, onOpenChange])
+
   const loadFile = useCallback(async (forceRefresh = false) => {
     // Check cache first
     const cached = fileCache.get(fileId)

@@ -109,6 +109,18 @@ export function FileUploadDialog({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
+  // Close on ESC key (only if not uploading)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && open && !isUploading) {
+        onOpenChange(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, isUploading, onOpenChange])
+
   // Generate unique ID
   const generateId = () => Math.random().toString(36).substring(2, 9)
 

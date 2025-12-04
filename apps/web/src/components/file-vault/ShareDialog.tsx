@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button, Card, Input } from '@rivest/ui'
 import {
   X,
@@ -57,6 +57,18 @@ export function ShareDialog({
   const [password, setPassword] = useState('')
   const [expiresIn, setExpiresIn] = useState<string>('')
   const [downloadLimit, setDownloadLimit] = useState<string>('')
+
+  // Close on ESC key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && open) {
+        onOpenChange(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, onOpenChange])
 
   // Load existing shares
   useEffect(() => {
