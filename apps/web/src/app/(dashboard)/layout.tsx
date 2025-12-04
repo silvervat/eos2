@@ -15,6 +15,7 @@ import {
   Search,
   User,
   ChevronDown,
+  ChevronRight,
   BarChart3,
   Menu,
   X,
@@ -27,8 +28,33 @@ import {
   Wrench,
   Table,
   Menu as MenuIcon,
+  UserCog,
+  Building2,
+  Hammer,
+  ShoppingCart,
+  Handshake,
+  Home,
+  Zap,
+  UsersRound,
 } from 'lucide-react'
 import { NotificationDropdown } from '@/components/notifications/notification-dropdown'
+
+// Project types
+const projectTypes = [
+  { href: '/projects', label: 'Kõik projektid', icon: FolderKanban },
+  { href: '/projects/ptv', label: 'PTV', icon: Zap },
+  { href: '/projects/montaaz', label: 'Montaaž', icon: Hammer },
+  { href: '/projects/muuk', label: 'Müük', icon: ShoppingCart },
+  { href: '/projects/vahendus', label: 'Vahendus', icon: Handshake },
+  { href: '/projects/rent', label: 'Rent', icon: Home },
+]
+
+// Personnel items
+const personnelItems = [
+  { href: '/personnel', label: 'Ülevaade', icon: UsersRound },
+  { href: '/personnel/employees', label: 'Töötajad', icon: Users },
+  { href: '/personnel/groups', label: 'Grupid', icon: Building2 },
+]
 
 export default function DashboardLayout({
   children,
@@ -37,6 +63,18 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [projectsExpanded, setProjectsExpanded] = useState(false)
+  const [personnelExpanded, setPersonnelExpanded] = useState(false)
+
+  // Auto-expand menus based on current path
+  useEffect(() => {
+    if (pathname?.startsWith('/projects')) {
+      setProjectsExpanded(true)
+    }
+    if (pathname?.startsWith('/personnel')) {
+      setPersonnelExpanded(true)
+    }
+  }, [pathname])
 
   // Close sidebar on route change
   useEffect(() => {
@@ -66,9 +104,9 @@ export default function DashboardLayout({
 
   const navItems = [
     { href: '/dashboard', label: 'Töölaud', icon: LayoutDashboard },
-    { href: '/projects', label: 'Projektid', icon: FolderKanban },
+    { href: '/projects', label: 'Projektid', icon: FolderKanban, hasSubmenu: true, submenuKey: 'projects' },
+    { href: '/personnel', label: 'Personaal', icon: UsersRound, hasSubmenu: true, submenuKey: 'personnel' },
     { href: '/invoices', label: 'Arved', icon: FileText },
-    { href: '/employees', label: 'Töötajad', icon: Users },
     { href: '/documents', label: 'Dokumendid', icon: File },
     { href: '/file-vault', label: 'Failihaldus', icon: FolderArchive },
     { href: '/warehouse', label: 'Laohaldus', icon: Warehouse },
@@ -126,27 +164,87 @@ export default function DashboardLayout({
           <ul className="space-y-1">
             {navItems.map((item) => (
               <li key={item.href}>
-                <NavItem
-                  href={item.href}
-                  label={item.label}
-                  icon={item.icon}
-                  active={item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)}
-                />
-                {/* Warehouse submenu */}
-                {item.href === '/warehouse' && pathname?.startsWith('/warehouse') && (
-                  <ul className="ml-4 mt-1 space-y-1 border-l border-slate-700 pl-4">
-                    {warehouseItems.map((subItem) => (
-                      <NavItem
-                        key={subItem.href}
-                        href={subItem.href}
-                        label={subItem.label}
-                        icon={subItem.icon}
-                        active={subItem.href === '/warehouse'
-                          ? pathname === '/warehouse'
-                          : pathname?.startsWith(subItem.href) && subItem.href !== '/warehouse'}
-                      />
-                    ))}
-                  </ul>
+                {item.hasSubmenu ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        if (item.submenuKey === 'projects') setProjectsExpanded(!projectsExpanded)
+                        if (item.submenuKey === 'personnel') setPersonnelExpanded(!personnelExpanded)
+                      }}
+                      className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+                        pathname?.startsWith(item.href)
+                          ? 'bg-slate-800 text-white'
+                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <item.icon className="w-5 h-5 flex-shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                      </div>
+                      {(item.submenuKey === 'projects' ? projectsExpanded : personnelExpanded) ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </button>
+                    {/* Projects submenu */}
+                    {item.submenuKey === 'projects' && projectsExpanded && (
+                      <ul className="ml-4 mt-1 space-y-1 border-l border-slate-700 pl-4">
+                        {projectTypes.map((subItem) => (
+                          <NavItem
+                            key={subItem.href}
+                            href={subItem.href}
+                            label={subItem.label}
+                            icon={subItem.icon}
+                            active={subItem.href === '/projects'
+                              ? pathname === '/projects'
+                              : pathname?.startsWith(subItem.href) && subItem.href !== '/projects'}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                    {/* Personnel submenu */}
+                    {item.submenuKey === 'personnel' && personnelExpanded && (
+                      <ul className="ml-4 mt-1 space-y-1 border-l border-slate-700 pl-4">
+                        {personnelItems.map((subItem) => (
+                          <NavItem
+                            key={subItem.href}
+                            href={subItem.href}
+                            label={subItem.label}
+                            icon={subItem.icon}
+                            active={subItem.href === '/personnel'
+                              ? pathname === '/personnel'
+                              : pathname?.startsWith(subItem.href) && subItem.href !== '/personnel'}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <NavItem
+                      href={item.href}
+                      label={item.label}
+                      icon={item.icon}
+                      active={item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)}
+                    />
+                    {/* Warehouse submenu */}
+                    {item.href === '/warehouse' && pathname?.startsWith('/warehouse') && (
+                      <ul className="ml-4 mt-1 space-y-1 border-l border-slate-700 pl-4">
+                        {warehouseItems.map((subItem) => (
+                          <NavItem
+                            key={subItem.href}
+                            href={subItem.href}
+                            label={subItem.label}
+                            icon={subItem.icon}
+                            active={subItem.href === '/warehouse'
+                              ? pathname === '/warehouse'
+                              : pathname?.startsWith(subItem.href) && subItem.href !== '/warehouse'}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                  </>
                 )}
               </li>
             ))}

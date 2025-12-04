@@ -134,6 +134,18 @@ const projectTodos: Todo[] = [
 // Build versioonid
 const buildVersions: BuildVersion[] = [
   {
+    version: '2.0.8',
+    date: '2024-12-04',
+    commit: 'pending',
+    changes: [
+      'Projektide moodul: PTV, Montaaž, Müük, Vahendus, Rent alamlehed',
+      'Personali moodul: töötajad, kasutajagrupid, õiguste maatriks',
+      'Admin tabelid: filtreerimine, sortimine, grupeerimine, otsing',
+      'Töötajad seotud kasutajatega',
+      '35 komponenti süsteemis',
+    ],
+  },
+  {
     version: '2.0.7',
     date: '2024-12-04',
     commit: '6821777',

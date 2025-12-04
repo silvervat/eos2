@@ -3,142 +3,119 @@
 /**
  * Admin - Süsteemi logid
  *
- * Süsteemi tegevuste ja vigade logid
+ * REAALNE audit_log tabelist Supabase'st
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { RefreshCw, Download, Trash2, Copy, CheckCircle } from 'lucide-react'
 
 interface LogEntry {
   id: string
-  timestamp: string
-  level: 'info' | 'warning' | 'error' | 'debug'
-  source: string
-  message: string
-  user?: string
+  tenant_id: string
+  user_id: string | null
+  action: string
+  entity_type: string
+  entity_id: string
+  old_values: Record<string, unknown> | null
+  new_values: Record<string, unknown> | null
+  ip_address: string | null
+  user_agent: string | null
+  created_at: string
 }
 
-// Mock andmed
-const initialLogs: LogEntry[] = [
-  {
-    id: '1',
-    timestamp: '2024-12-04 10:45:23',
-    level: 'info',
-    source: 'auth',
-    message: 'Kasutaja sisse loginud',
-    user: 'admin@example.com',
-  },
-  {
-    id: '2',
-    timestamp: '2024-12-04 10:44:12',
-    level: 'info',
-    source: 'warehouse',
-    message: 'Uus vara lisatud: Laptop Dell XPS 15',
-    user: 'admin@example.com',
-  },
-  {
-    id: '3',
-    timestamp: '2024-12-04 10:42:05',
-    level: 'warning',
-    source: 'database',
-    message: 'Aeglane päring: SELECT * FROM assets (took 1.2s)',
-  },
-  {
-    id: '4',
-    timestamp: '2024-12-04 10:40:00',
-    level: 'error',
-    source: 'api',
-    message: 'Failed to connect to external service: timeout after 30s',
-  },
-  {
-    id: '5',
-    timestamp: '2024-12-04 10:38:45',
-    level: 'info',
-    source: 'system',
-    message: 'Süsteem käivitatud',
-  },
-  {
-    id: '6',
-    timestamp: '2024-12-04 10:35:12',
-    level: 'debug',
-    source: 'cache',
-    message: 'Cache invalidated for key: user_permissions_1',
-  },
-  {
-    id: '7',
-    timestamp: '2024-12-04 10:30:00',
-    level: 'info',
-    source: 'deploy',
-    message: 'Uus versioon deployed: v2.0.0',
-  },
-  {
-    id: '8',
-    timestamp: '2024-12-04 10:25:33',
-    level: 'warning',
-    source: 'storage',
-    message: 'Storage kasutus üle 80%: 82.5GB / 100GB',
-  },
-  {
-    id: '9',
-    timestamp: '2024-12-04 10:20:00',
-    level: 'info',
-    source: 'backup',
-    message: 'Automaatne backup loodud: backup_2024120410.sql',
-  },
-  {
-    id: '10',
-    timestamp: '2024-12-04 10:15:45',
-    level: 'error',
-    source: 'email',
-    message: 'Failed to send email to user@example.com: SMTP connection refused',
-  },
-]
-
-const levelConfig: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  info: { label: 'Info', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'ℹ️' },
-  warning: { label: 'Hoiatus', color: 'text-yellow-700', bg: 'bg-yellow-100', icon: '⚠️' },
-  error: { label: 'Viga', color: 'text-red-700', bg: 'bg-red-100', icon: '❌' },
-  debug: { label: 'Debug', color: 'text-gray-700', bg: 'bg-gray-100', icon: '🔧' },
+const actionConfig: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  create: { label: 'Loomine', color: 'text-green-700', bg: 'bg-green-100', icon: '➕' },
+  update: { label: 'Muutmine', color: 'text-blue-700', bg: 'bg-blue-100', icon: '✏️' },
+  delete: { label: 'Kustutamine', color: 'text-red-700', bg: 'bg-red-100', icon: '🗑️' },
+  login: { label: 'Sisselogimine', color: 'text-purple-700', bg: 'bg-purple-100', icon: '🔐' },
+  logout: { label: 'Väljalogimine', color: 'text-gray-700', bg: 'bg-gray-100', icon: '🚪' },
 }
 
-const sourceConfig: Record<string, string> = {
-  auth: '🔐',
-  warehouse: '🏭',
-  database: '🗄️',
-  api: '🔌',
-  system: '⚙️',
-  cache: '⚡',
-  deploy: '🚀',
-  storage: '💾',
-  backup: '📦',
-  email: '📧',
+const entityConfig: Record<string, string> = {
+  asset: '📦',
+  project: '📁',
+  invoice: '📄',
+  employee: '👔',
+  user: '👤',
+  company: '🏢',
+  document: '📝',
+  transfer: '🔄',
+  category: '📂',
 }
 
 export default function LogsPage() {
-  const [logs, setLogs] = useState<LogEntry[]>(initialLogs)
+  const [logs, setLogs] = useState<LogEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('all')
+  const [entityFilter, setEntityFilter] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [limit, setLimit] = useState(50)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
   const [exportSuccess, setExportSuccess] = useState(false)
 
+  const fetchLogs = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    const supabase = createClient()
+
+    try {
+      let query = supabase
+        .from('audit_log')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit)
+
+      if (filter !== 'all') {
+        query = query.eq('action', filter)
+      }
+      if (entityFilter !== 'all') {
+        query = query.eq('entity_type', entityFilter)
+      }
+
+      const { data, error: fetchError } = await query
+
+      if (fetchError) {
+        setError(fetchError.message)
+        setLogs([])
+      } else {
+        setLogs(data || [])
+      }
+    } catch {
+      setError('Logide laadimine ebaõnnestus')
+      setLogs([])
+    }
+
+    setLoading(false)
+  }, [filter, entityFilter, limit])
+
+  useEffect(() => {
+    fetchLogs()
+  }, [fetchLogs])
+
   const filteredLogs = logs.filter(log => {
-    const matchesFilter = filter === 'all' || log.level === filter
-    const matchesSearch = searchTerm === '' ||
-      log.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.source.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesFilter && matchesSearch
+    if (!searchTerm) return true
+    const search = searchTerm.toLowerCase()
+    return (
+      log.action.toLowerCase().includes(search) ||
+      log.entity_type.toLowerCase().includes(search) ||
+      log.entity_id.toLowerCase().includes(search)
+    )
   })
 
   const stats = {
-    total: logs.length,
-    errors: logs.filter(l => l.level === 'error').length,
-    warnings: logs.filter(l => l.level === 'warning').length,
+    total: filteredLogs.length,
+    creates: filteredLogs.filter(l => l.action === 'create').length,
+    updates: filteredLogs.filter(l => l.action === 'update').length,
+    deletes: filteredLogs.filter(l => l.action === 'delete').length,
   }
 
   // Format logs as text for clipboard
   const formatLogsAsText = () => {
     return filteredLogs.map(log =>
-      `[${log.timestamp}] [${log.level.toUpperCase()}] [${log.source}] ${log.message}${log.user ? ` (${log.user})` : ''}`
+      `[${new Date(log.created_at).toLocaleString('et-EE')}] [${log.action.toUpperCase()}] [${log.entity_type}] ID: ${log.entity_id}`
     ).join('\n')
   }
 
@@ -148,7 +125,7 @@ export default function LogsPage() {
       await navigator.clipboard.writeText(formatLogsAsText())
       setCopySuccess(true)
       setTimeout(() => setCopySuccess(false), 2000)
-    } catch (err) {
+    } catch {
       alert('Kopeerimine ebaõnnestus')
     }
   }
@@ -160,7 +137,7 @@ export default function LogsPage() {
     const url = URL.createObjectURL(dataBlob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `logs_${new Date().toISOString().split('T')[0]}.json`
+    link.download = `audit_logs_${new Date().toISOString().split('T')[0]}.json`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -169,11 +146,31 @@ export default function LogsPage() {
     setTimeout(() => setExportSuccess(false), 2000)
   }
 
-  // Clear all logs
-  const handleClearLogs = () => {
-    setLogs([])
+  // Clear logs (requires admin permission in database)
+  const handleClearLogs = async () => {
+    const supabase = createClient()
+    try {
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+      const { error } = await supabase
+        .from('audit_log')
+        .delete()
+        .lt('created_at', thirtyDaysAgo.toISOString())
+
+      if (error) {
+        alert(`Kustutamine ebaõnnestus: ${error.message}`)
+      } else {
+        fetchLogs()
+      }
+    } catch {
+      alert('Kustutamine ebaõnnestus')
+    }
     setShowClearConfirm(false)
   }
+
+  const uniqueEntities = [...new Set(logs.map(l => l.entity_type))].sort()
+  const uniqueActions = [...new Set(logs.map(l => l.action))].sort()
 
   return (
     <div className="space-y-6">
@@ -181,82 +178,110 @@ export default function LogsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Süsteemi logid</h1>
-          <p className="text-gray-500">Tegevuste ja vigade logi</p>
+          <p className="text-gray-500">Audit log - tegelikud andmed Supabase'st</p>
         </div>
         <div className="flex gap-2">
           <button
+            onClick={fetchLogs}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Värskenda
+          </button>
+          <button
             onClick={handleCopyToClipboard}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              copySuccess
-                ? 'bg-green-100 text-green-700'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+              copySuccess ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            {copySuccess ? '✓ Kopeeritud!' : '📋 Kopeeri'}
+            {copySuccess ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {copySuccess ? 'Kopeeritud!' : 'Kopeeri'}
           </button>
           <button
             onClick={handleExport}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              exportSuccess
-                ? 'bg-green-100 text-green-700'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            disabled={logs.length === 0}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+              exportSuccess ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            {exportSuccess ? '✓ Eksporditud!' : '📥 Ekspordi'}
+            <Download className="w-4 h-4" />
+            {exportSuccess ? 'Eksporditud!' : 'Ekspordi'}
           </button>
           <button
             onClick={() => setShowClearConfirm(true)}
             disabled={logs.length === 0}
-            className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50"
           >
-            🗑️ Tühjenda
+            <Trash2 className="w-4 h-4" />
+            Tühjenda vanad
           </button>
         </div>
       </div>
 
-      {/* Filtrid */}
-      <div className="flex gap-4 items-center">
+      {/* Error display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-red-800">
+            <strong>Viga:</strong> {error}
+          </p>
+          <p className="text-red-600 text-sm mt-1">
+            Kontrolli, kas audit_log tabel eksisteerib ja RLS poliitikad lubavad lugemist.
+          </p>
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="flex gap-4 text-sm">
+        <span className="px-2 py-1 bg-gray-100 rounded">
+          Kokku: <strong>{stats.total}</strong>
+        </span>
+        <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
+          Loodud: <strong>{stats.creates}</strong>
+        </span>
+        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+          Muudetud: <strong>{stats.updates}</strong>
+        </span>
+        <span className="px-2 py-1 bg-red-100 text-red-700 rounded">
+          Kustutatud: <strong>{stats.deletes}</strong>
+        </span>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-4 items-center flex-wrap">
         <div className="flex gap-2">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-              filter === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-100 hover:bg-gray-200'
-            }`}
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="px-3 py-2 border rounded-lg text-sm"
           >
-            Kõik ({stats.total})
-          </button>
-          <button
-            onClick={() => setFilter('error')}
-            className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-              filter === 'error' ? 'bg-red-600 text-white' : 'bg-red-100 text-red-700 hover:bg-red-200'
-            }`}
+            <option value="all">Kõik tegevused</option>
+            {uniqueActions.map(action => (
+              <option key={action} value={action}>
+                {actionConfig[action]?.label || action}
+              </option>
+            ))}
+          </select>
+          <select
+            value={entityFilter}
+            onChange={(e) => setEntityFilter(e.target.value)}
+            className="px-3 py-2 border rounded-lg text-sm"
           >
-            Vead ({stats.errors})
-          </button>
-          <button
-            onClick={() => setFilter('warning')}
-            className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-              filter === 'warning' ? 'bg-yellow-600 text-white' : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-            }`}
+            <option value="all">Kõik olemid</option>
+            {uniqueEntities.map(entity => (
+              <option key={entity} value={entity}>{entity}</option>
+            ))}
+          </select>
+          <select
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            className="px-3 py-2 border rounded-lg text-sm"
           >
-            Hoiatused ({stats.warnings})
-          </button>
-          <button
-            onClick={() => setFilter('info')}
-            className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-              filter === 'info' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-            }`}
-          >
-            Info
-          </button>
-          <button
-            onClick={() => setFilter('debug')}
-            className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-              filter === 'debug' ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Debug
-          </button>
+            <option value={25}>25 kirjet</option>
+            <option value={50}>50 kirjet</option>
+            <option value={100}>100 kirjet</option>
+            <option value={500}>500 kirjet</option>
+          </select>
         </div>
         <div className="flex-1">
           <input
@@ -269,65 +294,77 @@ export default function LogsPage() {
         </div>
       </div>
 
-      {/* Logid */}
+      {/* Logs table */}
       <div className="bg-white rounded-xl border overflow-hidden">
-        {filteredLogs.length === 0 ? (
+        {loading ? (
+          <div className="p-8 text-center text-gray-500">
+            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2 text-gray-400" />
+            <p>Laadin logisid...</p>
+          </div>
+        ) : filteredLogs.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <p className="text-4xl mb-2">📭</p>
             <p>Logisid ei leitud</p>
-            {logs.length === 0 && (
-              <p className="text-sm mt-2">Logid on tühjendatud</p>
-            )}
+            <p className="text-sm mt-2">
+              {error ? 'Kontrolli andmebaasi ühendust' : 'Audit_log tabel on tühi'}
+            </p>
           </div>
         ) : (
-          <div className="divide-y">
-            {filteredLogs.map((log) => (
-              <div key={log.id} className="p-4 hover:bg-gray-50 transition-colors group">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 text-xl">
-                    {sourceConfig[log.source] || '📝'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${levelConfig[log.level].bg} ${levelConfig[log.level].color}`}>
-                        {levelConfig[log.level].icon} {levelConfig[log.level].label}
-                      </span>
-                      <span className="text-xs text-gray-500 font-mono">{log.source}</span>
-                      {log.user && (
-                        <span className="text-xs text-gray-400">• {log.user}</span>
-                      )}
-                    </div>
-                    <p className={`text-sm ${log.level === 'error' ? 'text-red-700' : 'text-gray-700'}`}>
-                      {log.message}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(
-                          `[${log.timestamp}] [${log.level.toUpperCase()}] [${log.source}] ${log.message}`
-                        )
-                      }}
-                      className="p-1 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Kopeeri see logi"
-                    >
-                      📋
-                    </button>
-                    <span className="text-xs text-gray-400 font-mono">
-                      {log.timestamp}
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Aeg</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Tegevus</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Olem</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">ID</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Detailid</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredLogs.map((log) => (
+                <tr key={log.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                    {new Date(log.created_at).toLocaleString('et-EE')}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${actionConfig[log.action]?.bg || 'bg-gray-100'} ${actionConfig[log.action]?.color || 'text-gray-700'}`}>
+                      {actionConfig[log.action]?.icon || '📝'} {actionConfig[log.action]?.label || log.action}
                     </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="flex items-center gap-1">
+                      {entityConfig[log.entity_type] || '📄'}
+                      <span className="font-medium">{log.entity_type}</span>
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <code className="text-xs bg-gray-100 px-1 rounded">{log.entity_id.slice(0, 8)}...</code>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500">
+                    {log.new_values && Object.keys(log.new_values).length > 0 && (
+                      <span title={JSON.stringify(log.new_values, null, 2)}>
+                        {Object.keys(log.new_values).slice(0, 3).join(', ')}
+                        {Object.keys(log.new_values).length > 3 && '...'}
+                      </span>
+                    )}
+                    {log.ip_address && (
+                      <span className="ml-2 text-gray-400">IP: {log.ip_address}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
-      {/* Pagination / Load more */}
-      {filteredLogs.length > 0 && (
+      {/* Load more */}
+      {filteredLogs.length >= limit && (
         <div className="flex justify-center">
-          <button className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+          <button
+            onClick={() => setLimit(prev => prev + 50)}
+            className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+          >
             Laadi rohkem logisid...
           </button>
         </div>
@@ -336,8 +373,8 @@ export default function LogsPage() {
       {/* Info */}
       <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
         <p className="text-blue-800 text-sm">
-          <strong>💡 Vihje:</strong> Logid säilitatakse 30 päeva. Pikemaajaliseks säilitamiseks ekspordi logid regulaarselt.
-          Kopeeri nupp kopeerib kõik filtreeritud logid lõikelauale.
+          <strong>ℹ️ Info:</strong> See leht näitab reaalseid logisid audit_log tabelist Supabase'st.
+          Logid luuakse automaatselt süsteemi tegevuste käigus. "Tühjenda vanad" kustutab üle 30 päeva vanused logid.
         </p>
       </div>
 
@@ -345,12 +382,12 @@ export default function LogsPage() {
       {showClearConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
-            <h2 className="text-xl font-bold mb-4 text-red-600">🗑️ Tühjenda logid?</h2>
+            <h2 className="text-xl font-bold mb-4 text-red-600">Kustuta vanad logid?</h2>
             <p className="text-gray-600 mb-4">
-              Kas oled kindel, et soovid kõik logid ({logs.length} kirjet) kustutada?
+              Kas oled kindel, et soovid kustutada üle 30 päeva vanused logid?
             </p>
-            <p className="text-sm text-red-500 mb-4">
-              See tegevus on pöördumatu! Soovitame enne eksportida.
+            <p className="text-sm text-yellow-600 mb-4">
+              See tegevus nõuab andmebaasi admin õigusi.
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -363,13 +400,13 @@ export default function LogsPage() {
                 onClick={handleExport}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
-                📥 Ekspordi enne
+                Ekspordi enne
               </button>
               <button
                 onClick={handleClearLogs}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
-                Tühjenda
+                Kustuta vanad
               </button>
             </div>
           </div>
