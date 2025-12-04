@@ -23,10 +23,10 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    // Build query
+    // Build query - use simple select without relationship to avoid schema cache issues
     let query = supabase
       .from('projects')
-      .select('*, client:companies!client_id(id, name)', { count: 'exact' })
+      .select('*', { count: 'exact' })
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
         manager_id: body.managerId || null,
         metadata: body.metadata || {},
       })
-      .select('*, client:companies!client_id(id, name)')
+      .select('*')
       .single()
 
     if (error) {
