@@ -145,6 +145,11 @@ export function ShareDialog({
         if (response.ok) {
           const newShare = await response.json()
           createdShares.push(newShare)
+        } else {
+          const errorData = await response.json()
+          console.error('Share creation failed:', errorData)
+          alert(`Jagamislingi loomine ebaõnnestus: ${errorData.error || 'Tundmatu viga'}`)
+          return
         }
       }
 
@@ -157,7 +162,7 @@ export function ShareDialog({
       }
     } catch (error) {
       console.error('Error creating share:', error)
-      alert('Jagamislingi loomine ebaõnnestus')
+      alert('Jagamislingi loomine ebaõnnestus: võrguühenduse viga')
     } finally {
       setIsCreating(false)
     }

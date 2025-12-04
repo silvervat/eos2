@@ -54,6 +54,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  X,
 } from 'lucide-react'
 
 // Pagination constants
@@ -101,17 +102,71 @@ interface Vault {
 
 type DisplayItem = (FolderItem & { type: 'folder' }) | (FileItem & { type: 'file' })
 
-// Helper to get file icon
-const getFileIcon = (mimeType: string) => {
+// Helper to get file icon with specific format icons
+const getFileIcon = (mimeType: string, extension?: string) => {
   // HEIC/HEIF are image formats (Apple's format)
   if (mimeType.startsWith('image/') || mimeType === 'image/heic' || mimeType === 'image/heif') return Image
-  // Handle HEIC that might be incorrectly detected
   if (mimeType.includes('heic') || mimeType.includes('heif')) return Image
   if (mimeType.startsWith('video/')) return Film
   if (mimeType.startsWith('audio/')) return Music
-  if (mimeType === 'application/pdf') return FileText
-  if (mimeType.includes('zip') || mimeType.includes('archive')) return Archive
+
+  // Office documents - check both mime type and extension
+  const ext = extension?.toLowerCase()
+
+  // PDF
+  if (mimeType === 'application/pdf' || ext === 'pdf') return FileText
+
+  // Excel
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel') ||
+      ext === 'xlsx' || ext === 'xls' || ext === 'csv') return FileText
+
+  // Word
+  if (mimeType.includes('word') || mimeType.includes('document') ||
+      ext === 'docx' || ext === 'doc') return FileText
+
+  // PowerPoint
+  if (mimeType.includes('presentation') || mimeType.includes('powerpoint') ||
+      ext === 'pptx' || ext === 'ppt') return FileText
+
+  // Archives
+  if (mimeType.includes('zip') || mimeType.includes('archive') || mimeType.includes('compressed') ||
+      ext === 'zip' || ext === 'rar' || ext === '7z' || ext === 'tar' || ext === 'gz') return Archive
+
   return File
+}
+
+// Get file type label for display
+const getFileTypeLabel = (mimeType: string, extension?: string): string => {
+  const ext = extension?.toLowerCase()
+
+  if (mimeType.startsWith('image/')) return 'Pilt'
+  if (mimeType.startsWith('video/')) return 'Video'
+  if (mimeType.startsWith('audio/')) return 'Audio'
+  if (mimeType === 'application/pdf' || ext === 'pdf') return 'PDF'
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || ext === 'xlsx' || ext === 'xls') return 'Excel'
+  if (ext === 'csv') return 'CSV'
+  if (mimeType.includes('word') || ext === 'docx' || ext === 'doc') return 'Word'
+  if (mimeType.includes('presentation') || ext === 'pptx' || ext === 'ppt') return 'PowerPoint'
+  if (mimeType.includes('zip') || mimeType.includes('archive')) return 'Arhiiv'
+  if (mimeType.startsWith('text/')) return 'Tekst'
+
+  return ext?.toUpperCase() || 'Fail'
+}
+
+// Get file type color for badge
+const getFileTypeColor = (mimeType: string, extension?: string): string => {
+  const ext = extension?.toLowerCase()
+
+  if (mimeType.startsWith('image/')) return 'bg-purple-100 text-purple-700'
+  if (mimeType.startsWith('video/')) return 'bg-pink-100 text-pink-700'
+  if (mimeType.startsWith('audio/')) return 'bg-orange-100 text-orange-700'
+  if (mimeType === 'application/pdf' || ext === 'pdf') return 'bg-red-100 text-red-700'
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || ext === 'xlsx' || ext === 'xls' || ext === 'csv') return 'bg-green-100 text-green-700'
+  if (mimeType.includes('word') || ext === 'docx' || ext === 'doc') return 'bg-blue-100 text-blue-700'
+  if (mimeType.includes('presentation') || ext === 'pptx' || ext === 'ppt') return 'bg-amber-100 text-amber-700'
+  if (mimeType.includes('zip') || mimeType.includes('archive')) return 'bg-slate-100 text-slate-700'
+
+  return 'bg-slate-100 text-slate-600'
 }
 
 // Format file size
@@ -135,12 +190,20 @@ const formatDate = (dateString: string): string => {
 
 export default function FileVaultPage() {
   // State
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list') // Default to list view
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Table sorting state
+  const [sortColumn, setSortColumn] = useState<'name' | 'createdAt' | 'sizeBytes' | 'mimeType'>('createdAt')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  // Hover preview state
+  const [hoverPreviewFile, setHoverPreviewFile] = useState<FileItem | null>(null)
+  const [hoverPreviewPosition, setHoverPreviewPosition] = useState({ x: 0, y: 0 })
 
   // Pagination state
   const [hasMoreFiles, setHasMoreFiles] = useState(true)
@@ -1793,41 +1856,6 @@ export default function FileVaultPage() {
           </div>
         </div>
 
-        {/* Selection actions */}
-        {selectedItems.length > 0 && (
-          <div className="flex items-center gap-4 mt-4 pt-4 border-t">
-            <span className="text-sm text-slate-600">{selectedItems.length} valitud</span>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1"
-                onClick={handleDownloadSelected}
-              >
-                <Download className="w-4 h-4" />
-                Laadi alla
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1"
-                onClick={handleShareSelected}
-              >
-                <Share2 className="w-4 h-4" />
-                Jaga
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1 text-red-600 hover:text-red-700"
-                onClick={handleDeleteSelected}
-              >
-                <Trash2 className="w-4 h-4" />
-                Kustuta
-              </Button>
-            </div>
-          </div>
-        )}
       </Card>
 
       {/* Loading state */}
@@ -1992,29 +2020,301 @@ export default function FileVaultPage() {
               )}
             </div>
           ) : (
-            <Card ref={listContainerRef}>
+            /* Table View - uses browser scroll */
+            <Card className="overflow-hidden">
               {allItems.length > 0 ? (
-                <InfiniteLoader
-                  ref={infiniteLoaderRef}
-                  isItemLoaded={isItemLoaded}
-                  itemCount={itemCount}
-                  loadMoreItems={loadMoreFiles}
-                  threshold={10}
-                >
-                  {({ onItemsRendered, ref }) => (
-                    <VirtualList
-                      ref={ref}
-                      height={listHeight}
-                      itemCount={itemCount}
-                      itemSize={LIST_ROW_HEIGHT}
-                      width="100%"
-                      onItemsRendered={onItemsRendered}
-                      overscanCount={5}
-                    >
-                      {VirtualListRow}
-                    </VirtualList>
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="w-10 px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedItems.length === filteredFiles.length && filteredFiles.length > 0}
+                              onChange={() => {
+                                if (selectedItems.length === filteredFiles.length) {
+                                  setSelectedItems([])
+                                } else {
+                                  setSelectedItems(filteredFiles.map(f => f.id))
+                                }
+                              }}
+                              className="w-4 h-4 rounded"
+                            />
+                          </th>
+                          <th className="text-left px-3 py-2 text-xs font-medium text-slate-500 uppercase min-w-[200px]">
+                            <button
+                              onClick={() => {
+                                if (sortColumn === 'name') {
+                                  setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                                } else {
+                                  setSortColumn('name')
+                                  setSortDirection('asc')
+                                }
+                              }}
+                              className="flex items-center gap-1 hover:text-slate-700"
+                            >
+                              Nimi
+                              {sortColumn === 'name' && (
+                                <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </button>
+                          </th>
+                          <th className="text-left px-3 py-2 text-xs font-medium text-slate-500 uppercase w-20">
+                            <button
+                              onClick={() => {
+                                if (sortColumn === 'mimeType') {
+                                  setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                                } else {
+                                  setSortColumn('mimeType')
+                                  setSortDirection('asc')
+                                }
+                              }}
+                              className="flex items-center gap-1 hover:text-slate-700"
+                            >
+                              Tüüp
+                              {sortColumn === 'mimeType' && (
+                                <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </button>
+                          </th>
+                          <th className="text-left px-3 py-2 text-xs font-medium text-slate-500 uppercase w-24">
+                            <button
+                              onClick={() => {
+                                if (sortColumn === 'sizeBytes') {
+                                  setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                                } else {
+                                  setSortColumn('sizeBytes')
+                                  setSortDirection('desc')
+                                }
+                              }}
+                              className="flex items-center gap-1 hover:text-slate-700"
+                            >
+                              Suurus
+                              {sortColumn === 'sizeBytes' && (
+                                <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </button>
+                          </th>
+                          <th className="text-left px-3 py-2 text-xs font-medium text-slate-500 uppercase w-32">
+                            <button
+                              onClick={() => {
+                                if (sortColumn === 'createdAt') {
+                                  setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                                } else {
+                                  setSortColumn('createdAt')
+                                  setSortDirection('desc')
+                                }
+                              }}
+                              className="flex items-center gap-1 hover:text-slate-700"
+                            >
+                              Lisatud
+                              {sortColumn === 'createdAt' && (
+                                <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </button>
+                          </th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-slate-500 uppercase w-28">
+                            Tegevused
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {/* Sort items based on current sort settings */}
+                        {[...allItems].sort((a, b) => {
+                          const aIsFolder = a.type === 'folder'
+                          const bIsFolder = b.type === 'folder'
+                          // Folders always first
+                          if (aIsFolder && !bIsFolder) return -1
+                          if (!aIsFolder && bIsFolder) return 1
+
+                          let comparison = 0
+                          if (sortColumn === 'name') {
+                            comparison = a.name.localeCompare(b.name)
+                          } else if (sortColumn === 'createdAt') {
+                            comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                          } else if (sortColumn === 'sizeBytes' && !aIsFolder && !bIsFolder) {
+                            comparison = (a as FileItem).sizeBytes - (b as FileItem).sizeBytes
+                          } else if (sortColumn === 'mimeType' && !aIsFolder && !bIsFolder) {
+                            comparison = (a as FileItem).mimeType.localeCompare((b as FileItem).mimeType)
+                          }
+                          return sortDirection === 'asc' ? comparison : -comparison
+                        }).map((item) => {
+                          const isFolder = item.type === 'folder'
+                          const Icon = isFolder ? Folder : getFileIcon((item as FileItem).mimeType, (item as FileItem).extension)
+                          const isSelected = selectedItems.includes(item.id)
+                          const fileItem = item as FileItem
+
+                          return (
+                            <tr
+                              key={item.id}
+                              className={`hover:bg-slate-50 transition-colors h-12 ${isSelected ? 'bg-[#279989]/5' : ''}`}
+                              onDoubleClick={() => {
+                                if (!isFolder) {
+                                  handlePreview(fileItem)
+                                }
+                              }}
+                            >
+                              {/* Checkbox - only this selects */}
+                              <td className="px-3 py-1">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleSelect(item.id)}
+                                  className="w-4 h-4 rounded cursor-pointer"
+                                />
+                              </td>
+
+                              {/* Name with icon/thumbnail - clicking icon opens preview, clicking name navigates folders */}
+                              <td className="px-3 py-1">
+                                <div className="flex items-center gap-3">
+                                  {/* Icon/Thumbnail - clicking opens file preview */}
+                                  <div
+                                    className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 cursor-pointer relative group/thumb ${
+                                      isFolder ? 'bg-slate-100' : 'bg-slate-100'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      if (isFolder) {
+                                        navigateToFolder(item as FolderItem)
+                                      } else {
+                                        handlePreview(fileItem)
+                                      }
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      if (!isFolder && fileItem.thumbnailMedium) {
+                                        const rect = e.currentTarget.getBoundingClientRect()
+                                        setHoverPreviewFile(fileItem)
+                                        setHoverPreviewPosition({ x: rect.right + 10, y: rect.top })
+                                      }
+                                    }}
+                                    onMouseLeave={() => setHoverPreviewFile(null)}
+                                  >
+                                    {!isFolder && fileItem.thumbnailSmall ? (
+                                      <img
+                                        src={fileItem.thumbnailSmall}
+                                        alt=""
+                                        className="w-full h-full object-cover rounded"
+                                      />
+                                    ) : (
+                                      <Icon
+                                        className="w-4 h-4"
+                                        style={{ color: isFolder ? '#64748b' : '#64748b' }}
+                                      />
+                                    )}
+                                  </div>
+
+                                  {/* File name - clicking on folder name navigates */}
+                                  <span
+                                    className={`text-sm text-slate-900 truncate ${isFolder ? 'cursor-pointer hover:text-[#279989]' : ''}`}
+                                    onClick={() => {
+                                      if (isFolder) {
+                                        navigateToFolder(item as FolderItem)
+                                      }
+                                    }}
+                                  >
+                                    {item.name}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* Type badge */}
+                              <td className="px-3 py-1">
+                                {!isFolder && (
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getFileTypeColor(fileItem.mimeType, fileItem.extension)}`}>
+                                    {getFileTypeLabel(fileItem.mimeType, fileItem.extension)}
+                                  </span>
+                                )}
+                                {isFolder && (
+                                  <span className="text-xs text-slate-400">Kaust</span>
+                                )}
+                              </td>
+
+                              {/* Size */}
+                              <td className="px-3 py-1 text-sm text-slate-500">
+                                {isFolder ? '-' : formatFileSize(fileItem.sizeBytes)}
+                              </td>
+
+                              {/* Date */}
+                              <td className="px-3 py-1 text-sm text-slate-500">
+                                {formatDate(item.createdAt)}
+                              </td>
+
+                              {/* Actions */}
+                              <td className="px-3 py-1">
+                                <div className="flex items-center justify-end gap-1">
+                                  {!isFolder && (
+                                    <>
+                                      <button
+                                        onClick={() => handlePreview(fileItem)}
+                                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
+                                        title="Eelvaade"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDownload(fileItem)}
+                                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
+                                        title="Laadi alla"
+                                      >
+                                        <Download className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleShare(fileItem)}
+                                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
+                                        title="Jaga"
+                                      >
+                                        <Share2 className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleShowInfo(fileItem)}
+                                        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
+                                        title="Info"
+                                      >
+                                        <Info className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDelete(item.id, false)}
+                                        className="p-1.5 rounded hover:bg-red-50 text-slate-500 hover:text-red-600"
+                                        title="Kustuta"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Load more button */}
+                  {hasMoreFiles && (
+                    <div className="p-4 border-t border-slate-100 text-center">
+                      <Button
+                        variant="outline"
+                        onClick={loadMoreFiles}
+                        disabled={isLoadingMore}
+                        className="gap-2"
+                      >
+                        {isLoadingMore ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Laadin...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4" />
+                            Laadi rohkem
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   )}
-                </InfiniteLoader>
+                </>
               ) : (
                 <div className="py-8 text-center text-slate-500">
                   Andmeid ei leitud
@@ -2244,6 +2544,69 @@ export default function FileVaultPage() {
             }
           }}
         />
+      )}
+
+      {/* Floating Selection Toolbar - appears at bottom when items selected */}
+      {selectedItems.length > 0 && (activeTab === 'all' || activeTab === 'my-files') && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4 duration-200">
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-white rounded-xl shadow-lg border border-slate-200">
+            <span className="text-sm font-medium text-slate-700 pr-2 border-r border-slate-200">
+              {selectedItems.length} valitud
+            </span>
+            <button
+              onClick={handleDownloadSelected}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Laadi alla</span>
+            </button>
+            <button
+              onClick={handleShareSelected}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              <Share2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Jaga</span>
+            </button>
+            <button
+              onClick={handleDeleteSelected}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Kustuta</span>
+            </button>
+            <div className="pl-2 border-l border-slate-200">
+              <button
+                onClick={() => setSelectedItems([])}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                title="Tühista valik"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hover Preview Popup - shows larger thumbnail on hover */}
+      {hoverPreviewFile && hoverPreviewFile.thumbnailMedium && (
+        <div
+          className="fixed z-50 pointer-events-none animate-in fade-in duration-150"
+          style={{
+            left: Math.min(hoverPreviewPosition.x, window.innerWidth - 220),
+            top: Math.max(10, Math.min(hoverPreviewPosition.y, window.innerHeight - 170)),
+          }}
+        >
+          <div className="bg-white rounded-lg shadow-xl border border-slate-200 p-2">
+            <img
+              src={hoverPreviewFile.thumbnailMedium}
+              alt={hoverPreviewFile.name}
+              className="w-48 h-36 object-cover rounded"
+            />
+            <p className="text-xs text-slate-600 mt-1 truncate max-w-[192px]">
+              {hoverPreviewFile.name}
+            </p>
+          </div>
+        </div>
       )}
     </div>
   )

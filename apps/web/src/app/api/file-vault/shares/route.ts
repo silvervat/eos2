@@ -360,6 +360,19 @@ export async function POST(request: Request) {
     }
 
     // Create share
+    console.log('Creating share with data:', {
+      vault_id: vaultId,
+      file_id: fileId || null,
+      folder_id: folderId || null,
+      short_code: shortCode,
+      has_password: !!passwordHash,
+      allow_download: allowDownload,
+      allow_upload: allowUpload,
+      expires_at: expiresAt || null,
+      download_limit: downloadLimit || null,
+      created_by: user.id,
+    })
+
     const { data: share, error: insertError } = await supabaseAdmin
       .from('file_shares')
       .insert({
@@ -381,6 +394,7 @@ export async function POST(request: Request) {
 
     if (insertError) {
       console.error('Error creating share:', insertError)
+      console.error('Insert error details:', JSON.stringify(insertError, null, 2))
       return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 
