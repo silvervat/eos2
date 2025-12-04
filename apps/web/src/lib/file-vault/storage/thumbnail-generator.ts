@@ -74,11 +74,21 @@ export async function generateAllThumbnails(
         continue
       }
 
-      const { data: urlData } = supabaseAdmin.storage
+      // Use signed URL for private bucket (1 year expiry)
+      const { data: signedUrlData, error: signedError } = await supabaseAdmin.storage
         .from(FILE_VAULT_BUCKET)
-        .getPublicUrl(thumbnailKey)
+        .createSignedUrl(thumbnailKey, 365 * 24 * 60 * 60) // 1 year
 
-      results[size] = urlData.publicUrl
+      if (signedError) {
+        console.error(`Failed to create signed URL for ${size} thumbnail:`, signedError)
+        // Fallback to public URL
+        const { data: urlData } = supabaseAdmin.storage
+          .from(FILE_VAULT_BUCKET)
+          .getPublicUrl(thumbnailKey)
+        results[size] = urlData.publicUrl
+      } else {
+        results[size] = signedUrlData.signedUrl
+      }
     } catch (error) {
       console.error(`Failed to generate ${size} thumbnail:`, error)
     }
