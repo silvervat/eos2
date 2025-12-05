@@ -4,7 +4,7 @@ const nextConfig = {
   transpilePackages: ['@rivest/ui', '@rivest/db', '@rivest/types'],
   experimental: {
     serverActions: {
-      bodySizeLimit: '2mb',
+      bodySizeLimit: '100mb',
     },
   },
   images: {

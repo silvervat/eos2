@@ -21,11 +21,24 @@ import {
   generateAllThumbnails,
   getImageDimensions,
 } from '@/lib/file-vault/storage/thumbnail-generator'
+import {
+  trackPerformance,
+  getRequestMetadata,
+} from '@/lib/file-vault/performance-logger'
 
 export const maxDuration = 60 // Allow up to 60 seconds for large file uploads
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
+  // Start performance tracking
+  const { ipAddress, userAgent } = getRequestMetadata(request)
+  const tracker = trackPerformance({
+    action: 'upload',
+    operationType: 'file_upload',
+    ipAddress,
+    userAgent,
+  })
+
   try {
     const supabase = createClient()
 
@@ -214,14 +227,15 @@ export async function POST(request: Request) {
       .update({ used_bytes: newUsedBytes.toString() })
       .eq('id', vaultId)
 
-    // Log file access
-    await supabaseAdmin.from('file_accesses').insert({
-      file_id: fileRecord.id,
-      action: 'upload',
-      ip_address: request.headers.get('x-forwarded-for') || 'unknown',
-      user_agent: request.headers.get('user-agent'),
-      user_id: user.id,
-      bytes_transferred: file.size,
+    // Log file access with performance data
+    await tracker.finish({
+      fileId: fileRecord.id,
+      vaultId,
+      tenantId: profile.tenant_id,
+      userId: user.id,
+      bytesTransferred: file.size,
+      fileSizeBytes: file.size,
+      mimeType,
     })
 
     return NextResponse.json({
@@ -238,6 +252,8 @@ export async function POST(request: Request) {
     }, { status: 201 })
 
   } catch (error) {
+    // Log error with performance data
+    await tracker.error((error as Error).message)
     console.error('Error in POST /api/file-vault/upload:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }

@@ -102,14 +102,20 @@ export async function GET() {
     const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
     const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    // Query file_accesses for performance data
+    // Query file_accesses for performance data (including new performance columns)
     const { data: accessLogs } = await supabase
       .from('file_accesses')
       .select(`
         id,
         action,
+        operation_type,
         bytes_transferred,
+        file_size_bytes,
+        mime_type,
         duration_ms,
+        cache_hit,
+        is_error,
+        error_message,
         created_at,
         file:files!file_id(id, name, mime_type, size_bytes)
       `)
@@ -218,7 +224,7 @@ export async function GET() {
       }))
       .sort((a, b) => b.count - a.count)
 
-    // API metrics (simulated from access patterns)
+    // API metrics (using real data from performance columns)
     const totalRequests = logs.length
     const apiAvgResponseTime = logs.reduce((sum, l) => sum + (l.duration_ms || 0), 0) / Math.max(logs.length, 1)
 
@@ -226,6 +232,35 @@ export async function GET() {
     const durations = logs.map(l => l.duration_ms || 0).filter(d => d > 0).sort((a, b) => a - b)
     const p95Index = Math.floor(durations.length * 0.95)
     const p95ResponseTime = durations[p95Index] || 0
+
+    // Calculate real cache hit rate
+    const logsWithCacheInfo = logs.filter(l => l.cache_hit !== null && l.cache_hit !== undefined)
+    const cacheHits = logsWithCacheInfo.filter(l => l.cache_hit === true).length
+    const cacheHitRate = logsWithCacheInfo.length > 0 ? cacheHits / logsWithCacheInfo.length : 0
+
+    // Calculate real error rate
+    const logsWithErrorInfo = logs.filter(l => l.is_error !== null && l.is_error !== undefined)
+    const errorCount = logsWithErrorInfo.filter(l => l.is_error === true).length
+    const errorRate = logsWithErrorInfo.length > 0 ? errorCount / logsWithErrorInfo.length : 0
+
+    // Calculate by endpoint/operation_type
+    const byOperationType: Record<string, { totalMs: number; count: number }> = {}
+    logs.forEach(l => {
+      const opType = l.operation_type || l.action || 'unknown'
+      if (!byOperationType[opType]) {
+        byOperationType[opType] = { totalMs: 0, count: 0 }
+      }
+      byOperationType[opType].count++
+      byOperationType[opType].totalMs += l.duration_ms || 0
+    })
+    const byEndpoint = Object.entries(byOperationType)
+      .map(([opType, data]) => ({
+        endpoint: opType,
+        avgMs: data.count > 0 ? Math.round(data.totalMs / data.count) : 0,
+        count: data.count,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
 
     const metrics: PerformanceMetrics = {
       downloads: {
@@ -259,20 +294,15 @@ export async function GET() {
       api: {
         avgResponseTimeMs: Number(apiAvgResponseTime.toFixed(0)),
         p95ResponseTimeMs: Number(p95ResponseTime.toFixed(0)),
-        cacheHitRate: 0.65, // Simulated cache hit rate
+        cacheHitRate: Number(cacheHitRate.toFixed(2)),
         totalRequests,
-        errorRate: 0.02, // Simulated error rate
-        byEndpoint: [
-          { endpoint: '/api/file-vault/files', avgMs: 45, count: Math.floor(totalRequests * 0.4) },
-          { endpoint: '/api/file-vault/upload', avgMs: 150, count: Math.floor(totalRequests * 0.2) },
-          { endpoint: '/api/file-vault/download', avgMs: 80, count: Math.floor(totalRequests * 0.25) },
-          { endpoint: '/api/file-vault/preview', avgMs: 60, count: Math.floor(totalRequests * 0.15) },
-        ],
+        errorRate: Number(errorRate.toFixed(4)),
+        byEndpoint,
       },
       realtime: {
-        activeConnections: Math.floor(Math.random() * 10) + 1, // Simulated
-        currentTransfers: Math.floor(Math.random() * 5), // Simulated
-        queuedOperations: Math.floor(Math.random() * 3), // Simulated
+        activeConnections: 0, // Would need real-time tracking system
+        currentTransfers: 0, // Would need real-time tracking system
+        queuedOperations: 0, // Would need real-time tracking system
       },
     }
 
