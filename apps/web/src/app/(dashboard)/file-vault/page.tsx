@@ -27,6 +27,8 @@ import {
   Loader2,
   ChevronRight,
   Home,
+  MessageSquare,
+  Tag,
 } from 'lucide-react'
 import { Button, Input, Card } from '@rivest/ui'
 import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
@@ -75,6 +77,7 @@ interface FileItem {
   createdAt: string
   updatedAt: string
   tags: string[]
+  commentCount?: number
   folder?: {
     id: string
     name: string
@@ -2030,6 +2033,14 @@ export default function FileVaultPage() {
                           )}
                         </button>
                       </th>
+                      <th className="w-20 px-3 py-2 text-center text-xs font-medium text-slate-500 uppercase hidden xl:table-cell">
+                        <span title="Märksõnad">Märksõnad</span>
+                      </th>
+                      <th className="w-16 px-3 py-2 text-center text-xs font-medium text-slate-500 uppercase hidden xl:table-cell">
+                        <span title="Kommentaarid">
+                          <MessageSquare className="w-4 h-4 inline-block" />
+                        </span>
+                      </th>
                       <th className="w-32 px-3 py-2 text-right text-xs font-medium text-slate-500 uppercase">
                         Tegevused
                       </th>
@@ -2135,6 +2146,46 @@ export default function FileVaultPage() {
                               {formatDate(item.createdAt)}
                             </td>
 
+                            {/* Tags */}
+                            <td className="w-20 px-3 hidden xl:table-cell">
+                              {!isFolder && fileItem.tags && fileItem.tags.length > 0 ? (
+                                <div className="flex flex-wrap gap-1 justify-center">
+                                  {fileItem.tags.slice(0, 2).map((tag, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 max-w-[60px] truncate"
+                                      title={tag}
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                  {fileItem.tags.length > 2 && (
+                                    <span className="text-xs text-slate-400">
+                                      +{fileItem.tags.length - 2}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-300 text-center block">-</span>
+                              )}
+                            </td>
+
+                            {/* Comments */}
+                            <td className="w-16 px-3 text-center hidden xl:table-cell">
+                              {!isFolder && fileItem.commentCount && fileItem.commentCount > 0 ? (
+                                <button
+                                  onClick={() => handleShowInfo(fileItem)}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                  title={`${fileItem.commentCount} kommentaari`}
+                                >
+                                  <MessageSquare className="w-3 h-3" />
+                                  {fileItem.commentCount}
+                                </button>
+                              ) : (
+                                <span className="text-slate-300">-</span>
+                              )}
+                            </td>
+
                             {/* Actions */}
                             <td className="w-32 px-3">
                               <div className="flex items-center justify-end gap-0.5">
@@ -2193,7 +2244,7 @@ export default function FileVaultPage() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-500">
+                        <td colSpan={8} className="py-8 text-center text-slate-500">
                           Andmeid ei leitud
                         </td>
                       </tr>

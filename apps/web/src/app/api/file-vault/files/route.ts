@@ -234,20 +234,42 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Fetch uploader profiles for all files
+    // Fetch uploader profiles and comment counts for all files in parallel
+    const fileIds = files?.map(f => f.id) || []
     const creatorIds = [...new Set(files?.map(f => f.created_by).filter(Boolean) || [])]
+
+    const [profilesResult, commentCountsResult] = await Promise.all([
+      // Fetch uploader profiles
+      creatorIds.length > 0
+        ? supabase
+            .from('user_profiles')
+            .select('auth_user_id, full_name, avatar_url')
+            .in('auth_user_id', creatorIds)
+        : Promise.resolve({ data: [] }),
+      // Fetch comment counts per file
+      fileIds.length > 0
+        ? supabase
+            .from('file_comments')
+            .select('file_id')
+            .in('file_id', fileIds)
+            .is('deleted_at', null)
+        : Promise.resolve({ data: [] }),
+    ])
+
+    // Build uploader map
     let uploaderMap = new Map<string, { fullName: string; avatarUrl: string | null }>()
+    if (profilesResult.data) {
+      uploaderMap = new Map(
+        profilesResult.data.map(p => [p.auth_user_id, { fullName: p.full_name || 'Tundmatu', avatarUrl: p.avatar_url }])
+      )
+    }
 
-    if (creatorIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('user_profiles')
-        .select('auth_user_id, full_name, avatar_url')
-        .in('auth_user_id', creatorIds)
-
-      if (profiles) {
-        uploaderMap = new Map(
-          profiles.map(p => [p.auth_user_id, { fullName: p.full_name || 'Tundmatu', avatarUrl: p.avatar_url }])
-        )
+    // Build comment count map
+    const commentCountMap = new Map<string, number>()
+    if (commentCountsResult.data) {
+      for (const comment of commentCountsResult.data) {
+        const current = commentCountMap.get(comment.file_id) || 0
+        commentCountMap.set(comment.file_id, current + 1)
       }
     }
 
@@ -284,6 +306,7 @@ export async function GET(request: Request) {
       createdBy: file.created_by,
       uploader: uploaderMap.get(file.created_by) || { fullName: 'Tundmatu', avatarUrl: null },
       tags: file.tags || [],
+      commentCount: commentCountMap.get(file.id) || 0,
     })) || []
 
     // Generate next cursor for efficient pagination on large datasets
