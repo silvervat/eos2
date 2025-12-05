@@ -29,6 +29,9 @@ import {
   Home,
   MessageSquare,
   Tag,
+  Check,
+  Move,
+  GripVertical,
 } from 'lucide-react'
 import { Button, Input, Card } from '@rivest/ui'
 import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
@@ -364,6 +367,14 @@ export default function FileVaultPage() {
   const [selectedSearchFolder, setSelectedSearchFolder] = useState<string | null>(null)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Drag and drop state
+  const [draggedFileIds, setDraggedFileIds] = useState<string[]>([])
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
+  const [isMovingFiles, setIsMovingFiles] = useState(false)
+
+  // Bulk move dialog state
+  const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false)
 
   // Fetch vault (only called once on initial load)
   const fetchVault = useCallback(async () => {
@@ -982,6 +993,114 @@ export default function FileVaultPage() {
         : f
     ))
   }, [])
+
+  // Drag start handler
+  const handleDragStart = useCallback((e: React.DragEvent, fileId: string) => {
+    // If the dragged file is selected, drag all selected files
+    // Otherwise, just drag this one file
+    const filesToDrag = selectedItems.includes(fileId) ? selectedItems : [fileId]
+    setDraggedFileIds(filesToDrag)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', filesToDrag.join(','))
+
+    // Create drag image showing count
+    if (filesToDrag.length > 1) {
+      const dragImage = document.createElement('div')
+      dragImage.className = 'bg-[#279989] text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg'
+      dragImage.textContent = `${filesToDrag.length} faili`
+      dragImage.style.position = 'absolute'
+      dragImage.style.top = '-1000px'
+      document.body.appendChild(dragImage)
+      e.dataTransfer.setDragImage(dragImage, 0, 0)
+      setTimeout(() => document.body.removeChild(dragImage), 0)
+    }
+  }, [selectedItems])
+
+  // Drag over handler for folders
+  const handleDragOver = useCallback((e: React.DragEvent, folderId: string) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverFolderId(folderId)
+  }, [])
+
+  // Drag leave handler
+  const handleDragLeave = useCallback(() => {
+    setDragOverFolderId(null)
+  }, [])
+
+  // Drop handler - move files to folder
+  const handleDrop = useCallback(async (e: React.DragEvent, targetFolderId: string) => {
+    e.preventDefault()
+    setDragOverFolderId(null)
+
+    if (draggedFileIds.length === 0) return
+
+    setIsMovingFiles(true)
+    try {
+      // Move each file to the target folder
+      const movePromises = draggedFileIds.map(fileId =>
+        fetch(`/api/file-vault/files/${fileId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folderId: targetFolderId }),
+        })
+      )
+
+      await Promise.all(movePromises)
+
+      // Remove moved files from current view
+      setFiles(prev => prev.filter(f => !draggedFileIds.includes(f.id)))
+      setSelectedItems(prev => prev.filter(id => !draggedFileIds.includes(id)))
+
+      // Refresh file tree
+      fileTreeRef.current?.refresh()
+    } catch (error) {
+      console.error('Error moving files:', error)
+      alert('Failide teisaldamine ebaõnnestus')
+    } finally {
+      setIsMovingFiles(false)
+      setDraggedFileIds([])
+    }
+  }, [draggedFileIds])
+
+  // Drag end handler
+  const handleDragEnd = useCallback(() => {
+    setDraggedFileIds([])
+    setDragOverFolderId(null)
+  }, [])
+
+  // Bulk move handler
+  const handleBulkMove = useCallback(async (targetFolderId: string) => {
+    if (selectedItems.length === 0) return
+
+    setIsMovingFiles(true)
+    try {
+      // If targetFolderId is empty string, set to null for root folder
+      const folderId = targetFolderId || null
+      const movePromises = selectedItems.map(fileId =>
+        fetch(`/api/file-vault/files/${fileId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folderId }),
+        })
+      )
+
+      await Promise.all(movePromises)
+
+      // Remove moved files from current view
+      setFiles(prev => prev.filter(f => !selectedItems.includes(f.id)))
+      setSelectedItems([])
+      setShowBulkMoveDialog(false)
+
+      // Refresh file tree
+      fileTreeRef.current?.refresh()
+    } catch (error) {
+      console.error('Error moving files:', error)
+      alert('Failide teisaldamine ebaõnnestus')
+    } finally {
+      setIsMovingFiles(false)
+    }
+  }, [selectedItems])
 
   // Filter by search (client-side for already loaded items)
   const filteredFolders = useMemo(() =>
@@ -1785,17 +1904,27 @@ export default function FileVaultPage() {
                 const isFolder = item.type === 'folder'
                 const Icon = isFolder ? Folder : getFileIcon((item as FileItem).mimeType)
                 const isSelected = selectedItems.includes(item.id)
+                const isDragOver = dragOverFolderId === item.id
+                const isDragging = draggedFileIds.includes(item.id)
 
                 return (
                   <Card
                     key={item.id}
                     className={`p-4 cursor-pointer transition-all hover:shadow-md group relative ${
                       isSelected ? 'ring-2 ring-offset-2' : ''
+                    } ${isDragOver ? 'ring-2 ring-[#279989] bg-[#279989]/5' : ''} ${
+                      isDragging ? 'opacity-50' : ''
                     }`}
                     style={{
                       borderColor: isSelected ? '#279989' : undefined,
                       ['--tw-ring-color' as string]: '#279989',
                     }}
+                    draggable={!isFolder}
+                    onDragStart={(e) => !isFolder && handleDragStart(e, item.id)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => isFolder && handleDragOver(e, item.id)}
+                    onDragLeave={isFolder ? handleDragLeave : undefined}
+                    onDrop={(e) => isFolder && handleDrop(e, item.id)}
                     onClick={() => {
                       if (isFolder) {
                         navigateToFolder(item as FolderItem)
@@ -1804,20 +1933,33 @@ export default function FileVaultPage() {
                       }
                     }}
                   >
+                    {/* Selection checkbox - always visible when selected, hover otherwise */}
+                    {!isFolder && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleSelect(item.id)
+                        }}
+                        className={`absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center transition-all z-20 ${
+                          isSelected
+                            ? 'bg-[#279989] border-[#279989] text-white'
+                            : 'border-slate-300 bg-white/80 opacity-0 group-hover:opacity-100 hover:border-[#279989]'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3" />}
+                      </button>
+                    )}
+
                     {/* Action buttons overlay - only for files */}
                     {!isFolder && (
                       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            toggleSelect(item.id)
+                            handleStar(item.id)
                           }}
-                          className={`p-1.5 rounded-lg transition-colors ${
-                            isSelected
-                              ? 'bg-[#279989] text-white'
-                              : 'bg-white/90 text-slate-600 hover:bg-slate-100'
-                          }`}
-                          title="Vali"
+                          className="p-1.5 rounded-lg transition-colors bg-white/90 text-slate-600 hover:bg-slate-100"
+                          title="Lemmik"
                         >
                           <Star className="w-3.5 h-3.5" />
                         </button>
@@ -2525,6 +2667,14 @@ export default function FileVaultPage() {
               <span className="hidden sm:inline">Jaga</span>
             </button>
             <button
+              onClick={() => setShowBulkMoveDialog(true)}
+              disabled={isMovingFiles}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              <Move className="w-4 h-4" />
+              <span className="hidden sm:inline">{isMovingFiles ? 'Teisaldan...' : 'Teisalda'}</span>
+            </button>
+            <button
               onClick={handleDeleteSelected}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors"
             >
@@ -2562,6 +2712,74 @@ export default function FileVaultPage() {
             <p className="text-xs text-slate-600 mt-1 truncate max-w-[192px]">
               {hoverPreviewFile.name}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Move Dialog */}
+      {showBulkMoveDialog && vault && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md m-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Teisalda {selectedItems.length} faili
+              </h3>
+              <button
+                onClick={() => setShowBulkMoveDialog(false)}
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-slate-600 mb-4">
+                Vali kaust, kuhu failid teisaldada:
+              </p>
+              <div className="max-h-[300px] overflow-y-auto border border-slate-200 rounded-lg">
+                {/* Root folder option */}
+                <button
+                  onClick={() => handleBulkMove('')}
+                  disabled={isMovingFiles || currentFolderId === null}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 disabled:opacity-50"
+                >
+                  <Folder className="w-5 h-5 text-slate-400" />
+                  <span className="text-sm text-slate-900 font-medium">Juurkaust (Kõik failid)</span>
+                </button>
+                {/* Folder list */}
+                {folders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    onClick={() => handleBulkMove(folder.id)}
+                    disabled={isMovingFiles || folder.id === currentFolderId}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 disabled:opacity-50 ${
+                      folder.id === currentFolderId ? 'bg-slate-50' : ''
+                    }`}
+                  >
+                    <Folder className="w-5 h-5 text-amber-500" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-slate-900">{folder.name}</span>
+                      {folder.id === currentFolderId && (
+                        <span className="text-xs text-slate-500 ml-2">(praegune)</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+                {folders.length === 0 && (
+                  <p className="text-sm text-slate-500 text-center py-8">
+                    Kaustu pole veel loodud
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+              <Button
+                variant="outline"
+                onClick={() => setShowBulkMoveDialog(false)}
+                disabled={isMovingFiles}
+              >
+                Tühista
+              </Button>
+            </div>
           </div>
         </div>
       )}
