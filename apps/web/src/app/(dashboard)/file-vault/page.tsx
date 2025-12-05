@@ -272,6 +272,8 @@ export default function FileVaultPage() {
 
   // Dialog state
   const [showUploadDialog, setShowUploadDialog] = useState(false)
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([])
+  const [isDroppingExternal, setIsDroppingExternal] = useState(false)
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderDescription, setNewFolderDescription] = useState('')
@@ -1270,11 +1272,22 @@ export default function FileVaultPage() {
     setDragOverFolderId(null)
   }, [])
 
-  // Drop handler - move files to folder
+  // Drop handler - move files to folder or upload external files
   const handleDrop = useCallback(async (e: React.DragEvent, targetFolderId: string) => {
     e.preventDefault()
     setDragOverFolderId(null)
+    setIsDroppingExternal(false)
 
+    // Check if dropping external files (from file explorer)
+    const droppedExternalFiles = Array.from(e.dataTransfer.files)
+    if (droppedExternalFiles.length > 0) {
+      // External files dropped - open upload dialog with confirmation
+      setDroppedFiles(droppedExternalFiles)
+      setShowUploadDialog(true)
+      return
+    }
+
+    // Internal drag - move files to folder
     if (draggedFileIds.length === 0) return
 
     setIsMovingFiles(true)
@@ -1491,7 +1504,36 @@ export default function FileVaultPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto min-w-0">
+      <div
+        className={`flex-1 overflow-y-auto min-w-0 transition-colors ${
+          isDroppingExternal ? 'bg-[#279989]/10 border-2 border-dashed border-[#279989]' : ''
+        }`}
+        onDragOver={(e) => {
+          // Only handle external files (from file explorer)
+          if (e.dataTransfer.types.includes('Files')) {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsDroppingExternal(true)
+          }
+        }}
+        onDragLeave={(e) => {
+          // Only reset if leaving the main content area
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setIsDroppingExternal(false)
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsDroppingExternal(false)
+
+          const droppedExternalFiles = Array.from(e.dataTransfer.files)
+          if (droppedExternalFiles.length > 0) {
+            setDroppedFiles(droppedExternalFiles)
+            setShowUploadDialog(true)
+          }
+        }}
+      >
         {/* Top Bar with Tabs */}
         <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
           <div className="flex items-center justify-between px-6 py-3">
@@ -2846,10 +2888,16 @@ export default function FileVaultPage() {
       {vault && (
         <FileUploadDialog
           open={showUploadDialog}
-          onOpenChange={setShowUploadDialog}
+          onOpenChange={(open) => {
+            setShowUploadDialog(open)
+            if (!open) {
+              setDroppedFiles([])
+            }
+          }}
           vaultId={vault.id}
           folderId={currentFolderId}
           onUploadComplete={handleUploadComplete}
+          initialFiles={droppedFiles.length > 0 ? droppedFiles : undefined}
         />
       )}
 

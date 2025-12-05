@@ -42,6 +42,7 @@ interface FileUploadDialogProps {
   vaultId: string
   folderId?: string | null
   onUploadComplete?: (files: UploadedFile[]) => void
+  initialFiles?: File[]
 }
 
 interface UploadedFile {
@@ -101,6 +102,7 @@ export function FileUploadDialog({
   vaultId,
   folderId,
   onUploadComplete,
+  initialFiles,
 }: FileUploadDialogProps) {
   const [files, setFiles] = useState<UploadFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -108,6 +110,7 @@ export function FileUploadDialog({
   const [totalSpeed, setTotalSpeed] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const initialFilesProcessedRef = useRef(false)
 
   // Close on ESC key (only if not uploading)
   useEffect(() => {
@@ -120,6 +123,42 @@ export function FileUploadDialog({
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open, isUploading, onOpenChange])
+
+  // Handle initial files when dialog opens
+  useEffect(() => {
+    if (open && initialFiles && initialFiles.length > 0 && !initialFilesProcessedRef.current) {
+      initialFilesProcessedRef.current = true
+      addFilesFromArray(initialFiles)
+    }
+
+    // Reset the ref when dialog closes
+    if (!open) {
+      initialFilesProcessedRef.current = false
+    }
+  }, [open, initialFiles])
+
+  // Helper to add files from File[] array
+  const addFilesFromArray = async (newFiles: File[]) => {
+    const filesToAdd: UploadFile[] = []
+
+    for (const file of newFiles) {
+      const thumbnail = await generateThumbnail(file)
+      filesToAdd.push({
+        id: generateId(),
+        file,
+        name: file.name,
+        originalName: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        status: 'pending',
+        progress: 0,
+        thumbnail: thumbnail || undefined,
+        isEditing: false,
+      })
+    }
+
+    setFiles(prev => [...prev, ...filesToAdd])
+  }
 
   // Generate unique ID
   const generateId = () => Math.random().toString(36).substring(2, 9)
