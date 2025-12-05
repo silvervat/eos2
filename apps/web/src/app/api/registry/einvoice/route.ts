@@ -24,59 +24,93 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
-    const name = searchParams.get('name')
 
-    if (!code && !name) {
+    if (!code) {
       return NextResponse.json(
-        { error: 'Either code or name parameter is required' },
+        { error: 'Registry code parameter is required' },
         { status: 400 }
       )
     }
 
-    // Build URL for Estonian Business Registry E-Invoice API
-    let url: string
-    if (code) {
-      url = `https://ariregxmlv6.rik.ee/einvoice?reg_code=${encodeURIComponent(code)}&format=json`
-    } else {
-      url = `https://ariregxmlv6.rik.ee/einvoice?companyName=${encodeURIComponent(name!)}&format=json`
-    }
+    // Try the Estonian Business Registry E-Invoice API
+    // Endpoint: https://ariregister.rik.ee/est/api/einvoice?q=registry_code
+    // This service is free and doesn't require authentication
+    const url = `https://ariregister.rik.ee/est/api/einvoice?q=${encodeURIComponent(code)}`
 
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'EOS2-ERP/1.0',
         Accept: 'application/json',
       },
+      next: { revalidate: 300 }, // Cache for 5 minutes
     })
 
+    // If the specific endpoint fails, return a default response
+    // The e-invoice capability can still be checked manually
     if (!response.ok) {
-      console.error('E-Invoice API error:', response.status, response.statusText)
-      return NextResponse.json(
-        { error: 'E-arve registri päring ebaõnnestus' },
-        { status: 502 }
-      )
+      console.warn('E-Invoice API returned:', response.status)
+      // Return unknown status instead of error - the company may or may not accept e-invoices
+      return NextResponse.json({
+        registryCode: code,
+        name: '',
+        eInvoiceCapable: false,
+        operators: [],
+        status: 'unknown',
+        message: 'E-arve staatust ei saanud kontrollida',
+      })
     }
 
     const data = await response.json()
 
-    // Transform response
-    // The API returns company e-invoice info
-    // Typical fields: reg_code, name, einvoice_operators (array of operators)
+    // Transform response based on actual API response structure
+    // The API may return different structures depending on the result
+    let eInvoiceCapable = false
+    let operators: { name: string; channel: string; address?: string }[] = []
+
+    if (Array.isArray(data)) {
+      // If response is array, check if any entries exist
+      eInvoiceCapable = data.length > 0
+      operators = data.map((op: Record<string, unknown>) => ({
+        name: String(op.teenusepakkuja || op.operator_name || op.name || 'Teadmata'),
+        channel: String(op.channel || op.type || 'e-arve'),
+        address: op.address as string | undefined,
+      }))
+    } else if (data && typeof data === 'object') {
+      // Handle object response
+      if (data.staatus === 'OK' || data.status === 'OK') {
+        eInvoiceCapable = true
+      }
+      if (data.operators || data.einvoice_operators || data.teenusepakkujad) {
+        const ops = data.operators || data.einvoice_operators || data.teenusepakkujad || []
+        operators = Array.isArray(ops)
+          ? ops.map((op: Record<string, unknown>) => ({
+              name: String(op.teenusepakkuja || op.operator_name || op.name || 'Teadmata'),
+              channel: String(op.channel || op.type || 'e-arve'),
+              address: op.address as string | undefined,
+            }))
+          : []
+        eInvoiceCapable = operators.length > 0
+      }
+    }
+
     const result: EInvoiceResult = {
-      registryCode: data.reg_code || code || '',
-      name: data.name || name || '',
-      eInvoiceCapable: !!(data.einvoice_operators && data.einvoice_operators.length > 0),
-      operators: Array.isArray(data.einvoice_operators)
-        ? data.einvoice_operators.map((op: Record<string, unknown>) => ({
-            name: op.operator_name || op.name || '',
-            channel: op.channel || op.type || '',
-            address: op.address || op.einvoice_address || undefined,
-          }))
-        : [],
+      registryCode: code,
+      name: data.nimi || data.name || '',
+      eInvoiceCapable,
+      operators,
     }
 
     return NextResponse.json(result)
   } catch (error) {
     console.error('Error in e-invoice check:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    // Return unknown status on error - don't block the user
+    return NextResponse.json({
+      registryCode: '',
+      name: '',
+      eInvoiceCapable: false,
+      operators: [],
+      status: 'error',
+      message: 'E-arve staatust ei saanud kontrollida',
+    })
   }
 }

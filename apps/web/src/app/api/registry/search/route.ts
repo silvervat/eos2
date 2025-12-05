@@ -29,14 +29,17 @@ export async function GET(request: Request) {
     }
 
     // Use Estonian Business Registry Autocomplete API (free, no auth required)
-    // Fields returned: company_id, reg_code, name, historical_names, status, legal_address, zip_code, url
-    const url = `https://ariregxmlv6.rik.ee/autocomplete?query=${encodeURIComponent(query)}&format=json`
+    // Correct endpoint: https://ariregister.rik.ee/est/api/autocomplete?q=...
+    // Returns max 10 results with: registry_code, name
+    const url = `https://ariregister.rik.ee/est/api/autocomplete?q=${encodeURIComponent(query)}`
 
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'EOS2-ERP/1.0',
         Accept: 'application/json',
       },
+      // Add cache control for better performance
+      next: { revalidate: 60 }, // Cache for 60 seconds
     })
 
     if (!response.ok) {
@@ -49,18 +52,16 @@ export async function GET(request: Request) {
 
     const data = await response.json()
 
-    // Transform response - the autocomplete API returns max 10 results
-    // Actual field names: company_id, reg_code, name, historical_names, status, legal_address, zip_code, url
+    // The autocomplete API returns array of objects with: registry_code, name
+    // Build URL to company page in e-Äriregister
     const results: AutocompleteResult[] = Array.isArray(data)
       ? data.map((item: Record<string, unknown>) => ({
-          companyId: item.company_id as number | undefined,
           name: (item.name as string) || '',
-          registryCode: String(item.reg_code || ''),
-          historicalNames: item.historical_names as string[] | undefined,
-          status: (item.status as string) || 'R', // R = registered
-          legalAddress: (item.legal_address as string) || undefined,
-          zipCode: (item.zip_code as string) || undefined,
-          url: (item.url as string) || undefined,
+          registryCode: String(item.registry_code || item.reg_code || ''),
+          // Build URL to company page in e-Äriregister
+          url: item.registry_code
+            ? `https://ariregister.rik.ee/est/company/${item.registry_code}`
+            : undefined,
         }))
       : []
 
