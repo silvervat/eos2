@@ -33,126 +33,117 @@ const EditorLoadingSkeleton = () => (
   </div>
 )
 
-// PDF Designer - Heavy component with @pdfme libs
+// PDF Designer - Heavy component with @pdfme libs (default export)
 export const LazyPDFDesigner = dynamic(
-  () => import('@/components/pdf-designer/pdf-designer').then(mod => ({ default: mod.PDFDesigner })),
+  () => import('@/components/pdf-designer/pdf-designer'),
   {
     loading: () => <EditorLoadingSkeleton />,
     ssr: false,
   }
 )
 
-// PDF Viewer - Heavy component
+// PDF Viewer - Heavy component (default export)
 export const LazyPDFViewer = dynamic(
-  () => import('@/components/pdf-designer/pdf-viewer').then(mod => ({ default: mod.PDFViewer })),
+  () => import('@/components/pdf-designer/pdf-viewer'),
   {
     loading: () => <LoadingSkeleton className="h-[600px]" />,
     ssr: false,
   }
 )
 
-// Quote Editor - Complex form with many fields
+// Quote Editor - Complex form with many fields (default export)
 export const LazyQuoteEditor = dynamic(
-  () => import('@/components/quotes/QuoteEditor').then(mod => ({ default: mod.QuoteEditor })),
+  () => import('@/components/quotes/QuoteEditor'),
   {
     loading: () => <EditorLoadingSkeleton />,
     ssr: false,
   }
 )
 
-// Quote PDF Generator - Heavy PDF generation
+// Quote PDF Generator - Heavy PDF generation (default export)
 export const LazyQuotePDFGenerator = dynamic(
-  () => import('@/components/quotes/QuotePDFGenerator').then(mod => ({ default: mod.QuotePDFGenerator })),
+  () => import('@/components/quotes/QuotePDFGenerator'),
   {
     loading: () => <LoadingSkeleton className="h-32" />,
     ssr: false,
   }
 )
 
-// Document Editor - TipTap rich text editor
+// Document Editor - TipTap rich text editor (named export)
 export const LazyDocumentEditor = dynamic(
-  () => import('@/components/docs/document-editor').then(mod => ({ default: mod.DocumentEditor })),
+  () => import('@/components/docs/document-editor').then(mod => mod.DocumentEditor),
   {
     loading: () => <EditorLoadingSkeleton />,
     ssr: false,
   }
 )
 
-// File Preview Dialog - Heavy with Office preview, image processing
+// File Preview Dialog - Heavy with Office preview (default export)
 export const LazyFilePreviewDialog = dynamic(
-  () => import('@/components/file-vault/FilePreviewDialog').then(mod => ({ default: mod.FilePreviewDialog })),
+  () => import('@/components/file-vault/FilePreviewDialog'),
   {
     loading: () => <LoadingSkeleton className="h-[80vh]" />,
     ssr: false,
   }
 )
 
-// Virtual File Table - Heavy virtualization
+// Virtual File Table - Heavy virtualization (default export)
 export const LazyVirtualFileTable = dynamic(
-  () => import('@/components/file-vault/VirtualFileTable').then(mod => ({ default: mod.default })),
+  () => import('@/components/file-vault/VirtualFileTable'),
   {
     loading: () => <TableLoadingSkeleton />,
     ssr: false,
   }
 )
 
-// Form Builder - Complex drag-and-drop
+// Form Builder - Complex drag-and-drop (default export)
 export const LazyFormBuilder = dynamic(
-  () => import('@/components/admin/form-builder/form-builder').then(mod => ({ default: mod.FormBuilder })),
+  () => import('@/components/admin/form-builder/form-builder'),
   {
     loading: () => <EditorLoadingSkeleton />,
     ssr: false,
   }
 )
 
-// Workflow Builder - Complex flow editor
+// Workflow Builder - Complex flow editor (default export)
 export const LazyWorkflowBuilder = dynamic(
-  () => import('@/components/admin/cms/workflow-builder').then(mod => ({ default: mod.WorkflowBuilder })),
+  () => import('@/components/admin/cms/workflow-builder'),
   {
     loading: () => <EditorLoadingSkeleton />,
     ssr: false,
   }
 )
 
-// Charts (Recharts) - Heavy charting library
-export const LazyCharts = dynamic(
-  () => import('recharts').then(mod => mod),
-  {
-    loading: () => <LoadingSkeleton className="h-80" />,
-    ssr: false,
-  }
-)
-
-// Import/Export Preview - Heavy data processing
+// Import/Export Preview - Heavy data processing (default export)
 export const LazyImportPreview = dynamic(
-  () => import('@/components/import-export/import-preview').then(mod => ({ default: mod.ImportPreview })),
+  () => import('@/components/import-export/import-preview'),
   {
     loading: () => <TableLoadingSkeleton />,
     ssr: false,
   }
 )
 
-// Export Dialog - Heavy export processing
+// Export Dialog - Heavy export processing (default export)
 export const LazyExportDialog = dynamic(
-  () => import('@/components/import-export/export-dialog').then(mod => ({ default: mod.ExportDialog })),
+  () => import('@/components/import-export/export-dialog'),
   {
     loading: () => <LoadingSkeleton className="h-48" />,
     ssr: false,
   }
 )
 
-// Office Preview - Heavy document parsing
+// Office Preview - Heavy document parsing (default export)
 export const LazyOfficePreview = dynamic(
-  () => import('@/components/file-vault/OfficePreview').then(mod => ({ default: mod.OfficePreview })),
+  () => import('@/components/file-vault/OfficePreview'),
   {
     loading: () => <LoadingSkeleton className="h-96" />,
     ssr: false,
   }
 )
 
-// Quote Kanban - Complex drag-and-drop board
+// Quote Kanban - Complex drag-and-drop board (default export)
 export const LazyQuoteKanban = dynamic(
-  () => import('@/components/quotes/QuoteKanban').then(mod => ({ default: mod.QuoteKanban })),
+  () => import('@/components/quotes/QuoteKanban'),
   {
     loading: () => (
       <div className="flex gap-4">
@@ -165,9 +156,9 @@ export const LazyQuoteKanban = dynamic(
   }
 )
 
-// Modal Designer - Complex designer
+// Modal Designer - Complex designer (default export)
 export const LazyModalDesigner = dynamic(
-  () => import('@/components/admin/modal-designer/modal-designer').then(mod => ({ default: mod.ModalDesigner })),
+  () => import('@/components/admin/modal-designer/modal-designer'),
   {
     loading: () => <EditorLoadingSkeleton />,
     ssr: false,
