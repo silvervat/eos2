@@ -322,12 +322,18 @@ export async function DELETE(
     const permanent = searchParams.get('permanent') === 'true'
 
     // Get existing file
-    const { data: existingFile, error: fetchError } = await supabase
+    // For permanent delete, include files that are already in trash (deleted_at is set)
+    // For soft delete, only get files that are not yet deleted
+    let query = supabase
       .from('files')
       .select('*, vault:file_vaults!vault_id(id, tenant_id, used_bytes)')
       .eq('id', fileId)
-      .is('deleted_at', null)
-      .single()
+
+    if (!permanent) {
+      query = query.is('deleted_at', null)
+    }
+
+    const { data: existingFile, error: fetchError } = await query.single()
 
     if (fetchError || !existingFile) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
