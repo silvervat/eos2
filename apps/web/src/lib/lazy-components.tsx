@@ -170,10 +170,10 @@ export const LazyModalDesigner = dynamic(
  */
 export function createLazyComponent<T extends ComponentType<any>>(
   importFn: () => Promise<{ default: T }>,
-  LoadingComponent: ComponentType = () => <LoadingSkeleton />
+  LoadingComponent: () => JSX.Element = () => <LoadingSkeleton />
 ) {
   return dynamic(importFn, {
-    loading: LoadingComponent,
+    loading: () => <LoadingComponent />,
     ssr: false,
   })
 }
