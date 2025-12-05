@@ -12,19 +12,37 @@ import {
   type ColumnFiltersState,
 } from '@tanstack/react-table'
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, ChevronsUpDown, Search } from 'lucide-react'
-import type { Project } from '@/hooks/use-projects'
-
-const statusConfig = {
-  draft: { label: 'Mustand', color: 'bg-slate-100 text-slate-700' },
-  active: { label: 'Aktiivne', color: 'bg-green-100 text-green-700' },
-  on_hold: { label: 'Ootel', color: 'bg-yellow-100 text-yellow-700' },
-  completed: { label: 'Lõpetatud', color: 'bg-blue-100 text-blue-700' },
-  cancelled: { label: 'Tühistatud', color: 'bg-red-100 text-red-700' },
-  archived: { label: 'Arhiveeritud', color: 'bg-gray-100 text-gray-700' },
-}
+import { ChevronDown, ChevronUp, ChevronsUpDown, Search, Image as ImageIcon } from 'lucide-react'
+import {
+  type Project,
+  type ProjectType,
+  type ProjectStatus,
+  PROJECT_TYPES,
+  PROJECT_STATUSES,
+} from '@/hooks/use-projects'
 
 export const columns: ColumnDef<Project>[] = [
+  {
+    accessorKey: 'thumbnailUrl',
+    header: '',
+    cell: ({ row }) => {
+      const thumbnailUrl = row.getValue('thumbnailUrl') as string | undefined
+      return (
+        <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center flex-shrink-0">
+          {thumbnailUrl ? (
+            <img
+              src={thumbnailUrl}
+              alt={row.original.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <ImageIcon className="h-5 w-5 text-slate-400" />
+          )}
+        </div>
+      )
+    },
+    enableSorting: false,
+  },
   {
     accessorKey: 'code',
     header: 'Kood',
@@ -63,20 +81,38 @@ export const columns: ColumnDef<Project>[] = [
     ),
   },
   {
-    accessorKey: 'clientName',
+    accessorKey: 'type',
+    header: 'Tüüp',
+    cell: ({ row }) => {
+      const type = row.getValue('type') as ProjectType
+      return (
+        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-700">
+          {PROJECT_TYPES[type] || type}
+        </span>
+      )
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id))
+    },
+  },
+  {
+    accessorKey: 'client',
     header: 'Klient',
-    cell: ({ row }) => (
-      <span className="text-sm text-slate-600">
-        {row.getValue('clientName') || '-'}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const client = row.original.client
+      return (
+        <span className="text-sm text-slate-600">
+          {client?.name || '-'}
+        </span>
+      )
+    },
   },
   {
     accessorKey: 'status',
     header: 'Staatus',
     cell: ({ row }) => {
-      const status = row.getValue('status') as keyof typeof statusConfig
-      const config = statusConfig[status] || statusConfig.draft
+      const status = row.getValue('status') as ProjectStatus
+      const config = PROJECT_STATUSES[status] || PROJECT_STATUSES.starting
       return (
         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${config.color}`}>
           {config.label}
@@ -123,23 +159,15 @@ export const columns: ColumnDef<Project>[] = [
       </span>
     ),
   },
-  {
-    accessorKey: 'managerName',
-    header: 'Projektijuht',
-    cell: ({ row }) => (
-      <span className="text-sm text-slate-600">
-        {row.getValue('managerName') || '-'}
-      </span>
-    ),
-  },
 ]
 
 interface ProjectsTableProps {
   data: Project[]
   isLoading?: boolean
+  onRowClick?: (project: Project) => void
 }
 
-export function ProjectsTable({ data, isLoading }: ProjectsTableProps) {
+export function ProjectsTable({ data, isLoading, onRowClick }: ProjectsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -193,6 +221,23 @@ export function ProjectsTable({ data, isLoading }: ProjectsTableProps) {
             />
           </div>
           <select
+            value={(columnFilters.find(f => f.id === 'type')?.value as string[])?.join(',') || ''}
+            onChange={(e) => {
+              const value = e.target.value
+              setColumnFilters(prev => {
+                const other = prev.filter(f => f.id !== 'type')
+                if (!value) return other
+                return [...other, { id: 'type', value: value.split(',') }]
+              })
+            }}
+            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="">Kõik tüübid</option>
+            {Object.entries(PROJECT_TYPES).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+          <select
             value={(columnFilters.find(f => f.id === 'status')?.value as string[])?.join(',') || ''}
             onChange={(e) => {
               const value = e.target.value
@@ -205,10 +250,9 @@ export function ProjectsTable({ data, isLoading }: ProjectsTableProps) {
             className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="">Kõik staatused</option>
-            <option value="draft">Mustand</option>
-            <option value="active">Aktiivne</option>
-            <option value="on_hold">Ootel</option>
-            <option value="completed">Lõpetatud</option>
+            {Object.entries(PROJECT_STATUSES).map(([key, { label }]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -244,6 +288,7 @@ export function ProjectsTable({ data, isLoading }: ProjectsTableProps) {
                 <tr
                   key={row.id}
                   className="hover:bg-slate-50 cursor-pointer transition-colors"
+                  onClick={() => onRowClick?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-6 py-4">
