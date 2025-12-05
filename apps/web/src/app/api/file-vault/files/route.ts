@@ -157,9 +157,7 @@ export async function GET(request: Request) {
         created_at,
         updated_at,
         created_by,
-        tags,
-        deleted_at,
-        deleted_by
+        tags
       `, { count: 'exact' })
       .eq('vault_id', vaultId)
 
@@ -313,8 +311,6 @@ export async function GET(request: Request) {
       uploader: uploaderMap.get(file.created_by) || { fullName: 'Tundmatu', avatarUrl: null },
       tags: file.tags || [],
       commentCount: commentCountMap.get(file.id) || 0,
-      deletedAt: file.deleted_at,
-      deletedBy: file.deleted_by,
     })) || []
 
     // Generate next cursor for efficient pagination on large datasets

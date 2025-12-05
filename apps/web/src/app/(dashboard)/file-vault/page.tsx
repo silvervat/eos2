@@ -83,8 +83,6 @@ interface FileItem {
   updatedAt: string
   tags: string[]
   commentCount?: number
-  deletedAt?: string
-  deletedBy?: string
   folder?: {
     id: string
     name: string
@@ -805,14 +803,37 @@ export default function FileVaultPage() {
       setBreadcrumbs([{ id: null, name: 'Failid' }])
     } else {
       setCurrentFolderId(folder.id)
-      setBreadcrumbs([
-        { id: null, name: 'Failid' },
-        { id: folder.id, name: folder.name }
-      ])
+
+      // Build full breadcrumb path by traversing parent chain
+      const buildBreadcrumbPath = (targetFolder: FolderItem): Array<{ id: string | null; name: string }> => {
+        const path: Array<{ id: string | null; name: string }> = [{ id: null, name: 'Failid' }]
+
+        // Find all parent folders by traversing up the tree
+        const parentChain: FolderItem[] = []
+        let currentFolder: FolderItem | undefined = targetFolder
+
+        while (currentFolder) {
+          parentChain.unshift(currentFolder)
+          if (currentFolder.parentId) {
+            currentFolder = folders.find(f => f.id === currentFolder!.parentId)
+          } else {
+            break
+          }
+        }
+
+        // Add all folders in the chain to breadcrumbs
+        for (const f of parentChain) {
+          path.push({ id: f.id, name: f.name })
+        }
+
+        return path
+      }
+
+      setBreadcrumbs(buildBreadcrumbPath(folder))
     }
 
     setSelectedItems([])
-  }, [])
+  }, [folders])
 
   // State for new folder parent (for creating subfolders from tree)
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null)
