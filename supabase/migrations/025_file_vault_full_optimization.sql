@@ -105,13 +105,13 @@ WHERE search_vector IS NULL;
 -- ============================================
 
 -- Folders by vault and parent (tree navigation)
-CREATE INDEX IF NOT EXISTS idx_folders_vault_parent
-ON public.folders(vault_id, parent_id)
+CREATE INDEX IF NOT EXISTS idx_file_folders_vault_parent
+ON public.file_folders(vault_id, parent_id)
 WHERE deleted_at IS NULL;
 
 -- Folder path lookup
-CREATE INDEX IF NOT EXISTS idx_folders_path
-ON public.folders(vault_id, path)
+CREATE INDEX IF NOT EXISTS idx_file_folders_path
+ON public.file_folders(vault_id, path)
 WHERE deleted_at IS NULL;
 
 -- ============================================
@@ -171,7 +171,7 @@ LEFT JOIN (
   SELECT
     vault_id,
     COUNT(*) AS total_folders
-  FROM public.folders
+  FROM public.file_folders
   WHERE deleted_at IS NULL
   GROUP BY vault_id
 ) folder_counts ON v.id = folder_counts.vault_id
@@ -193,7 +193,7 @@ SELECT
   COALESCE(file_counts.total_size, 0) AS total_size_bytes,
   COALESCE(subfolder_counts.subfolder_count, 0) AS subfolder_count,
   NOW() AS refreshed_at
-FROM public.folders f
+FROM public.file_folders f
 LEFT JOIN (
   SELECT
     folder_id,
@@ -207,7 +207,7 @@ LEFT JOIN (
   SELECT
     parent_id,
     COUNT(*) AS subfolder_count
-  FROM public.folders
+  FROM public.file_folders
   WHERE deleted_at IS NULL
   GROUP BY parent_id
 ) subfolder_counts ON f.id = subfolder_counts.parent_id
@@ -369,7 +369,7 @@ BEGIN
   ORDER BY created_at DESC
   LIMIT 500;
 
-  PERFORM id FROM public.folders
+  PERFORM id FROM public.file_folders
   WHERE vault_id = p_vault_id
     AND deleted_at IS NULL;
 END;

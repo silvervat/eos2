@@ -334,6 +334,6 @@ export function transformFilesWithCDN<T extends {
   return files.map(transformFileWithCDN)
 }
 
-export { ThumbnailCDN, THUMBNAIL_SIZES }
+export { ThumbnailCDN }
 export type { CDNConfig, ThumbnailOptions, ResponsiveImage }
 export default getCDN
