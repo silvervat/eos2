@@ -854,6 +854,53 @@ export default function FileVaultPage() {
     setShowNewFolderDialog(true)
   }, [])
 
+  // Rename folder state
+  const [renameFolderId, setRenameFolderId] = useState<string | null>(null)
+  const [renameFolderName, setRenameFolderName] = useState('')
+  const [showRenameFolderDialog, setShowRenameFolderDialog] = useState(false)
+  const [isRenamingFolder, setIsRenamingFolder] = useState(false)
+
+  // Handle rename folder from tree
+  const handleRenameFolder = useCallback((folder: { id: string; name: string }) => {
+    setRenameFolderId(folder.id)
+    setRenameFolderName(folder.name)
+    setShowRenameFolderDialog(true)
+  }, [])
+
+  // Submit folder rename
+  const submitFolderRename = async () => {
+    if (!renameFolderId || !renameFolderName.trim()) return
+
+    setIsRenamingFolder(true)
+    try {
+      const response = await fetch(`/api/file-vault/folders/${renameFolderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: renameFolderName.trim() }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Kausta ümbernimetamine ebaõnnestus')
+      }
+
+      // Refresh folder lists
+      if (vault) {
+        await fetchFolders(vault.id, currentFolderId)
+      }
+      fileTreeRef.current?.refresh()
+
+      setShowRenameFolderDialog(false)
+      setRenameFolderId(null)
+      setRenameFolderName('')
+    } catch (err) {
+      console.error('Error renaming folder:', err)
+      alert((err as Error).message)
+    } finally {
+      setIsRenamingFolder(false)
+    }
+  }
+
   // Upload complete handler
   const handleUploadComplete = async () => {
     if (vault) {
@@ -1173,6 +1220,7 @@ export default function FileVaultPage() {
             currentFolderId={currentFolderId}
             onFolderSelect={handleTreeFolderSelect}
             onCreateFolder={openNewFolderDialog}
+            onRenameFolder={handleRenameFolder}
             canManageFolders={true}
           />
         )}
@@ -2599,6 +2647,71 @@ export default function FileVaultPage() {
                   </>
                 ) : (
                   'Loo kollektsioon'
+                )}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Rename Folder Dialog */}
+      {showRenameFolderDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md m-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900">Nimeta kaust ümber</h3>
+              <button
+                onClick={() => {
+                  setShowRenameFolderDialog(false)
+                  setRenameFolderId(null)
+                  setRenameFolderName('')
+                }}
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Kausta nimi
+              </label>
+              <Input
+                placeholder="Kausta nimi"
+                value={renameFolderName}
+                onChange={(e) => setRenameFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    submitFolderRename()
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+            <div className="flex items-center gap-3 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowRenameFolderDialog(false)
+                  setRenameFolderId(null)
+                  setRenameFolderName('')
+                }}
+                disabled={isRenamingFolder}
+                className="flex-1"
+              >
+                Tühista
+              </Button>
+              <Button
+                onClick={submitFolderRename}
+                disabled={!renameFolderName.trim() || isRenamingFolder}
+                className="flex-1 bg-[#279989] hover:bg-[#1e7a6d] text-white"
+              >
+                {isRenamingFolder ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvestan...
+                  </>
+                ) : (
+                  'Salvesta'
                 )}
               </Button>
             </div>
