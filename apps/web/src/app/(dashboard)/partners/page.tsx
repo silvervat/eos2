@@ -153,6 +153,10 @@ export default function PartnersPage() {
   const [vatValidation, setVatValidation] = useState<{ valid: boolean; name?: string; address?: string } | null>(null)
   const [isValidatingVat, setIsValidatingVat] = useState(false)
 
+  // E-invoice check state
+  const [eInvoiceInfo, setEInvoiceInfo] = useState<{ capable: boolean; operator?: string } | null>(null)
+  const [isCheckingEInvoice, setIsCheckingEInvoice] = useState(false)
+
   // Form state (for modal)
   const [formData, setFormData] = useState({
     name: '',
@@ -162,7 +166,11 @@ export default function PartnersPage() {
     email: '',
     phone: '',
     address: '',
+    zipCode: '',
     country: 'Eesti',
+    registryUrl: '',
+    eInvoiceCapable: false,
+    eInvoiceOperator: '',
   })
   const [formErrors, setFormErrors] = useState<{ email?: string; phone?: string }>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -342,16 +350,42 @@ export default function PartnersPage() {
     }
   }
 
-  const selectRegistryResult = (result: RegistryResult) => {
+  const selectRegistryResult = async (result: RegistryResult) => {
+    // Fill in all available fields from registry
     setFormData(prev => ({
       ...prev,
       name: result.name,
       registryCode: result.registryCode,
-      // Fill address from registry if available
       address: result.legalAddress || prev.address,
+      zipCode: result.zipCode || prev.zipCode,
+      registryUrl: result.url || '',
     }))
     setShowRegistryDropdown(false)
     setRegistryResults([])
+
+    // Check e-invoice capability
+    if (result.registryCode) {
+      setIsCheckingEInvoice(true)
+      try {
+        const response = await fetch(`/api/registry/einvoice?code=${result.registryCode}`)
+        const data = await response.json()
+        if (response.ok) {
+          setEInvoiceInfo({
+            capable: data.eInvoiceCapable || false,
+            operator: data.operators?.[0]?.name || undefined,
+          })
+          setFormData(prev => ({
+            ...prev,
+            eInvoiceCapable: data.eInvoiceCapable || false,
+            eInvoiceOperator: data.operators?.[0]?.name || '',
+          }))
+        }
+      } catch (err) {
+        console.error('E-invoice check error:', err)
+      } finally {
+        setIsCheckingEInvoice(false)
+      }
+    }
   }
 
   const handleAddPartner = async (e: React.FormEvent) => {
@@ -391,8 +425,9 @@ export default function PartnersPage() {
       }
 
       setShowAddModal(false)
-      setFormData({ name: '', registryCode: '', vatNumber: '', type: 'client', email: '', phone: '', address: '', country: 'Eesti' })
+      setFormData({ name: '', registryCode: '', vatNumber: '', type: 'client', email: '', phone: '', address: '', zipCode: '', country: 'Eesti', registryUrl: '', eInvoiceCapable: false, eInvoiceOperator: '' })
       setVatValidation(null)
+      setEInvoiceInfo(null)
       fetchPartners()
     } catch (err) {
       alert((err as Error).message)
@@ -1243,11 +1278,25 @@ export default function PartnersPage() {
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Registrikood
                       </label>
-                      <Input
-                        value={formData.registryCode}
-                        onChange={(e) => setFormData({ ...formData, registryCode: e.target.value })}
-                        placeholder="12345678"
-                      />
+                      <div className="flex gap-2">
+                        <Input
+                          value={formData.registryCode}
+                          onChange={(e) => setFormData({ ...formData, registryCode: e.target.value })}
+                          placeholder="12345678"
+                          className="flex-1"
+                        />
+                        {formData.registryUrl && (
+                          <a
+                            href={formData.registryUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2 py-2 border border-slate-300 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-[#279989]"
+                            title="Ava e-Äriregistris"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1266,6 +1315,28 @@ export default function PartnersPage() {
                       </select>
                     </div>
                   </div>
+
+                  {/* E-invoice indicator */}
+                  {(isCheckingEInvoice || eInvoiceInfo) && (
+                    <div className={`p-2 rounded-lg text-sm flex items-center gap-2 ${eInvoiceInfo?.capable ? 'bg-green-50 text-green-700' : 'bg-slate-50 text-slate-600'}`}>
+                      {isCheckingEInvoice ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Kontrollin e-arve võimekust...</span>
+                        </>
+                      ) : eInvoiceInfo?.capable ? (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          <span>E-arve vastuvõtja{eInvoiceInfo.operator && ` (${eInvoiceInfo.operator})`}</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="w-4 h-4" />
+                          <span>E-arvet ei saa saata</span>
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   {/* KMKR with validation */}
                   <div>
@@ -1413,6 +1484,7 @@ export default function PartnersPage() {
                   onClick={() => {
                     setShowAddModal(false)
                     setVatValidation(null)
+                    setEInvoiceInfo(null)
                     setFormErrors({})
                   }}
                   disabled={isSubmitting}
