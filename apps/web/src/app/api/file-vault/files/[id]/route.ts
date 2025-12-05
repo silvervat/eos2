@@ -192,6 +192,7 @@ export async function PATCH(
       'folder_id',
       'is_public',
       'metadata',
+      'mime_type',
     ]
 
     const updates: Record<string, unknown> = {
@@ -210,6 +211,17 @@ export async function PATCH(
           updates[field] = body[field]
         }
       }
+    }
+
+    // Also accept camelCase versions
+    if (body.mimeType !== undefined) {
+      updates['mime_type'] = body.mimeType
+    }
+    if (body.folderId !== undefined) {
+      updates['folder_id'] = body.folderId
+    }
+    if (body.isPublic !== undefined) {
+      updates['is_public'] = body.isPublic
     }
 
     // Handle name change - update path

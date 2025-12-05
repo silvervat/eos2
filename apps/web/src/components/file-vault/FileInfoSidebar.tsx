@@ -65,6 +65,17 @@ interface Activity {
   details?: Record<string, unknown>
 }
 
+interface Comment {
+  id: string
+  content: string
+  created_at: string
+  user: {
+    full_name: string
+    avatar_url: string | null
+  }
+  replies?: Comment[]
+}
+
 interface FileInfoSidebarProps {
   open: boolean
   onClose: () => void
@@ -151,11 +162,15 @@ export function FileInfoSidebar({
 }: FileInfoSidebarProps) {
   const [file, setFile] = useState<FileInfo | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
+  const [comments, setComments] = useState<Comment[]>([])
+  const [newComment, setNewComment] = useState('')
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [activeSection, setActiveSection] = useState<'details' | 'activity' | 'description'>('details')
   const [expandedSections, setExpandedSections] = useState({
     details: true,
     activity: false,
+    comments: true,
     description: false,
   })
 
@@ -192,12 +207,59 @@ export function FileInfoSidebar({
     }
   }, [fileId])
 
+  // Fetch comments
+  const fetchComments = useCallback(async () => {
+    if (!fileId) return
+
+    try {
+      const response = await fetch(`/api/file-vault/comments?fileId=${fileId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setComments(data.comments || [])
+      }
+    } catch (error) {
+      console.error('Error fetching comments:', error)
+    }
+  }, [fileId])
+
+  // Submit a new comment
+  const submitComment = async () => {
+    if (!fileId || !newComment.trim() || isSubmittingComment) return
+
+    setIsSubmittingComment(true)
+    try {
+      const response = await fetch('/api/file-vault/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileId,
+          content: newComment.trim(),
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setComments(prev => [...prev, data.comment])
+        setNewComment('')
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Kommentaari lisamine ebaõnnestus')
+      }
+    } catch (error) {
+      console.error('Error submitting comment:', error)
+      alert('Kommentaari lisamine ebaõnnestus')
+    } finally {
+      setIsSubmittingComment(false)
+    }
+  }
+
   useEffect(() => {
     if (open && fileId) {
       fetchFileInfo()
       fetchActivity()
+      fetchComments()
     }
-  }, [open, fileId, fetchFileInfo, fetchActivity])
+  }, [open, fileId, fetchFileInfo, fetchActivity, fetchComments])
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({
@@ -463,6 +525,85 @@ export function FileInfoSidebar({
                             </p>
                             <p className="text-xs text-slate-500">
                               {formatRelativeTime(activity.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Comments Section */}
+            <div className="border-b border-slate-100">
+              <button
+                onClick={() => toggleSection('comments')}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50"
+              >
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-slate-500" />
+                  <span className="text-sm font-medium text-slate-700">Kommentaarid</span>
+                  {comments.length > 0 && (
+                    <span className="text-xs text-slate-400">({comments.length})</span>
+                  )}
+                </div>
+                {expandedSections.comments ? (
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                )}
+              </button>
+
+              {expandedSections.comments && (
+                <div className="px-4 pb-4">
+                  {/* Comment input */}
+                  <div className="flex gap-2 mb-3">
+                    <Input
+                      placeholder="Lisa kommentaar..."
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          submitComment()
+                        }
+                      }}
+                      className="text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={submitComment}
+                      disabled={!newComment.trim() || isSubmittingComment}
+                      style={{ backgroundColor: '#279989' }}
+                    >
+                      {isSubmittingComment ? '...' : 'Lisa'}
+                    </Button>
+                  </div>
+
+                  {/* Comments list */}
+                  {comments.length === 0 ? (
+                    <p className="text-sm text-slate-500 text-center py-2">
+                      Kommentaare pole veel
+                    </p>
+                  ) : (
+                    <div className="space-y-3 max-h-[200px] overflow-y-auto">
+                      {comments.map((comment) => (
+                        <div key={comment.id} className="flex items-start gap-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <User className="w-3 h-3 text-slate-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-slate-700">
+                                {comment.user?.full_name || 'Tundmatu'}
+                              </span>
+                              <span className="text-xs text-slate-400">
+                                {formatRelativeTime(comment.created_at)}
+                              </span>
+                            </div>
+                            <p className="text-sm text-slate-600 mt-0.5 whitespace-pre-wrap">
+                              {comment.content}
                             </p>
                           </div>
                         </div>

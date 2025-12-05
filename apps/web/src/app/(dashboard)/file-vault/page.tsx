@@ -712,21 +712,22 @@ export default function FileVaultPage() {
   }, [])
 
   // Folder navigation - only runs when folder changes (not on initial load)
+  // Track if files are being loaded for folder change (not full page load)
+  const [isLoadingFolderFiles, setIsLoadingFolderFiles] = useState(false)
+
   useEffect(() => {
     if (!isInitialLoadDone.current || !vaultIdRef.current) return
 
     const loadFolderData = async () => {
-      setIsLoading(true)
+      // Only show lightweight loading for folder changes, not full page loading
+      setIsLoadingFolderFiles(true)
       setFiles([])
-      setFolders([])
       setHasMoreFiles(true)
 
       const filter = activeTab === 'my-files' ? 'my-files' : 'all'
-      await Promise.all([
-        fetchFolders(vaultIdRef.current!, currentFolderId),
-        fetchFiles(vaultIdRef.current!, currentFolderId, 0, false, filter)
-      ])
-      setIsLoading(false)
+      // Only fetch files for the new folder, don't refetch folders (tree is already loaded)
+      await fetchFiles(vaultIdRef.current!, currentFolderId, 0, false, filter)
+      setIsLoadingFolderFiles(false)
     }
     loadFolderData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
