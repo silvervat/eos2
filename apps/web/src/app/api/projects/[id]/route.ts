@@ -1,6 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+// Helper to safely get value from object with fallback
+function safeGet<T>(obj: Record<string, unknown>, key: string, defaultValue: T): T {
+  const value = obj?.[key]
+  return value !== undefined && value !== null ? (value as T) : defaultValue
+}
+
 // GET /api/projects/[id] - Get a single project
 export async function GET(
   request: Request,
@@ -19,11 +25,10 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Use SELECT * to avoid column errors
     const { data, error } = await supabase
       .from('projects')
-      .select(
-        'id, code, name, description, type, client_id, contact_id, status, currency, start_date, end_date, address, city, country, latitude, longitude, manager_id, thumbnail_url, metadata, created_at, updated_at'
-      )
+      .select('*')
       .eq('id', params.id)
       .single()
 
@@ -36,23 +41,25 @@ export async function GET(
     }
 
     // Fetch client data if exists
+    const clientId = safeGet<string | null>(data, 'client_id', null)
     let client = null
-    if (data.client_id) {
+    if (clientId) {
       const { data: clientData } = await supabase
         .from('companies')
         .select('id, name')
-        .eq('id', data.client_id)
+        .eq('id', clientId)
         .single()
       client = clientData
     }
 
     // Fetch contact data if exists
+    const contactId = safeGet<string | null>(data, 'contact_id', null)
     let contact = null
-    if (data.contact_id) {
+    if (contactId) {
       const { data: contactData } = await supabase
         .from('company_contacts')
         .select('id, first_name, last_name, email, phone')
-        .eq('id', data.contact_id)
+        .eq('id', contactId)
         .single()
       if (contactData) {
         contact = {
@@ -64,29 +71,30 @@ export async function GET(
       }
     }
 
+    const id = safeGet<string>(data, 'id', '')
     const transformedData = {
-      id: data.id,
-      code: data.code,
-      name: data.name,
-      description: data.description,
-      type: data.type || 'ptv',
-      clientId: data.client_id,
+      id,
+      code: safeGet(data, 'code', id?.slice(0, 8) || ''),
+      name: safeGet(data, 'name', 'Nimetu projekt'),
+      description: safeGet<string | null>(data, 'description', null),
+      type: safeGet(data, 'type', 'ptv'),
+      clientId,
       client,
-      contactId: data.contact_id,
+      contactId,
       contact,
-      status: data.status || 'starting',
-      currency: data.currency,
-      startDate: data.start_date,
-      endDate: data.end_date,
-      address: data.address,
-      city: data.city,
-      country: data.country,
-      latitude: data.latitude,
-      longitude: data.longitude,
-      managerId: data.manager_id,
-      thumbnailUrl: data.thumbnail_url,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
+      status: safeGet(data, 'status', 'starting'),
+      currency: safeGet(data, 'currency', 'EUR'),
+      startDate: safeGet<string | null>(data, 'start_date', null),
+      endDate: safeGet<string | null>(data, 'end_date', null),
+      address: safeGet<string | null>(data, 'address', null),
+      city: safeGet<string | null>(data, 'city', null),
+      country: safeGet(data, 'country', 'Estonia'),
+      latitude: safeGet<number | null>(data, 'latitude', null),
+      longitude: safeGet<number | null>(data, 'longitude', null),
+      managerId: safeGet<string | null>(data, 'manager_id', null),
+      thumbnailUrl: safeGet<string | null>(data, 'thumbnail_url', null),
+      createdAt: safeGet(data, 'created_at', new Date().toISOString()),
+      updatedAt: safeGet(data, 'updated_at', new Date().toISOString()),
     }
 
     return NextResponse.json(transformedData)
@@ -131,6 +139,7 @@ export async function PATCH(
     if (body.startDate !== undefined) updateData.start_date = body.startDate
     if (body.endDate !== undefined) updateData.end_date = body.endDate
     if (body.address !== undefined) updateData.address = body.address
+    if (body.city !== undefined) updateData.city = body.city
     if (body.country !== undefined) updateData.country = body.country
     if (body.latitude !== undefined) updateData.latitude = body.latitude
     if (body.longitude !== undefined) updateData.longitude = body.longitude
@@ -138,14 +147,12 @@ export async function PATCH(
     if (body.thumbnailUrl !== undefined) updateData.thumbnail_url = body.thumbnailUrl
     if (body.metadata !== undefined) updateData.metadata = body.metadata
 
-    // Update project
+    // Update project using SELECT *
     const { data, error } = await supabase
       .from('projects')
       .update(updateData)
       .eq('id', params.id)
-      .select(
-        'id, code, name, description, type, client_id, contact_id, status, currency, start_date, end_date, address, city, country, latitude, longitude, manager_id, thumbnail_url, created_at, updated_at'
-      )
+      .select('*')
       .single()
 
     if (error) {
@@ -162,27 +169,28 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    const id = safeGet<string>(data, 'id', '')
     const transformedData = {
-      id: data.id,
-      code: data.code,
-      name: data.name,
-      description: data.description,
-      type: data.type,
-      clientId: data.client_id,
-      contactId: data.contact_id,
-      status: data.status,
-      currency: data.currency,
-      startDate: data.start_date,
-      endDate: data.end_date,
-      address: data.address,
-      city: data.city,
-      country: data.country,
-      latitude: data.latitude,
-      longitude: data.longitude,
-      managerId: data.manager_id,
-      thumbnailUrl: data.thumbnail_url,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
+      id,
+      code: safeGet(data, 'code', id?.slice(0, 8) || ''),
+      name: safeGet(data, 'name', 'Nimetu projekt'),
+      description: safeGet<string | null>(data, 'description', null),
+      type: safeGet(data, 'type', 'ptv'),
+      clientId: safeGet<string | null>(data, 'client_id', null),
+      contactId: safeGet<string | null>(data, 'contact_id', null),
+      status: safeGet(data, 'status', 'starting'),
+      currency: safeGet(data, 'currency', 'EUR'),
+      startDate: safeGet<string | null>(data, 'start_date', null),
+      endDate: safeGet<string | null>(data, 'end_date', null),
+      address: safeGet<string | null>(data, 'address', null),
+      city: safeGet<string | null>(data, 'city', null),
+      country: safeGet(data, 'country', 'Estonia'),
+      latitude: safeGet<number | null>(data, 'latitude', null),
+      longitude: safeGet<number | null>(data, 'longitude', null),
+      managerId: safeGet<string | null>(data, 'manager_id', null),
+      thumbnailUrl: safeGet<string | null>(data, 'thumbnail_url', null),
+      createdAt: safeGet(data, 'created_at', new Date().toISOString()),
+      updatedAt: safeGet(data, 'updated_at', new Date().toISOString()),
     }
 
     return NextResponse.json(transformedData)
