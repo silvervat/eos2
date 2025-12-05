@@ -1,17 +1,37 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useProjects, PROJECT_STATUSES, PROJECT_TYPES, type Project, type ProjectStatus } from '@/hooks/use-projects'
+import {
+  useProjects,
+  useUpdateProject,
+  PROJECT_STATUSES,
+  PROJECT_TYPES,
+  type Project,
+  type ProjectStatus,
+  type ProjectInput,
+} from '@/hooks/use-projects'
 import { ProjectsTable } from '@/components/projects/projects-table'
 import { AddProjectModal } from '@/components/projects/add-project-modal'
-import { Plus, LayoutGrid, List, MapPin, Building2, Calendar, Image as ImageIcon } from 'lucide-react'
+import { EditProjectModal } from '@/components/projects/edit-project-modal'
+import {
+  Plus,
+  LayoutGrid,
+  List,
+  MapPin,
+  Building2,
+  Calendar,
+  Image as ImageIcon,
+  Pencil,
+} from 'lucide-react'
 
 function ProjectsGallery({
   data,
   onProjectClick,
+  onEdit,
 }: {
   data: Project[]
   onProjectClick?: (project: Project) => void
+  onEdit?: (project: Project) => void
 }) {
   if (data.length === 0) {
     return (
@@ -31,9 +51,20 @@ function ProjectsGallery({
         return (
           <div
             key={project.id}
-            className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
+            className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow cursor-pointer group relative"
             onClick={() => onProjectClick?.(project)}
           >
+            {/* Edit button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit?.(project)
+              }}
+              className="absolute top-3 right-14 z-10 p-1.5 rounded-lg bg-white/90 text-slate-600 hover:bg-white hover:text-slate-900 shadow-sm transition-colors"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+
             {/* Thumbnail */}
             <div className="aspect-video bg-slate-100 relative overflow-hidden">
               {project.thumbnailUrl ? (
@@ -44,7 +75,7 @@ function ProjectsGallery({
                 />
               ) : project.latitude && project.longitude ? (
                 <img
-                  src={`https://static-maps.yandex.ru/1.x/?lang=en_US&ll=${project.longitude},${project.latitude}&z=14&l=map&size=400,200`}
+                  src={`https://staticmap.openstreetmap.de/staticmap.php?center=${project.latitude},${project.longitude}&zoom=14&size=400x200&markers=${project.latitude},${project.longitude},red-pushpin`}
                   alt="Kaart"
                   className="w-full h-full object-cover opacity-70"
                 />
@@ -61,7 +92,9 @@ function ProjectsGallery({
               </div>
               {/* Status badge */}
               <div className="absolute top-3 right-3">
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusConfig.color}`}>
+                <span
+                  className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusConfig.color}`}
+                >
                   {statusConfig.label}
                 </span>
               </div>
@@ -87,10 +120,10 @@ function ProjectsGallery({
                     <span className="truncate">{project.client.name}</span>
                   </div>
                 )}
-                {(project.city || project.address) && (
+                {project.address && (
                   <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-slate-400" />
-                    <span className="truncate">{project.city || project.address}</span>
+                    <span className="truncate">{project.address}</span>
                   </div>
                 )}
                 {project.startDate && (
@@ -98,19 +131,12 @@ function ProjectsGallery({
                     <Calendar className="h-4 w-4 text-slate-400" />
                     <span>
                       {new Date(project.startDate).toLocaleDateString('et-EE')}
-                      {project.endDate && ` - ${new Date(project.endDate).toLocaleDateString('et-EE')}`}
+                      {project.endDate &&
+                        ` - ${new Date(project.endDate).toLocaleDateString('et-EE')}`}
                     </span>
                   </div>
                 )}
               </div>
-
-              {project.budget && (
-                <div className="mt-3 pt-3 border-t border-slate-100">
-                  <span className="text-lg font-semibold text-slate-900">
-                    {project.budget.toLocaleString('et-EE')} {project.currency || '€'}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
         )
@@ -120,7 +146,8 @@ function ProjectsGallery({
 }
 
 export default function ProjectsPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [viewMode, setViewMode] = useState<'table' | 'gallery'>('table')
   const { data: projects, isLoading, error } = useProjects()
 
@@ -147,6 +174,10 @@ export default function ProjectsPage() {
       byStatus,
     }
   }, [projects])
+
+  const handleEdit = (project: Project) => {
+    setEditingProject(project)
+  }
 
   if (error) {
     return (
@@ -194,7 +225,7 @@ export default function ProjectsPage() {
             </button>
           </div>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => setIsAddModalOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors hover:opacity-90"
             style={{ backgroundColor: '#279989' }}
           >
@@ -234,12 +265,20 @@ export default function ProjectsPage() {
           </div>
         </div>
       ) : viewMode === 'table' ? (
-        <ProjectsTable data={projects || []} />
+        <ProjectsTable data={projects || []} onEdit={handleEdit} />
       ) : (
-        <ProjectsGallery data={projects || []} />
+        <ProjectsGallery data={projects || []} onEdit={handleEdit} />
       )}
 
-      <AddProjectModal open={isModalOpen} onOpenChange={setIsModalOpen} />
+      <AddProjectModal open={isAddModalOpen} onOpenChange={setIsAddModalOpen} />
+
+      {editingProject && (
+        <EditProjectModal
+          project={editingProject}
+          open={!!editingProject}
+          onOpenChange={(open) => !open && setEditingProject(null)}
+        />
+      )}
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Button, Card, Input, Label } from '@rivest/ui'
 import {
   X,
-  Plus,
+  Pencil,
   Loader2,
   MapPin,
   Building2,
@@ -14,17 +14,18 @@ import {
   Map,
 } from 'lucide-react'
 import {
-  useCreateProject,
+  useUpdateProject,
+  type Project,
   type ProjectInput,
   type ProjectType,
   PROJECT_TYPES,
   PROJECT_STATUSES,
 } from '@/hooks/use-projects'
 
-interface AddProjectModalProps {
+interface EditProjectModalProps {
+  project: Project
   open: boolean
   onOpenChange: (open: boolean) => void
-  defaultType?: ProjectType
 }
 
 interface Company {
@@ -46,40 +47,52 @@ const statusOptions = Object.entries(PROJECT_STATUSES).map(([value, { label }]) 
   label,
 }))
 
-export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectModalProps) {
+export function EditProjectModal({ project, open, onOpenChange }: EditProjectModalProps) {
   const [formData, setFormData] = useState<ProjectInput>({
-    code: '',
-    name: '',
-    description: '',
-    type: defaultType || 'ptv',
-    status: 'starting',
-    currency: 'EUR',
-    startDate: '',
-    endDate: '',
-    address: '',
-    country: 'Eesti',
-    latitude: undefined,
-    longitude: undefined,
-    clientId: undefined,
-    contactId: undefined,
-    thumbnailUrl: undefined,
+    code: project.code,
+    name: project.name,
+    description: project.description || '',
+    type: project.type,
+    status: project.status,
+    currency: project.currency || 'EUR',
+    startDate: project.startDate || '',
+    endDate: project.endDate || '',
+    address: project.address || '',
+    country: project.country || 'Eesti',
+    latitude: project.latitude,
+    longitude: project.longitude,
+    clientId: project.clientId,
+    contactId: project.contactId,
+    thumbnailUrl: project.thumbnailUrl,
   })
   const [error, setError] = useState('')
 
   // Company/Contact selection state
   const [companies, setCompanies] = useState<Company[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
-  const [companySearch, setCompanySearch] = useState('')
-  const [contactSearch, setContactSearch] = useState('')
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(
+    project.client ? { id: project.client.id, name: project.client.name } : null
+  )
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(
+    project.contact
+      ? {
+          id: project.contact.id,
+          firstName: project.contact.name.split(' ')[0] || '',
+          lastName: project.contact.name.split(' ').slice(1).join(' ') || '',
+          email: project.contact.email,
+          phone: project.contact.phone,
+        }
+      : null
+  )
+  const [companySearch, setCompanySearch] = useState(project.client?.name || '')
+  const [contactSearch, setContactSearch] = useState(project.contact?.name || '')
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false)
   const [showContactDropdown, setShowContactDropdown] = useState(false)
   const [loadingCompanies, setLoadingCompanies] = useState(false)
   const [loadingContacts, setLoadingContacts] = useState(false)
 
   // Image upload state
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(project.thumbnailUrl || null)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -87,7 +100,45 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
   const [showMapPicker, setShowMapPicker] = useState(false)
   const [geocoding, setGeocoding] = useState(false)
 
-  const createProject = useCreateProject()
+  const updateProject = useUpdateProject()
+
+  // Reset form when project changes
+  useEffect(() => {
+    setFormData({
+      code: project.code,
+      name: project.name,
+      description: project.description || '',
+      type: project.type,
+      status: project.status,
+      currency: project.currency || 'EUR',
+      startDate: project.startDate || '',
+      endDate: project.endDate || '',
+      address: project.address || '',
+      country: project.country || 'Eesti',
+      latitude: project.latitude,
+      longitude: project.longitude,
+      clientId: project.clientId,
+      contactId: project.contactId,
+      thumbnailUrl: project.thumbnailUrl,
+    })
+    setSelectedCompany(
+      project.client ? { id: project.client.id, name: project.client.name } : null
+    )
+    setSelectedContact(
+      project.contact
+        ? {
+            id: project.contact.id,
+            firstName: project.contact.name.split(' ')[0] || '',
+            lastName: project.contact.name.split(' ').slice(1).join(' ') || '',
+            email: project.contact.email,
+            phone: project.contact.phone,
+          }
+        : null
+    )
+    setCompanySearch(project.client?.name || '')
+    setContactSearch(project.contact?.name || '')
+    setImagePreview(project.thumbnailUrl || null)
+  }, [project])
 
   // Click outside handlers
   useEffect(() => {
@@ -101,7 +152,7 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
     }
   }, [showCompanyDropdown, showContactDropdown])
 
-  // Fetch companies - Fixed to use 'partners' from response
+  // Fetch companies
   const fetchCompanies = useCallback(async (search: string) => {
     setLoadingCompanies(true)
     try {
@@ -112,7 +163,6 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
       const response = await fetch(`/api/partners?${params}`)
       if (response.ok) {
         const data = await response.json()
-        // Partners API returns 'partners' not 'data'
         setCompanies(data.partners || [])
       }
     } catch (err) {
@@ -205,14 +255,12 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Show preview
     const reader = new FileReader()
     reader.onload = (e) => {
       setImagePreview(e.target?.result as string)
     }
     reader.readAsDataURL(file)
 
-    // Upload to storage
     setUploading(true)
     try {
       const formDataUpload = new FormData()
@@ -227,8 +275,6 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
       if (response.ok) {
         const { url } = await response.json()
         setFormData((prev) => ({ ...prev, thumbnailUrl: url }))
-      } else {
-        console.error('Upload failed')
       }
     } catch (err) {
       console.error('Upload error:', err)
@@ -252,42 +298,15 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
     }
 
     try {
-      await createProject.mutateAsync(formData)
-      resetForm()
+      await updateProject.mutateAsync({ id: project.id, ...formData })
       onOpenChange(false)
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message)
       } else {
-        setError('Projekti loomine ebaõnnestus')
+        setError('Projekti uuendamine ebaõnnestus')
       }
     }
-  }
-
-  const resetForm = () => {
-    setFormData({
-      code: '',
-      name: '',
-      description: '',
-      type: defaultType || 'ptv',
-      status: 'starting',
-      currency: 'EUR',
-      startDate: '',
-      endDate: '',
-      address: '',
-      country: 'Eesti',
-      latitude: undefined,
-      longitude: undefined,
-      clientId: undefined,
-      contactId: undefined,
-      thumbnailUrl: undefined,
-    })
-    setSelectedCompany(null)
-    setSelectedContact(null)
-    setCompanySearch('')
-    setContactSearch('')
-    setImagePreview(null)
-    setError('')
   }
 
   const handleClose = () => {
@@ -330,41 +349,8 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
     }
   }
 
-  // Handle map click for location selection
-  const handleMapClick = async (lat: number, lng: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      latitude: lat,
-      longitude: lng,
-    }))
-
-    // Reverse geocode to get address
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
-        {
-          headers: {
-            'User-Agent': 'EOS2-ERP/1.0',
-          },
-        }
-      )
-      if (response.ok) {
-        const data = await response.json()
-        if (data.display_name) {
-          setFormData((prev) => ({
-            ...prev,
-            address: data.display_name,
-          }))
-        }
-      }
-    } catch (err) {
-      console.error('Reverse geocoding failed:', err)
-    }
-  }
-
   if (!open) return null
 
-  // Map preview URL using OpenStreetMap static image
   const mapPreviewUrl =
     formData.latitude && formData.longitude
       ? `https://staticmap.openstreetmap.de/staticmap.php?center=${formData.latitude},${formData.longitude}&zoom=15&size=400x200&markers=${formData.latitude},${formData.longitude},red-pushpin`
@@ -377,11 +363,11 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#279989]/10 flex items-center justify-center">
-              <Plus className="w-5 h-5 text-[#279989]" />
+              <Pencil className="w-5 h-5 text-[#279989]" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Lisa uus projekt</h2>
-              <p className="text-sm text-slate-500">Loo uus projekt</p>
+              <h2 className="text-lg font-semibold text-slate-900">Muuda projekti</h2>
+              <p className="text-sm text-slate-500">{project.code}</p>
             </div>
           </div>
           <button
@@ -395,7 +381,6 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
         {/* Form */}
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4">
-            {/* Error */}
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {error}
@@ -573,7 +558,7 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
               </div>
             </div>
 
-            {/* Contact Selection (only show if company selected) */}
+            {/* Contact Selection */}
             {selectedCompany && (
               <div className="space-y-1.5">
                 <Label>Kontaktisik</Label>
@@ -703,16 +688,9 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
                 </div>
               </div>
 
-              {/* Map Picker */}
               {showMapPicker && (
                 <div className="mt-3">
-                  <div
-                    className="w-full h-64 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 relative cursor-crosshair"
-                    onClick={(e) => {
-                      // Simple click-to-select using iframe postMessage won't work easily
-                      // Instead, show instructions
-                    }}
-                  >
+                  <div className="w-full h-64 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 relative">
                     <iframe
                       src={`https://www.openstreetmap.org/export/embed.html?bbox=${
                         formData.longitude
@@ -729,7 +707,6 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
                 </div>
               )}
 
-              {/* Coordinates display */}
               {formData.latitude && formData.longitude && (
                 <div className="flex items-center gap-4 text-sm">
                   <span className="text-slate-500">
@@ -738,10 +715,13 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
                 </div>
               )}
 
-              {/* Map Preview */}
               {mapPreviewUrl && !showMapPicker && (
                 <div className="mt-2 rounded-lg overflow-hidden border border-slate-200">
-                  <img src={mapPreviewUrl} alt="Asukoha eelvaade" className="w-full h-[150px] object-cover" />
+                  <img
+                    src={mapPreviewUrl}
+                    alt="Asukoha eelvaade"
+                    className="w-full h-[150px] object-cover"
+                  />
                 </div>
               )}
             </div>
@@ -755,15 +735,15 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
             <Button
               type="submit"
               className="bg-[#279989] hover:bg-[#1e7a6d] text-white"
-              disabled={createProject.isPending || uploading}
+              disabled={updateProject.isPending || uploading}
             >
-              {createProject.isPending ? (
+              {updateProject.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Salvestan...
                 </>
               ) : (
-                'Lisa projekt'
+                'Salvesta'
               )}
             </Button>
           </div>
@@ -773,4 +753,4 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
   )
 }
 
-export default AddProjectModal
+export default EditProjectModal

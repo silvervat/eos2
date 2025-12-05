@@ -35,12 +35,10 @@ export interface Project {
   contactId?: string
   contact?: { id: string; name: string; email?: string; phone?: string }
   status: ProjectStatus
-  budget?: number
   currency: string
   startDate?: string
   endDate?: string
   address?: string
-  city?: string
   country?: string
   latitude?: number
   longitude?: number
@@ -59,12 +57,10 @@ export interface ProjectInput {
   clientId?: string
   contactId?: string
   status?: ProjectStatus
-  budget?: number
   currency?: string
   startDate?: string
   endDate?: string
   address?: string
-  city?: string
   country?: string
   latitude?: number
   longitude?: number

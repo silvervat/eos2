@@ -24,10 +24,13 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    // Build query without relationships (to avoid schema cache issues)
+    // Build query - only select columns that exist
     let query = supabase
       .from('projects')
-      .select('*', { count: 'exact' })
+      .select(
+        'id, code, name, description, type, client_id, contact_id, status, currency, start_date, end_date, address, city, country, latitude, longitude, manager_id, thumbnail_url, metadata, created_at, updated_at, deleted_at',
+        { count: 'exact' }
+      )
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
@@ -72,7 +75,10 @@ export async function GET(request: Request) {
     }
 
     // Fetch contacts in batch
-    let contactsMap: Record<string, { id: string; first_name: string; last_name: string; email: string; phone: string }> = {}
+    let contactsMap: Record<
+      string,
+      { id: string; first_name: string; last_name: string; email: string; phone: string }
+    > = {}
     if (contactIds.length > 0) {
       const { data: contacts } = await supabase
         .from('company_contacts')
@@ -107,7 +113,6 @@ export async function GET(request: Request) {
             }
           : null,
         status: project.status || 'starting',
-        budget: project.budget,
         currency: project.currency,
         startDate: project.start_date,
         endDate: project.end_date,
@@ -183,7 +188,6 @@ export async function POST(request: Request) {
         client_id: body.clientId || null,
         contact_id: body.contactId || null,
         status: body.status || 'starting',
-        budget: body.budget || null,
         currency: body.currency || 'EUR',
         start_date: body.startDate || null,
         end_date: body.endDate || null,
@@ -196,7 +200,7 @@ export async function POST(request: Request) {
         thumbnail_url: body.thumbnailUrl || null,
         metadata: body.metadata || {},
       })
-      .select('*')
+      .select('id, code, name, description, type, client_id, contact_id, status, currency, start_date, end_date, address, city, country, latitude, longitude, manager_id, thumbnail_url, created_at, updated_at')
       .single()
 
     if (error) {
@@ -220,7 +224,6 @@ export async function POST(request: Request) {
       clientId: data.client_id,
       contactId: data.contact_id,
       status: data.status,
-      budget: data.budget,
       currency: data.currency,
       startDate: data.start_date,
       endDate: data.end_date,
