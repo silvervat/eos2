@@ -853,7 +853,6 @@ export default function FileVaultPage() {
           vaultId: vault.id,
           parentId: newFolderParentId ?? currentFolderId,
           name: newFolderName.trim(),
-          description: newFolderDescription.trim() || null,
           visibility: newFolderVisibility,
         }),
       })
