@@ -32,6 +32,7 @@ import {
   Check,
   Move,
   GripVertical,
+  Edit3,
 } from 'lucide-react'
 import { Button, Input, Card } from '@rivest/ui'
 import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
@@ -860,6 +861,12 @@ export default function FileVaultPage() {
   const [showRenameFolderDialog, setShowRenameFolderDialog] = useState(false)
   const [isRenamingFolder, setIsRenamingFolder] = useState(false)
 
+  // Rename file state
+  const [renameFileId, setRenameFileId] = useState<string | null>(null)
+  const [renameFileName, setRenameFileName] = useState('')
+  const [showRenameFileDialog, setShowRenameFileDialog] = useState(false)
+  const [isRenamingFile, setIsRenamingFile] = useState(false)
+
   // Handle rename folder from tree
   const handleRenameFolder = useCallback((folder: { id: string; name: string }) => {
     setRenameFolderId(folder.id)
@@ -898,6 +905,46 @@ export default function FileVaultPage() {
       alert((err as Error).message)
     } finally {
       setIsRenamingFolder(false)
+    }
+  }
+
+  // Handle rename file
+  const handleRenameFile = useCallback((file: { id: string; name: string }) => {
+    setRenameFileId(file.id)
+    setRenameFileName(file.name)
+    setShowRenameFileDialog(true)
+  }, [])
+
+  // Submit file rename
+  const submitFileRename = async () => {
+    if (!renameFileId || !renameFileName.trim()) return
+
+    setIsRenamingFile(true)
+    try {
+      const response = await fetch(`/api/file-vault/files/${renameFileId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: renameFileName.trim() }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Faili ümbernimetamine ebaõnnestus')
+      }
+
+      // Update local file list
+      setFiles(prev => prev.map(f =>
+        f.id === renameFileId ? { ...f, name: renameFileName.trim() } : f
+      ))
+
+      setShowRenameFileDialog(false)
+      setRenameFileId(null)
+      setRenameFileName('')
+    } catch (err) {
+      console.error('Error renaming file:', err)
+      alert((err as Error).message)
+    } finally {
+      setIsRenamingFile(false)
     }
   }
 
@@ -1973,6 +2020,7 @@ export default function FileVaultPage() {
                     onDragOver={(e) => isFolder && handleDragOver(e, item.id)}
                     onDragLeave={isFolder ? handleDragLeave : undefined}
                     onDrop={(e) => isFolder && handleDrop(e, item.id)}
+                    onContextMenu={(e) => handleContextMenu(e, item)}
                     onClick={() => {
                       if (isFolder) {
                         navigateToFolder(item as FolderItem)
@@ -2719,6 +2767,71 @@ export default function FileVaultPage() {
         </div>
       )}
 
+      {/* Rename File Dialog */}
+      {showRenameFileDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md m-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900">Nimeta fail ümber</h3>
+              <button
+                onClick={() => {
+                  setShowRenameFileDialog(false)
+                  setRenameFileId(null)
+                  setRenameFileName('')
+                }}
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Faili nimi
+              </label>
+              <Input
+                placeholder="Faili nimi"
+                value={renameFileName}
+                onChange={(e) => setRenameFileName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    submitFileRename()
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+            <div className="flex items-center gap-3 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowRenameFileDialog(false)
+                  setRenameFileId(null)
+                  setRenameFileName('')
+                }}
+                disabled={isRenamingFile}
+                className="flex-1"
+              >
+                Tühista
+              </Button>
+              <Button
+                onClick={submitFileRename}
+                disabled={!renameFileName.trim() || isRenamingFile}
+                className="flex-1 bg-[#279989] hover:bg-[#1e7a6d] text-white"
+              >
+                {isRenamingFile ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvestan...
+                  </>
+                ) : (
+                  'Salvesta'
+                )}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Share Dialog */}
       {vault && shareFileIds.length > 0 && (
         <ShareDialog
@@ -2961,6 +3074,16 @@ export default function FileVaultPage() {
               >
                 <Info className="w-4 h-4" />
                 Info
+              </button>
+              <button
+                onClick={() => {
+                  handleRenameFile(contextMenu.item as FileItem)
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                <Edit3 className="w-4 h-4" />
+                Nimeta ümber
               </button>
               <div className="h-px bg-slate-200 my-1" />
               <button
