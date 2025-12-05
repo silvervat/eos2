@@ -1284,11 +1284,11 @@ export default function FileVaultPage() {
     ), [files, searchQuery]
   )
 
-  // Combined items for display
+  // Combined items for display (hide folders in trash view)
   const allItems: DisplayItem[] = useMemo(() => [
-    ...filteredFolders.map((f) => ({ ...f, type: 'folder' as const })),
+    ...(activeTab === 'trash' ? [] : filteredFolders.map((f) => ({ ...f, type: 'folder' as const }))),
     ...filteredFiles.map((f) => ({ ...f, type: 'file' as const })),
-  ], [filteredFolders, filteredFiles])
+  ], [filteredFolders, filteredFiles, activeTab])
 
   // Row height based on density
   const rowHeight = rowDensity === 'compact' ? ROW_HEIGHT_COMPACT : ROW_HEIGHT_NORMAL
