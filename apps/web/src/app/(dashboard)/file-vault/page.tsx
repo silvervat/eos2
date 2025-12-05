@@ -204,6 +204,7 @@ export default function FileVaultPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list') // Default to list view
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedItems, setSelectedItems] = useState<string[]>([])
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1004,12 +1005,34 @@ export default function FileVaultPage() {
     }
   }
 
-  // Toggle selection
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
-    )
-  }, [])
+  // Toggle selection - supports shift-click for range selection
+  const toggleSelect = useCallback((id: string, shiftKey: boolean = false) => {
+    const items = allItemsRef.current
+    const currentIndex = items.findIndex(item => item.id === id)
+
+    if (shiftKey && lastSelectedIndex !== null && lastSelectedIndex !== currentIndex) {
+      // Shift-click: select range between last and current
+      const startIndex = Math.min(lastSelectedIndex, currentIndex)
+      const endIndex = Math.max(lastSelectedIndex, currentIndex)
+      const rangeIds = items.slice(startIndex, endIndex + 1).map(item => item.id)
+
+      setSelectedItems(prev => {
+        const newSelected = new Set(prev)
+        rangeIds.forEach(itemId => newSelected.add(itemId))
+        return Array.from(newSelected)
+      })
+    } else {
+      // Normal click: toggle single item
+      setSelectedItems((prev) =>
+        prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+      )
+    }
+
+    // Update last selected index
+    if (currentIndex !== -1) {
+      setLastSelectedIndex(currentIndex)
+    }
+  }, [lastSelectedIndex])
 
   // Open file preview
   const handlePreview = useCallback((file: FileItem) => {
@@ -1097,9 +1120,6 @@ export default function FileVaultPage() {
       // Fetch the actual file as a blob
       const fileResponse = await fetch(data.downloadUrl)
       const blob = await fileResponse.blob()
-
-      // Create a File object from the blob
-      const fileObj = new File([blob], file.name, { type: blob.type })
 
       // Check if clipboard API is available and supports file writing
       if (!navigator.clipboard || !navigator.clipboard.write) {
@@ -1405,6 +1425,12 @@ export default function FileVaultPage() {
     ...(activeTab === 'trash' ? [] : filteredFolders.map((f) => ({ ...f, type: 'folder' as const }))),
     ...filteredFiles.map((f) => ({ ...f, type: 'file' as const })),
   ], [filteredFolders, filteredFiles, activeTab])
+
+  // Keep a ref to allItems for use in selection callbacks
+  const allItemsRef = useRef(allItems)
+  useEffect(() => {
+    allItemsRef.current = allItems
+  }, [allItems])
 
   // Row height based on density
   const rowHeight = rowDensity === 'compact' ? ROW_HEIGHT_COMPACT : ROW_HEIGHT_NORMAL
@@ -2209,7 +2235,7 @@ export default function FileVaultPage() {
       {!isLoading && !error && (
         <>
           {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 min-[1920px]:grid-cols-10 gap-4">
               {allItems.map((item) => {
                 const isFolder = item.type === 'folder'
                 const Icon = isFolder ? Folder : getFileIcon((item as FileItem).mimeType)
@@ -2249,7 +2275,7 @@ export default function FileVaultPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          toggleSelect(item.id)
+                          toggleSelect(item.id, e.shiftKey)
                         }}
                         className={`absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center transition-all z-20 ${
                           isSelected
@@ -2537,7 +2563,8 @@ export default function FileVaultPage() {
                               <input
                                 type="checkbox"
                                 checked={isSelected}
-                                onChange={() => toggleSelect(item.id)}
+                                onChange={(e) => toggleSelect(item.id, e.nativeEvent instanceof MouseEvent ? (e.nativeEvent as MouseEvent).shiftKey : false)}
+                                onClick={(e) => e.stopPropagation()}
                                 className="w-4 h-4 rounded cursor-pointer"
                               />
                             </td>

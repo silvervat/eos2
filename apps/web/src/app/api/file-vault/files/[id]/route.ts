@@ -384,7 +384,6 @@ export async function DELETE(
         .from('files')
         .update({
           deleted_at: new Date().toISOString(),
-          deleted_by: user.id,
         })
         .eq('id', fileId)
 
