@@ -221,7 +221,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const adminItems = [
     { href: '/admin/cms', label: 'CMS', icon: Database },
     { href: '/admin/templates', label: 'Mallid', icon: FileType },
-    { href: '/admin/ultra-tables', label: 'Tabelid', icon: Table },
+    { href: '/admin/tables', label: 'Tabelid', icon: Table },
     { href: '/admin/cache', label: 'Vahemälu', icon: HardDrive },
     { href: '/trash', label: 'Prügi', icon: Trash2 },
     { href: '/notifications', label: 'Teavitused', icon: Bell },
