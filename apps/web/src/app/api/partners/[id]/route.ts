@@ -3,12 +3,20 @@
  * GET /api/partners/[id] - Get partner with contacts and relations
  * PATCH /api/partners/[id] - Update partner
  * DELETE /api/partners/[id] - Delete partner
+ *
+ * Robust against missing tables/columns in schema cache
  */
 
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
+
+// Helper to safely get field value with fallback
+function safeGet<T>(obj: Record<string, unknown>, key: string, defaultValue: T): T {
+  const value = obj?.[key]
+  return value !== undefined && value !== null ? (value as T) : defaultValue
+}
 
 // GET /api/partners/[id] - Get partner details with all relations
 export async function GET(
@@ -41,96 +49,133 @@ export async function GET(
       return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
     }
 
-    // Fetch contacts
-    const { data: contacts } = await supabase
-      .from('company_contacts')
-      .select('*')
-      .eq('company_id', id)
-      .is('deleted_at', null)
-      .order('is_primary', { ascending: false })
-      .order('last_name', { ascending: true })
+    // Fetch contacts - wrapped for robustness
+    let contacts: Record<string, unknown>[] = []
+    try {
+      const { data: contactsData, error: contactsError } = await supabase
+        .from('company_contacts')
+        .select('*')
+        .eq('company_id', id)
+        .is('deleted_at', null)
+        .order('is_primary', { ascending: false })
+        .order('last_name', { ascending: true })
 
-    // Fetch invoices summary
-    const { data: invoices } = await supabase
-      .from('invoices')
-      .select('id, invoice_number, type, status, total, issue_date')
-      .eq('company_id', id)
-      .is('deleted_at', null)
-      .order('issue_date', { ascending: false })
-      .limit(10)
+      if (!contactsError && contactsData) {
+        contacts = contactsData
+      }
+    } catch (e) {
+      console.warn('Could not fetch contacts (table may not exist):', e)
+    }
 
-    // Fetch projects
-    const { data: projects } = await supabase
-      .from('projects')
-      .select('id, code, name, status')
-      .eq('client_id', id)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(10)
+    // Fetch invoices summary - wrapped
+    let invoices: Record<string, unknown>[] = []
+    let allInvoices: Record<string, unknown>[] = []
+    try {
+      const { data: invoicesData, error: invError } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, type, status, total, issue_date')
+        .eq('company_id', id)
+        .is('deleted_at', null)
+        .order('issue_date', { ascending: false })
+        .limit(10)
 
-    // Calculate statistics
-    const { data: allInvoices } = await supabase
-      .from('invoices')
-      .select('type, status, total')
-      .eq('company_id', id)
-      .is('deleted_at', null)
+      if (!invError && invoicesData) {
+        invoices = invoicesData
+      }
 
+      // Calculate all invoices for stats
+      const { data: allInvData, error: allInvError } = await supabase
+        .from('invoices')
+        .select('type, status, total')
+        .eq('company_id', id)
+        .is('deleted_at', null)
+
+      if (!allInvError && allInvData) {
+        allInvoices = allInvData
+      }
+    } catch (e) {
+      console.warn('Could not fetch invoices:', e)
+    }
+
+    // Fetch projects - wrapped
+    let projects: Record<string, unknown>[] = []
+    try {
+      const { data: projectsData, error: projError } = await supabase
+        .from('projects')
+        .select('id, code, name, status')
+        .eq('client_id', id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (!projError && projectsData) {
+        projects = projectsData
+      }
+    } catch (e) {
+      console.warn('Could not fetch projects:', e)
+    }
+
+    // Calculate statistics with safe access
     const stats = {
-      totalInvoices: allInvoices?.length || 0,
-      sentInvoices: allInvoices?.filter(i => i.type === 'sales').length || 0,
-      receivedInvoices: allInvoices?.filter(i => i.type === 'purchase').length || 0,
-      paidInvoices: allInvoices?.filter(i => i.status === 'paid').length || 0,
-      totalRevenue: allInvoices?.filter(i => i.type === 'sales').reduce((sum, i) => sum + Number(i.total), 0) || 0,
-      totalExpenses: allInvoices?.filter(i => i.type === 'purchase').reduce((sum, i) => sum + Number(i.total), 0) || 0,
-      projectsCount: projects?.length || 0,
+      totalInvoices: allInvoices.length,
+      sentInvoices: allInvoices.filter(i => i.type === 'sales').length,
+      receivedInvoices: allInvoices.filter(i => i.type === 'purchase').length,
+      paidInvoices: allInvoices.filter(i => i.status === 'paid').length,
+      totalRevenue: allInvoices
+        .filter(i => i.type === 'sales')
+        .reduce((sum, i) => sum + Number(i.total || 0), 0),
+      totalExpenses: allInvoices
+        .filter(i => i.type === 'purchase')
+        .reduce((sum, i) => sum + Number(i.total || 0), 0),
+      projectsCount: projects.length,
     }
 
     return NextResponse.json({
       partner: {
         id: company.id,
-        registryCode: company.registry_code,
-        vatNumber: company.vat_number,
-        name: company.name,
-        type: company.type,
-        email: company.email,
-        phone: company.phone,
-        address: company.address,
-        city: company.city,
-        country: company.country,
-        bankAccount: company.bank_account,
-        paymentTermDays: company.payment_term_days,
-        creditLimit: company.credit_limit,
-        notes: company.notes,
-        metadata: company.metadata,
+        registryCode: safeGet(company, 'registry_code', null),
+        vatNumber: safeGet(company, 'vat_number', null),
+        name: safeGet(company, 'name', 'Nimetu'),
+        type: safeGet(company, 'type', 'client'),
+        email: safeGet(company, 'email', null),
+        phone: safeGet(company, 'phone', null),
+        address: safeGet(company, 'address', null),
+        city: safeGet(company, 'city', null),
+        country: safeGet(company, 'country', 'Estonia'),
+        bankAccount: safeGet(company, 'bank_account', null),
+        paymentTermDays: safeGet(company, 'payment_term_days', 14),
+        creditLimit: safeGet(company, 'credit_limit', null),
+        notes: safeGet(company, 'notes', null),
+        metadata: safeGet(company, 'metadata', {}),
         createdAt: company.created_at,
         updatedAt: company.updated_at,
       },
-      contacts: contacts?.map(c => ({
+      contacts: contacts.map(c => ({
         id: c.id,
-        firstName: c.first_name,
-        lastName: c.last_name,
-        email: c.email,
-        phone: c.phone,
-        mobile: c.mobile,
-        position: c.position,
-        department: c.department,
-        isPrimary: c.is_primary,
-        isBillingContact: c.is_billing_contact,
-      })) || [],
-      invoices: invoices?.map(i => ({
+        firstName: safeGet(c, 'first_name', ''),
+        lastName: safeGet(c, 'last_name', ''),
+        email: safeGet(c, 'email', null),
+        phone: safeGet(c, 'phone', null),
+        mobile: safeGet(c, 'mobile', null),
+        position: safeGet(c, 'position', null),
+        department: safeGet(c, 'department', null),
+        isPrimary: safeGet(c, 'is_primary', false),
+        isBillingContact: safeGet(c, 'is_billing_contact', false),
+      })),
+      invoices: invoices.map(i => ({
         id: i.id,
-        invoiceNumber: i.invoice_number,
-        type: i.type,
-        status: i.status,
-        total: i.total,
-        issueDate: i.issue_date,
-      })) || [],
-      projects: projects?.map(p => ({
+        invoiceNumber: safeGet(i, 'invoice_number', ''),
+        type: safeGet(i, 'type', 'sales'),
+        status: safeGet(i, 'status', 'draft'),
+        total: safeGet(i, 'total', 0),
+        issueDate: safeGet(i, 'issue_date', null),
+      })),
+      projects: projects.map(p => ({
         id: p.id,
-        code: p.code,
-        name: p.name,
-        status: p.status,
-      })) || [],
+        code: safeGet(p, 'code', ''),
+        name: safeGet(p, 'name', 'Nimetu'),
+        status: safeGet(p, 'status', 'active'),
+      })),
       stats,
     })
   } catch (error) {
