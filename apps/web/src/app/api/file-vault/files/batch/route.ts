@@ -113,7 +113,6 @@ export async function POST(request: Request) {
             .from('files')
             .update({
               deleted_at: new Date().toISOString(),
-              deleted_by: user.id,
             })
             .in('id', fileIds)
             .eq('vault_id', vaultId)

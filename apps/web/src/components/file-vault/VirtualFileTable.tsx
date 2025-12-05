@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useEffect, useState, memo } from 'react'
+import { useCallback, useRef, useEffect, useState, memo, useMemo } from 'react'
 import {
   File,
   Folder,
@@ -15,11 +15,18 @@ import {
   Eye,
   Info,
   ChevronRight,
+  Copy,
 } from 'lucide-react'
 
 /**
  * Virtual scrolling file table component
  * Only renders visible rows for better performance with large file lists
+ *
+ * OPTIMIZATIONS:
+ * - Set-based selection for O(1) lookups instead of Array.includes() O(n)
+ * - Memoized formatters to prevent recalculation
+ * - Debounced scroll handler
+ * - Optimized row rendering with proper memoization
  */
 
 // Types
@@ -51,7 +58,7 @@ type DisplayItem = (FolderItem & { type: 'folder' }) | (FileItem & { type: 'file
 
 interface VirtualFileTableProps {
   items: DisplayItem[]
-  selectedItems: string[]
+  selectedItems: string[]  // Will be converted to Set internally for O(1) lookups
   rowHeight: number
   rowDensity: 'compact' | 'normal'
   onSelect: (id: string) => void
@@ -61,8 +68,12 @@ interface VirtualFileTableProps {
   onShare: (file: FileItem) => void
   onShowInfo: (file: FileItem) => void
   onDelete: (id: string) => void
+  onCopyToClipboard?: (file: FileItem) => void
   onContextMenu: (e: React.MouseEvent, item: DisplayItem) => void
   onHoverPreview?: (file: FileItem | null, position: { x: number; y: number }) => void
+  onLoadMore?: () => void  // Infinite scroll callback
+  hasMore?: boolean        // Whether there are more items to load
+  isLoadingMore?: boolean  // Loading indicator for infinite scroll
 }
 
 // Helper functions
@@ -143,6 +154,7 @@ const TableRow = memo(function TableRow({
   onShare,
   onShowInfo,
   onDelete,
+  onCopyToClipboard,
   onContextMenu,
   onHoverPreview,
 }: {
@@ -157,6 +169,7 @@ const TableRow = memo(function TableRow({
   onShare: (file: FileItem) => void
   onShowInfo: (file: FileItem) => void
   onDelete: (id: string) => void
+  onCopyToClipboard?: (file: FileItem) => void
   onContextMenu: (e: React.MouseEvent, item: DisplayItem) => void
   onHoverPreview?: (file: FileItem | null, position: { x: number; y: number }) => void
 }) {
@@ -289,6 +302,15 @@ const TableRow = memo(function TableRow({
               >
                 <Share2 className="w-4 h-4" />
               </button>
+              {onCopyToClipboard && (
+                <button
+                  onClick={() => onCopyToClipboard(fileItem)}
+                  className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                  title="Kopeeri lõikelauale"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              )}
               <button
                 onClick={() => onShowInfo(fileItem)}
                 className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
@@ -323,6 +345,24 @@ const TableRow = memo(function TableRow({
 // Buffer around visible area (in rows)
 const BUFFER_SIZE = 5
 
+// Debounce utility for scroll performance
+function useDebounce<T extends (...args: unknown[]) => void>(
+  callback: T,
+  delay: number
+): T {
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  return useCallback(
+    ((...args: unknown[]) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+      timeoutRef.current = setTimeout(() => callback(...args), delay)
+    }) as T,
+    [callback, delay]
+  )
+}
+
 export function VirtualFileTable({
   items,
   selectedItems,
@@ -335,19 +375,39 @@ export function VirtualFileTable({
   onShare,
   onShowInfo,
   onDelete,
+  onCopyToClipboard,
   onContextMenu,
   onHoverPreview,
+  onLoadMore,
+  hasMore = false,
+  isLoadingMore = false,
 }: VirtualFileTableProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [containerHeight, setContainerHeight] = useState(0)
 
-  // Handle scroll
-  const handleScroll = useCallback(() => {
+  // OPTIMIZATION: Convert selectedItems array to Set for O(1) lookups
+  // This is critical for large file lists where Array.includes() is O(n)
+  const selectedSet = useMemo(() => new Set(selectedItems), [selectedItems])
+
+  // Handle scroll with debounce for better performance
+  const handleScrollImmediate = useCallback(() => {
     if (containerRef.current) {
       setScrollTop(containerRef.current.scrollTop)
+
+      // Infinite scroll: load more when near bottom
+      if (onLoadMore && hasMore && !isLoadingMore) {
+        const { scrollTop, scrollHeight, clientHeight } = containerRef.current
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+        if (distanceFromBottom < 200) {
+          onLoadMore()
+        }
+      }
     }
-  }, [])
+  }, [onLoadMore, hasMore, isLoadingMore])
+
+  // Debounced scroll for less critical updates
+  const handleScroll = useDebounce(handleScrollImmediate, 16) // ~60fps
 
   // Observe container size
   useEffect(() => {
@@ -389,18 +449,18 @@ export function VirtualFileTable({
                   type="checkbox"
                   className="w-4 h-4 rounded cursor-pointer"
                   onChange={() => {
-                    // Select/deselect all
-                    if (selectedItems.length === items.length) {
+                    // Select/deselect all - O(1) check with Set
+                    if (selectedSet.size === items.length) {
                       items.forEach((item) => onSelect(item.id))
                     } else {
                       items.forEach((item) => {
-                        if (!selectedItems.includes(item.id)) {
+                        if (!selectedSet.has(item.id)) {
                           onSelect(item.id)
                         }
                       })
                     }
                   }}
-                  checked={selectedItems.length === items.length && items.length > 0}
+                  checked={selectedSet.size === items.length && items.length > 0}
                 />
               </th>
               <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Nimi</th>
@@ -415,7 +475,7 @@ export function VirtualFileTable({
               <TableRow
                 key={item.id}
                 item={item}
-                isSelected={selectedItems.includes(item.id)}
+                isSelected={selectedSet.has(item.id)}
                 rowHeight={rowHeight}
                 rowDensity={rowDensity}
                 onSelect={onSelect}
@@ -425,6 +485,7 @@ export function VirtualFileTable({
                 onShare={onShare}
                 onShowInfo={onShowInfo}
                 onDelete={onDelete}
+                onCopyToClipboard={onCopyToClipboard}
                 onContextMenu={onContextMenu}
                 onHoverPreview={onHoverPreview}
               />
@@ -449,17 +510,18 @@ export function VirtualFileTable({
                 type="checkbox"
                 className="w-4 h-4 rounded cursor-pointer"
                 onChange={() => {
-                  if (selectedItems.length === items.length) {
+                  // Select/deselect all - O(1) check with Set
+                  if (selectedSet.size === items.length) {
                     items.forEach((item) => onSelect(item.id))
                   } else {
                     items.forEach((item) => {
-                      if (!selectedItems.includes(item.id)) {
+                      if (!selectedSet.has(item.id)) {
                         onSelect(item.id)
                       }
                     })
                   }
                 }}
-                checked={selectedItems.length === items.length && items.length > 0}
+                checked={selectedSet.size === items.length && items.length > 0}
               />
             </th>
             <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Nimi</th>
@@ -477,12 +539,12 @@ export function VirtualFileTable({
             </tr>
           )}
 
-          {/* Visible rows */}
+          {/* Visible rows - using Set.has() for O(1) selection check */}
           {visibleItems.map((item) => (
             <TableRow
               key={item.id}
               item={item}
-              isSelected={selectedItems.includes(item.id)}
+              isSelected={selectedSet.has(item.id)}
               rowHeight={rowHeight}
               rowDensity={rowDensity}
               onSelect={onSelect}
@@ -492,6 +554,7 @@ export function VirtualFileTable({
               onShare={onShare}
               onShowInfo={onShowInfo}
               onDelete={onDelete}
+              onCopyToClipboard={onCopyToClipboard}
               onContextMenu={onContextMenu}
               onHoverPreview={onHoverPreview}
             />
@@ -501,6 +564,32 @@ export function VirtualFileTable({
           {bottomPadding > 0 && (
             <tr style={{ height: bottomPadding }}>
               <td colSpan={6} />
+            </tr>
+          )}
+
+          {/* Infinite scroll loading indicator */}
+          {isLoadingMore && (
+            <tr>
+              <td colSpan={6} className="py-4 text-center">
+                <div className="flex items-center justify-center gap-2 text-slate-500">
+                  <div className="w-4 h-4 border-2 border-[#279989] border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm">Laadin veel faile...</span>
+                </div>
+              </td>
+            </tr>
+          )}
+
+          {/* Load more trigger */}
+          {hasMore && !isLoadingMore && (
+            <tr>
+              <td colSpan={6} className="py-2 text-center">
+                <button
+                  onClick={onLoadMore}
+                  className="text-sm text-[#279989] hover:text-[#1f7a6e] transition-colors"
+                >
+                  Laadi veel
+                </button>
+              </td>
             </tr>
           )}
         </tbody>

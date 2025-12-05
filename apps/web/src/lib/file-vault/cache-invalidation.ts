@@ -149,6 +149,10 @@ export function getFileListCacheKey(params: {
   search?: string | null
   mimeType?: string | null
   extension?: string | null
+  minSize?: number | null
+  maxSize?: number | null
+  dateFrom?: string | null
+  dateTo?: string | null
   sortBy?: string
   sortOrder?: string
   limit?: number
@@ -161,6 +165,10 @@ export function getFileListCacheKey(params: {
     params.search || '',
     params.mimeType || '',
     params.extension || '',
+    params.minSize || '',
+    params.maxSize || '',
+    params.dateFrom || '',
+    params.dateTo || '',
     params.sortBy || 'created_at',
     params.sortOrder || 'desc',
     params.limit || 100,

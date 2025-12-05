@@ -192,10 +192,11 @@ export async function PATCH(
       'folder_id',
       'is_public',
       'metadata',
+      'mime_type',
     ]
 
     const updates: Record<string, unknown> = {
-      updated_by: user.id,
+      updated_at: new Date().toISOString(),
     }
 
     // Build update object
@@ -210,6 +211,17 @@ export async function PATCH(
           updates[field] = body[field]
         }
       }
+    }
+
+    // Also accept camelCase versions
+    if (body.mimeType !== undefined) {
+      updates['mime_type'] = body.mimeType
+    }
+    if (body.folderId !== undefined) {
+      updates['folder_id'] = body.folderId
+    }
+    if (body.isPublic !== undefined) {
+      updates['is_public'] = body.isPublic
     }
 
     // Handle name change - update path
@@ -310,12 +322,18 @@ export async function DELETE(
     const permanent = searchParams.get('permanent') === 'true'
 
     // Get existing file
-    const { data: existingFile, error: fetchError } = await supabase
+    // For permanent delete, include files that are already in trash (deleted_at is set)
+    // For soft delete, only get files that are not yet deleted
+    let query = supabase
       .from('files')
       .select('*, vault:file_vaults!vault_id(id, tenant_id, used_bytes)')
       .eq('id', fileId)
-      .is('deleted_at', null)
-      .single()
+
+    if (!permanent) {
+      query = query.is('deleted_at', null)
+    }
+
+    const { data: existingFile, error: fetchError } = await query.single()
 
     if (fetchError || !existingFile) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
@@ -366,7 +384,6 @@ export async function DELETE(
         .from('files')
         .update({
           deleted_at: new Date().toISOString(),
-          deleted_by: user.id,
         })
         .eq('id', fileId)
 

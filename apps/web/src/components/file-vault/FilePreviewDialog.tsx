@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { FileComments } from './FileComments'
 import { FileVersions } from './FileVersions'
+import { OfficePreview, isOfficeDocument } from './OfficePreview'
 
 interface FilePreviewDialogProps {
   open: boolean
@@ -128,7 +129,7 @@ export function FilePreviewDialog({
 
         let newPreviewUrl: string | null = null
         // Get preview URL from parallel request
-        if (downloadResponse.ok && isPreviewable(data.mimeType)) {
+        if (downloadResponse.ok && isPreviewable(data.mimeType, data.extension)) {
           const downloadData = await downloadResponse.json()
           newPreviewUrl = downloadData.downloadUrl
           setPreviewUrl(newPreviewUrl)
@@ -218,12 +219,15 @@ export function FilePreviewDialog({
     }
   }
 
-  const isPreviewable = (mimeType: string): boolean => {
+  // Check if file type can be previewed (local helper for non-Office types)
+
+  const isPreviewable = (mimeType: string, extension?: string): boolean => {
     return (
       mimeType.startsWith('image/') ||
       mimeType.startsWith('video/') ||
       mimeType.startsWith('audio/') ||
-      mimeType === 'application/pdf'
+      mimeType === 'application/pdf' ||
+      isOfficeDocument(mimeType, extension)
     )
   }
 
@@ -314,6 +318,18 @@ export function FilePreviewDialog({
           src={previewUrl}
           className="w-full h-full border-0"
           title={file.name}
+        />
+      )
+    }
+
+    // Office documents - use Microsoft Office Online viewer
+    if (isOfficeDocument(mimeType, file.extension)) {
+      return (
+        <OfficePreview
+          fileUrl={previewUrl}
+          fileName={file.name}
+          mimeType={mimeType}
+          onDownload={handleDownload}
         />
       )
     }
@@ -578,7 +594,7 @@ export function FilePreviewDialog({
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
               </div>
-            ) : file && isPreviewable(file.mimeType) ? (
+            ) : file && isPreviewable(file.mimeType, file.extension) ? (
               renderPreview()
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-4 bg-slate-50">

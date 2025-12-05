@@ -27,12 +27,20 @@ import {
   Loader2,
   ChevronRight,
   Home,
+  MessageSquare,
+  Tag,
+  Check,
+  Move,
+  GripVertical,
+  Edit3,
+  RotateCcw,
 } from 'lucide-react'
 import { Button, Input, Card } from '@rivest/ui'
 import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
 import { ShareDialog } from '@/components/file-vault/ShareDialog'
 import { FilePreviewDialog } from '@/components/file-vault/FilePreviewDialog'
 import { FileTree, FileTreeRef } from '@/components/file-vault/FileTree'
+import { FileTreeSkeleton } from '@/components/file-vault/FileTreeSkeleton'
 import { FileInfoSidebar } from '@/components/file-vault/FileInfoSidebar'
 import {
   User,
@@ -74,6 +82,9 @@ interface FileItem {
   createdAt: string
   updatedAt: string
   tags: string[]
+  commentCount?: number
+  deletedAt?: string
+  deletedBy?: string
   folder?: {
     id: string
     name: string
@@ -193,6 +204,7 @@ export default function FileVaultPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list') // Default to list view
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedItems, setSelectedItems] = useState<string[]>([])
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -255,11 +267,13 @@ export default function FileVaultPage() {
   const isInitialLoadDone = useRef(false)
   const fileTreeRef = useRef<FileTreeRef>(null)
 
-  // Active tab: 'all' | 'my-files' | 'organize' | 'shares' | 'statistics'
-  const [activeTab, setActiveTab] = useState<'all' | 'my-files' | 'organize' | 'shares' | 'statistics'>('all')
+  // Active tab: 'all' | 'my-files' | 'organize' | 'shares' | 'statistics' | 'trash'
+  const [activeTab, setActiveTab] = useState<'all' | 'my-files' | 'organize' | 'shares' | 'statistics' | 'trash'>('all')
 
   // Dialog state
   const [showUploadDialog, setShowUploadDialog] = useState(false)
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([])
+  const [isDroppingExternal, setIsDroppingExternal] = useState(false)
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderDescription, setNewFolderDescription] = useState('')
@@ -361,6 +375,14 @@ export default function FileVaultPage() {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
+  // Drag and drop state
+  const [draggedFileIds, setDraggedFileIds] = useState<string[]>([])
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
+  const [isMovingFiles, setIsMovingFiles] = useState(false)
+
+  // Bulk move dialog state
+  const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false)
+
   // Fetch vault (only called once on initial load)
   const fetchVault = useCallback(async () => {
     // Return cached vault if already loaded
@@ -418,19 +440,28 @@ export default function FileVaultPage() {
     folderId: string | null,
     offset: number = 0,
     append: boolean = false,
-    filter?: 'all' | 'my-files'
+    filter?: 'all' | 'my-files' | 'trash'
   ) => {
     try {
       const filesParams = new URLSearchParams({
         vaultId,
-        ...(folderId ? { folderId } : { folderId: 'root' }),
         limit: String(PAGE_SIZE),
         offset: String(offset),
       })
 
+      // For trash view, don't filter by folder - show all deleted files
+      if (filter !== 'trash') {
+        filesParams.set('folderId', folderId || 'root')
+      }
+
       // Add filter for "my files" tab
       if (filter === 'my-files') {
         filesParams.set('uploadedByMe', 'true')
+      }
+
+      // Add filter for trash tab
+      if (filter === 'trash') {
+        filesParams.set('trashedOnly', 'true')
       }
 
       const filesResponse = await fetch(`/api/file-vault/files?${filesParams}`)
@@ -461,7 +492,7 @@ export default function FileVaultPage() {
     if (!vault || isLoadingMore || !hasMoreFiles) return
 
     setIsLoadingMore(true)
-    const filter = activeTab === 'my-files' ? 'my-files' : 'all'
+    const filter = activeTab === 'trash' ? 'trash' : (activeTab === 'my-files' ? 'my-files' : 'all')
     await fetchFiles(vault.id, currentFolderId, files.length, true, filter)
     setIsLoadingMore(false)
   }, [vault, currentFolderId, files.length, hasMoreFiles, isLoadingMore, fetchFiles, activeTab])
@@ -708,21 +739,22 @@ export default function FileVaultPage() {
   }, [])
 
   // Folder navigation - only runs when folder changes (not on initial load)
+  // Track if files are being loaded for folder change (not full page load)
+  const [isLoadingFolderFiles, setIsLoadingFolderFiles] = useState(false)
+
   useEffect(() => {
     if (!isInitialLoadDone.current || !vaultIdRef.current) return
 
     const loadFolderData = async () => {
-      setIsLoading(true)
+      // Only show lightweight loading for folder changes, not full page loading
+      setIsLoadingFolderFiles(true)
       setFiles([])
-      setFolders([])
       setHasMoreFiles(true)
 
       const filter = activeTab === 'my-files' ? 'my-files' : 'all'
-      await Promise.all([
-        fetchFolders(vaultIdRef.current!, currentFolderId),
-        fetchFiles(vaultIdRef.current!, currentFolderId, 0, false, filter)
-      ])
-      setIsLoading(false)
+      // Only fetch files for the new folder, don't refetch folders (tree is already loaded)
+      await fetchFiles(vaultIdRef.current!, currentFolderId, 0, false, filter)
+      setIsLoadingFolderFiles(false)
     }
     loadFolderData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -733,12 +765,12 @@ export default function FileVaultPage() {
     if (!isInitialLoadDone.current || !vaultIdRef.current) return
 
     const loadTabData = async () => {
-      if (activeTab === 'all' || activeTab === 'my-files') {
+      if (activeTab === 'all' || activeTab === 'my-files' || activeTab === 'trash') {
         // Reload files with the appropriate filter
         setIsLoading(true)
         setFiles([])
         setHasMoreFiles(true)
-        const filter = activeTab === 'my-files' ? 'my-files' : 'all'
+        const filter = activeTab === 'trash' ? 'trash' : (activeTab === 'my-files' ? 'my-files' : 'all')
         await fetchFiles(vaultIdRef.current!, currentFolderId, 0, false, filter)
         setIsLoading(false)
       } else if (activeTab === 'organize') {
@@ -776,14 +808,37 @@ export default function FileVaultPage() {
       setBreadcrumbs([{ id: null, name: 'Failid' }])
     } else {
       setCurrentFolderId(folder.id)
-      setBreadcrumbs([
-        { id: null, name: 'Failid' },
-        { id: folder.id, name: folder.name }
-      ])
+
+      // Build full breadcrumb path by traversing parent chain
+      const buildBreadcrumbPath = (targetFolder: FolderItem): Array<{ id: string | null; name: string }> => {
+        const path: Array<{ id: string | null; name: string }> = [{ id: null, name: 'Failid' }]
+
+        // Find all parent folders by traversing up the tree
+        const parentChain: FolderItem[] = []
+        let currentFolder: FolderItem | undefined = targetFolder
+
+        while (currentFolder) {
+          parentChain.unshift(currentFolder)
+          if (currentFolder.parentId) {
+            currentFolder = folders.find(f => f.id === currentFolder!.parentId)
+          } else {
+            break
+          }
+        }
+
+        // Add all folders in the chain to breadcrumbs
+        for (const f of parentChain) {
+          path.push({ id: f.id, name: f.name })
+        }
+
+        return path
+      }
+
+      setBreadcrumbs(buildBreadcrumbPath(folder))
     }
 
     setSelectedItems([])
-  }, [])
+  }, [folders])
 
   // State for new folder parent (for creating subfolders from tree)
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null)
@@ -801,7 +856,6 @@ export default function FileVaultPage() {
           vaultId: vault.id,
           parentId: newFolderParentId ?? currentFolderId,
           name: newFolderName.trim(),
-          description: newFolderDescription.trim() || null,
           visibility: newFolderVisibility,
         }),
       })
@@ -838,6 +892,112 @@ export default function FileVaultPage() {
     setShowNewFolderDialog(true)
   }, [])
 
+  // Rename folder state
+  const [renameFolderId, setRenameFolderId] = useState<string | null>(null)
+  const [renameFolderName, setRenameFolderName] = useState('')
+  const [showRenameFolderDialog, setShowRenameFolderDialog] = useState(false)
+  const [isRenamingFolder, setIsRenamingFolder] = useState(false)
+
+  // Rename file state
+  const [renameFileId, setRenameFileId] = useState<string | null>(null)
+  const [renameFileName, setRenameFileName] = useState('')
+  const [renameFileExtension, setRenameFileExtension] = useState('')
+  const [showRenameFileDialog, setShowRenameFileDialog] = useState(false)
+  const [isRenamingFile, setIsRenamingFile] = useState(false)
+
+  // Handle rename folder from tree
+  const handleRenameFolder = useCallback((folder: { id: string; name: string }) => {
+    setRenameFolderId(folder.id)
+    setRenameFolderName(folder.name)
+    setShowRenameFolderDialog(true)
+  }, [])
+
+  // Submit folder rename
+  const submitFolderRename = async () => {
+    if (!renameFolderId || !renameFolderName.trim()) return
+
+    setIsRenamingFolder(true)
+    try {
+      const response = await fetch(`/api/file-vault/folders/${renameFolderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: renameFolderName.trim() }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Kausta ümbernimetamine ebaõnnestus')
+      }
+
+      // Refresh folder lists
+      if (vault) {
+        await fetchFolders(vault.id, currentFolderId)
+      }
+      fileTreeRef.current?.refresh()
+
+      setShowRenameFolderDialog(false)
+      setRenameFolderId(null)
+      setRenameFolderName('')
+    } catch (err) {
+      console.error('Error renaming folder:', err)
+      alert((err as Error).message)
+    } finally {
+      setIsRenamingFolder(false)
+    }
+  }
+
+  // Handle rename file
+  const handleRenameFile = useCallback((file: { id: string; name: string }) => {
+    setRenameFileId(file.id)
+    // Split name from extension
+    const lastDotIndex = file.name.lastIndexOf('.')
+    if (lastDotIndex > 0) {
+      setRenameFileName(file.name.substring(0, lastDotIndex))
+      setRenameFileExtension(file.name.substring(lastDotIndex))
+    } else {
+      setRenameFileName(file.name)
+      setRenameFileExtension('')
+    }
+    setShowRenameFileDialog(true)
+  }, [])
+
+  // Submit file rename
+  const submitFileRename = async () => {
+    if (!renameFileId || !renameFileName.trim()) return
+
+    // Combine name with extension
+    const fullName = renameFileName.trim() + renameFileExtension
+
+    setIsRenamingFile(true)
+    try {
+      const response = await fetch(`/api/file-vault/files/${renameFileId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: fullName }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Faili ümbernimetamine ebaõnnestus')
+      }
+
+      // Update local file list
+      setFiles(prev => prev.map(f =>
+        f.id === renameFileId ? { ...f, name: fullName } : f
+      ))
+
+      setShowRenameFileDialog(false)
+      setRenameFileId(null)
+      setRenameFileName('')
+      setRenameFileExtension('')
+    } catch (err) {
+      console.error('Error renaming file:', err)
+      alert((err as Error).message)
+    } finally {
+      setIsRenamingFile(false)
+    }
+  }
+
   // Upload complete handler
   const handleUploadComplete = async () => {
     if (vault) {
@@ -847,12 +1007,34 @@ export default function FileVaultPage() {
     }
   }
 
-  // Toggle selection
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
-    )
-  }, [])
+  // Toggle selection - supports shift-click for range selection
+  const toggleSelect = useCallback((id: string, shiftKey: boolean = false) => {
+    const items = allItemsRef.current
+    const currentIndex = items.findIndex(item => item.id === id)
+
+    if (shiftKey && lastSelectedIndex !== null && lastSelectedIndex !== currentIndex) {
+      // Shift-click: select range between last and current
+      const startIndex = Math.min(lastSelectedIndex, currentIndex)
+      const endIndex = Math.max(lastSelectedIndex, currentIndex)
+      const rangeIds = items.slice(startIndex, endIndex + 1).map(item => item.id)
+
+      setSelectedItems(prev => {
+        const newSelected = new Set(prev)
+        rangeIds.forEach(itemId => newSelected.add(itemId))
+        return Array.from(newSelected)
+      })
+    } else {
+      // Normal click: toggle single item
+      setSelectedItems((prev) =>
+        prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+      )
+    }
+
+    // Update last selected index
+    if (currentIndex !== -1) {
+      setLastSelectedIndex(currentIndex)
+    }
+  }, [lastSelectedIndex])
 
   // Open file preview
   const handlePreview = useCallback((file: FileItem) => {
@@ -927,6 +1109,84 @@ export default function FileVaultPage() {
     }
   }
 
+  // Copy file to clipboard - allows pasting into Outlook, Telegram, etc.
+  const handleCopyToClipboard = useCallback(async (file: FileItem) => {
+    try {
+      // Fetch download URL
+      const response = await fetch(`/api/file-vault/download/${file.id}`)
+      if (!response.ok) {
+        throw new Error('Ei saanud faili allalaadida')
+      }
+      const data = await response.json()
+
+      // Fetch the actual file as a blob
+      const fileResponse = await fetch(data.downloadUrl)
+      const blob = await fileResponse.blob()
+
+      // Check if clipboard API is available and supports file writing
+      if (!navigator.clipboard || !navigator.clipboard.write) {
+        throw new Error('Lõikelaua kirjutamine pole toetatud selles brauseris')
+      }
+
+      // Try to write to clipboard
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            [blob.type]: blob,
+          }),
+        ])
+        alert('Fail kopeeritud lõikelauale!')
+      } catch (clipboardError) {
+        // Fallback: Try using text/plain for unsupported types
+        console.warn('Direct clipboard write failed, attempting fallback:', clipboardError)
+
+        // For images, try PNG format
+        if (file.mimeType.startsWith('image/')) {
+          try {
+            // Convert to PNG if possible
+            const img = document.createElement('img')
+            img.src = URL.createObjectURL(blob)
+
+            await new Promise((resolve) => {
+              img.onload = resolve
+            })
+
+            const canvas = document.createElement('canvas')
+            canvas.width = img.width
+            canvas.height = img.height
+            const ctx = canvas.getContext('2d')
+            if (ctx) {
+              ctx.drawImage(img, 0, 0)
+              const pngBlob = await new Promise<Blob | null>((resolve) => {
+                canvas.toBlob(resolve, 'image/png')
+              })
+
+              if (pngBlob) {
+                await navigator.clipboard.write([
+                  new ClipboardItem({
+                    'image/png': pngBlob,
+                  }),
+                ])
+                alert('Pilt kopeeritud lõikelauale!')
+                URL.revokeObjectURL(img.src)
+                return
+              }
+            }
+            URL.revokeObjectURL(img.src)
+          } catch (imgError) {
+            console.error('Image conversion failed:', imgError)
+          }
+        }
+
+        // If all else fails, show a message
+        throw new Error('Seda failitüüpi ei saa lõikelauale kopeerida. Kasuta allalaadimist.')
+      }
+    } catch (error) {
+      console.error('Copy to clipboard error:', error)
+      alert((error as Error).message || 'Kopeerimine ebaõnnestus')
+    }
+  }, [])
+
   // Delete file - optimistic update
   const handleDelete = useCallback(async (fileId: string, permanent: boolean = false) => {
     if (!confirm(permanent ? 'Kas oled kindel, et soovid faili lõplikult kustutada?' : 'Kas oled kindel, et soovid faili prügikasti teisaldada?')) {
@@ -978,6 +1238,188 @@ export default function FileVaultPage() {
     ))
   }, [])
 
+  // Drag start handler
+  const handleDragStart = useCallback((e: React.DragEvent, fileId: string) => {
+    // If the dragged file is selected, drag all selected files
+    // Otherwise, just drag this one file
+    const filesToDrag = selectedItems.includes(fileId) ? selectedItems : [fileId]
+    setDraggedFileIds(filesToDrag)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', filesToDrag.join(','))
+
+    // Create drag image showing count
+    if (filesToDrag.length > 1) {
+      const dragImage = document.createElement('div')
+      dragImage.className = 'bg-[#279989] text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg'
+      dragImage.textContent = `${filesToDrag.length} faili`
+      dragImage.style.position = 'absolute'
+      dragImage.style.top = '-1000px'
+      document.body.appendChild(dragImage)
+      e.dataTransfer.setDragImage(dragImage, 0, 0)
+      setTimeout(() => document.body.removeChild(dragImage), 0)
+    }
+  }, [selectedItems])
+
+  // Drag over handler for folders
+  const handleDragOver = useCallback((e: React.DragEvent, folderId: string) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverFolderId(folderId)
+  }, [])
+
+  // Drag leave handler
+  const handleDragLeave = useCallback(() => {
+    setDragOverFolderId(null)
+  }, [])
+
+  // Drop handler - move files to folder or upload external files
+  const handleDrop = useCallback(async (e: React.DragEvent, targetFolderId: string) => {
+    e.preventDefault()
+    setDragOverFolderId(null)
+    setIsDroppingExternal(false)
+
+    // Check if dropping external files (from file explorer)
+    const droppedExternalFiles = Array.from(e.dataTransfer.files)
+    if (droppedExternalFiles.length > 0) {
+      // External files dropped - open upload dialog with confirmation
+      setDroppedFiles(droppedExternalFiles)
+      setShowUploadDialog(true)
+      return
+    }
+
+    // Internal drag - move files to folder
+    if (draggedFileIds.length === 0) return
+
+    setIsMovingFiles(true)
+    try {
+      // Move each file to the target folder
+      const movePromises = draggedFileIds.map(fileId =>
+        fetch(`/api/file-vault/files/${fileId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folderId: targetFolderId }),
+        })
+      )
+
+      await Promise.all(movePromises)
+
+      // Remove moved files from current view
+      setFiles(prev => prev.filter(f => !draggedFileIds.includes(f.id)))
+      setSelectedItems(prev => prev.filter(id => !draggedFileIds.includes(id)))
+
+      // Refresh file tree
+      fileTreeRef.current?.refresh()
+    } catch (error) {
+      console.error('Error moving files:', error)
+      alert('Failide teisaldamine ebaõnnestus')
+    } finally {
+      setIsMovingFiles(false)
+      setDraggedFileIds([])
+    }
+  }, [draggedFileIds])
+
+  // Drag end handler
+  const handleDragEnd = useCallback(() => {
+    setDraggedFileIds([])
+    setDragOverFolderId(null)
+  }, [])
+
+  // Bulk move handler
+  const handleBulkMove = useCallback(async (targetFolderId: string) => {
+    if (selectedItems.length === 0) return
+
+    setIsMovingFiles(true)
+    try {
+      // If targetFolderId is empty string, set to null for root folder
+      const folderId = targetFolderId || null
+      const movePromises = selectedItems.map(fileId =>
+        fetch(`/api/file-vault/files/${fileId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folderId }),
+        })
+      )
+
+      await Promise.all(movePromises)
+
+      // Remove moved files from current view
+      setFiles(prev => prev.filter(f => !selectedItems.includes(f.id)))
+      setSelectedItems([])
+      setShowBulkMoveDialog(false)
+
+      // Refresh file tree
+      fileTreeRef.current?.refresh()
+    } catch (error) {
+      console.error('Error moving files:', error)
+      alert('Failide teisaldamine ebaõnnestus')
+    } finally {
+      setIsMovingFiles(false)
+    }
+  }, [selectedItems])
+
+  // Restore files from trash
+  const handleRestoreFiles = useCallback(async (fileIds: string[]) => {
+    if (fileIds.length === 0 || !vault) return
+
+    try {
+      const response = await fetch('/api/file-vault/files/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'restore',
+          fileIds,
+          vaultId: vault.id,
+        }),
+      })
+
+      if (response.ok) {
+        // Remove restored files from current view
+        setFiles(prev => prev.filter(f => !fileIds.includes(f.id)))
+        setSelectedItems([])
+        // Refresh file tree
+        fileTreeRef.current?.refresh()
+      } else {
+        const data = await response.json()
+        throw new Error(data.error || 'Taastamine ebaõnnestus')
+      }
+    } catch (error) {
+      console.error('Error restoring files:', error)
+      alert((error as Error).message)
+    }
+  }, [vault])
+
+  // Permanently delete files
+  const handlePermanentDelete = useCallback(async (fileIds: string[]) => {
+    if (fileIds.length === 0 || !vault) return
+
+    if (!confirm(`Kas oled kindel, et soovid ${fileIds.length} fail${fileIds.length === 1 ? 'i' : 'i'} jäädavalt kustutada? Seda tegevust ei saa tagasi võtta.`)) {
+      return
+    }
+
+    try {
+      // Delete each file permanently
+      const deletePromises = fileIds.map(fileId =>
+        fetch(`/api/file-vault/files/${fileId}?permanent=true`, {
+          method: 'DELETE',
+        })
+      )
+
+      const results = await Promise.all(deletePromises)
+      const allSuccess = results.every(r => r.ok)
+
+      if (allSuccess) {
+        // Remove deleted files from current view
+        setFiles(prev => prev.filter(f => !fileIds.includes(f.id)))
+        setSelectedItems([])
+      } else {
+        throw new Error('Mõne faili kustutamine ebaõnnestus')
+      }
+    } catch (error) {
+      console.error('Error permanently deleting files:', error)
+      alert((error as Error).message)
+    }
+  }, [vault])
+
   // Filter by search (client-side for already loaded items)
   const filteredFolders = useMemo(() =>
     folders.filter((folder) =>
@@ -991,11 +1433,17 @@ export default function FileVaultPage() {
     ), [files, searchQuery]
   )
 
-  // Combined items for display
+  // Combined items for display (hide folders in trash view)
   const allItems: DisplayItem[] = useMemo(() => [
-    ...filteredFolders.map((f) => ({ ...f, type: 'folder' as const })),
+    ...(activeTab === 'trash' ? [] : filteredFolders.map((f) => ({ ...f, type: 'folder' as const }))),
     ...filteredFiles.map((f) => ({ ...f, type: 'file' as const })),
-  ], [filteredFolders, filteredFiles])
+  ], [filteredFolders, filteredFiles, activeTab])
+
+  // Keep a ref to allItems for use in selection callbacks
+  const allItemsRef = useRef(allItems)
+  useEffect(() => {
+    allItemsRef.current = allItems
+  }, [allItems])
 
   // Row height based on density
   const rowHeight = rowDensity === 'compact' ? ROW_HEIGHT_COMPACT : ROW_HEIGHT_NORMAL
@@ -1032,22 +1480,60 @@ export default function FileVaultPage() {
 
   return (
     <div className="flex h-[calc(100vh-80px)]">
-      {/* File Tree Sidebar */}
-      {vault && showFileTree && (
-        <div className="w-64 flex-shrink-0 hidden lg:block">
+      {/* File Tree Sidebar - Always rendered to prevent layout shift */}
+      <div
+        className={`
+          hidden lg:block flex-shrink-0 overflow-hidden
+          transition-[width] duration-200 ease-in-out
+          ${showFileTree ? 'w-64' : 'w-0'}
+        `}
+      >
+        {!vault || isLoading ? (
+          <FileTreeSkeleton />
+        ) : (
           <FileTree
             ref={fileTreeRef}
             vaultId={vault.id}
             currentFolderId={currentFolderId}
             onFolderSelect={handleTreeFolderSelect}
             onCreateFolder={openNewFolderDialog}
+            onRenameFolder={handleRenameFolder}
             canManageFolders={true}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        className={`flex-1 overflow-y-auto min-w-0 transition-colors ${
+          isDroppingExternal ? 'bg-[#279989]/10 border-2 border-dashed border-[#279989]' : ''
+        }`}
+        onDragOver={(e) => {
+          // Only handle external files (from file explorer)
+          if (e.dataTransfer.types.includes('Files')) {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsDroppingExternal(true)
+          }
+        }}
+        onDragLeave={(e) => {
+          // Only reset if leaving the main content area
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setIsDroppingExternal(false)
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsDroppingExternal(false)
+
+          const droppedExternalFiles = Array.from(e.dataTransfer.files)
+          if (droppedExternalFiles.length > 0) {
+            setDroppedFiles(droppedExternalFiles)
+            setShowUploadDialog(true)
+          }
+        }}
+      >
         {/* Top Bar with Tabs */}
         <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
           <div className="flex items-center justify-between px-6 py-3">
@@ -1132,6 +1618,19 @@ export default function FileVaultPage() {
                 >
                   <BarChart3 className="w-4 h-4" />
                   <span>Statistika</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('trash')}
+                  className={`
+                    flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors
+                    ${activeTab === 'trash'
+                      ? 'bg-red-100 text-red-600 font-medium'
+                      : 'text-slate-600 hover:bg-slate-100'
+                    }
+                  `}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Prügikast</span>
                 </button>
               </div>
             </div>
@@ -1575,9 +2074,20 @@ export default function FileVaultPage() {
         </div>
       )}
 
-      {/* Files View (all and my-files tabs) */}
-      {(activeTab === 'all' || activeTab === 'my-files') && (
+      {/* Files View (all, my-files, and trash tabs) */}
+      {(activeTab === 'all' || activeTab === 'my-files' || activeTab === 'trash') && (
         <>
+      {/* Trash Banner */}
+      {activeTab === 'trash' && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+          <Trash2 className="w-5 h-5 text-red-500 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-700">Prügikast</p>
+            <p className="text-xs text-red-600">Siin olevad failid kustutatakse automaatselt 30 päeva pärast. Taasta failid või kustuta need jäädavalt.</p>
+          </div>
+        </div>
+      )}
+
       {/* Breadcrumbs */}
       <div className="flex items-center gap-1 text-sm">
         {breadcrumbs.map((crumb, index) => (
@@ -1767,22 +2277,33 @@ export default function FileVaultPage() {
       {!isLoading && !error && (
         <>
           {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 min-[1920px]:grid-cols-10 gap-4">
               {allItems.map((item) => {
                 const isFolder = item.type === 'folder'
                 const Icon = isFolder ? Folder : getFileIcon((item as FileItem).mimeType)
                 const isSelected = selectedItems.includes(item.id)
+                const isDragOver = dragOverFolderId === item.id
+                const isDragging = draggedFileIds.includes(item.id)
 
                 return (
                   <Card
                     key={item.id}
                     className={`p-4 cursor-pointer transition-all hover:shadow-md group relative ${
                       isSelected ? 'ring-2 ring-offset-2' : ''
+                    } ${isDragOver ? 'ring-2 ring-[#279989] bg-[#279989]/5' : ''} ${
+                      isDragging ? 'opacity-50' : ''
                     }`}
                     style={{
                       borderColor: isSelected ? '#279989' : undefined,
                       ['--tw-ring-color' as string]: '#279989',
                     }}
+                    draggable={!isFolder}
+                    onDragStart={(e) => !isFolder && handleDragStart(e, item.id)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => isFolder && handleDragOver(e, item.id)}
+                    onDragLeave={isFolder ? handleDragLeave : undefined}
+                    onDrop={(e) => isFolder && handleDrop(e, item.id)}
+                    onContextMenu={(e) => handleContextMenu(e, item)}
                     onClick={() => {
                       if (isFolder) {
                         navigateToFolder(item as FolderItem)
@@ -1791,20 +2312,33 @@ export default function FileVaultPage() {
                       }
                     }}
                   >
+                    {/* Selection checkbox - always visible when selected, hover otherwise */}
+                    {!isFolder && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleSelect(item.id, e.shiftKey)
+                        }}
+                        className={`absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center transition-all z-20 ${
+                          isSelected
+                            ? 'bg-[#279989] border-[#279989] text-white'
+                            : 'border-slate-300 bg-white/80 opacity-0 group-hover:opacity-100 hover:border-[#279989]'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3" />}
+                      </button>
+                    )}
+
                     {/* Action buttons overlay - only for files */}
                     {!isFolder && (
                       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            toggleSelect(item.id)
+                            handleStar(item.id)
                           }}
-                          className={`p-1.5 rounded-lg transition-colors ${
-                            isSelected
-                              ? 'bg-[#279989] text-white'
-                              : 'bg-white/90 text-slate-600 hover:bg-slate-100'
-                          }`}
-                          title="Vali"
+                          className="p-1.5 rounded-lg transition-colors bg-white/90 text-slate-600 hover:bg-slate-100"
+                          title="Lemmik"
                         >
                           <Star className="w-3.5 h-3.5" />
                         </button>
@@ -1827,6 +2361,16 @@ export default function FileVaultPage() {
                           title="Jaga"
                         >
                           <Share2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleCopyToClipboard(item as FileItem)
+                          }}
+                          className="p-1.5 bg-white/90 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+                          title="Kopeeri lõikelauale"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={(e) => {
@@ -2021,6 +2565,14 @@ export default function FileVaultPage() {
                           )}
                         </button>
                       </th>
+                      <th className="w-20 px-3 py-2 text-center text-xs font-medium text-slate-500 uppercase hidden xl:table-cell">
+                        <span title="Märksõnad">Märksõnad</span>
+                      </th>
+                      <th className="w-16 px-3 py-2 text-center text-xs font-medium text-slate-500 uppercase hidden xl:table-cell">
+                        <span title="Kommentaarid">
+                          <MessageSquare className="w-4 h-4 inline-block" />
+                        </span>
+                      </th>
                       <th className="w-32 px-3 py-2 text-right text-xs font-medium text-slate-500 uppercase">
                         Tegevused
                       </th>
@@ -2053,7 +2605,8 @@ export default function FileVaultPage() {
                               <input
                                 type="checkbox"
                                 checked={isSelected}
-                                onChange={() => toggleSelect(item.id)}
+                                onChange={(e) => toggleSelect(item.id, e.nativeEvent instanceof MouseEvent ? (e.nativeEvent as MouseEvent).shiftKey : false)}
+                                onClick={(e) => e.stopPropagation()}
                                 className="w-4 h-4 rounded cursor-pointer"
                               />
                             </td>
@@ -2126,6 +2679,46 @@ export default function FileVaultPage() {
                               {formatDate(item.createdAt)}
                             </td>
 
+                            {/* Tags */}
+                            <td className="w-20 px-3 hidden xl:table-cell">
+                              {!isFolder && fileItem.tags && fileItem.tags.length > 0 ? (
+                                <div className="flex flex-wrap gap-1 justify-center">
+                                  {fileItem.tags.slice(0, 2).map((tag, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 max-w-[60px] truncate"
+                                      title={tag}
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                  {fileItem.tags.length > 2 && (
+                                    <span className="text-xs text-slate-400">
+                                      +{fileItem.tags.length - 2}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-300 text-center block">-</span>
+                              )}
+                            </td>
+
+                            {/* Comments */}
+                            <td className="w-16 px-3 text-center hidden xl:table-cell">
+                              {!isFolder && fileItem.commentCount && fileItem.commentCount > 0 ? (
+                                <button
+                                  onClick={() => handleShowInfo(fileItem)}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                  title={`${fileItem.commentCount} kommentaari`}
+                                >
+                                  <MessageSquare className="w-3 h-3" />
+                                  {fileItem.commentCount}
+                                </button>
+                              ) : (
+                                <span className="text-slate-300">-</span>
+                              )}
+                            </td>
+
                             {/* Actions */}
                             <td className="w-32 px-3">
                               <div className="flex items-center justify-end gap-0.5">
@@ -2184,7 +2777,7 @@ export default function FileVaultPage() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-500">
+                        <td colSpan={8} className="py-8 text-center text-slate-500">
                           Andmeid ei leitud
                         </td>
                       </tr>
@@ -2295,10 +2888,16 @@ export default function FileVaultPage() {
       {vault && (
         <FileUploadDialog
           open={showUploadDialog}
-          onOpenChange={setShowUploadDialog}
+          onOpenChange={(open) => {
+            setShowUploadDialog(open)
+            if (!open) {
+              setDroppedFiles([])
+            }
+          }}
           vaultId={vault.id}
           folderId={currentFolderId}
           onUploadComplete={handleUploadComplete}
+          initialFiles={droppedFiles.length > 0 ? droppedFiles : undefined}
         />
       )}
 
@@ -2403,6 +3002,151 @@ export default function FileVaultPage() {
         </div>
       )}
 
+      {/* Rename Folder Dialog */}
+      {showRenameFolderDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md m-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900">Nimeta kaust ümber</h3>
+              <button
+                onClick={() => {
+                  setShowRenameFolderDialog(false)
+                  setRenameFolderId(null)
+                  setRenameFolderName('')
+                }}
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Kausta nimi
+              </label>
+              <Input
+                placeholder="Kausta nimi"
+                value={renameFolderName}
+                onChange={(e) => setRenameFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    submitFolderRename()
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+            <div className="flex items-center gap-3 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowRenameFolderDialog(false)
+                  setRenameFolderId(null)
+                  setRenameFolderName('')
+                }}
+                disabled={isRenamingFolder}
+                className="flex-1"
+              >
+                Tühista
+              </Button>
+              <Button
+                onClick={submitFolderRename}
+                disabled={!renameFolderName.trim() || isRenamingFolder}
+                className="flex-1 bg-[#279989] hover:bg-[#1e7a6d] text-white"
+              >
+                {isRenamingFolder ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvestan...
+                  </>
+                ) : (
+                  'Salvesta'
+                )}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Rename File Dialog */}
+      {showRenameFileDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md m-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900">Nimeta fail ümber</h3>
+              <button
+                onClick={() => {
+                  setShowRenameFileDialog(false)
+                  setRenameFileId(null)
+                  setRenameFileName('')
+                  setRenameFileExtension('')
+                }}
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Faili nimi
+              </label>
+              <div className="flex items-center gap-1">
+                <Input
+                  placeholder="Faili nimi"
+                  value={renameFileName}
+                  onChange={(e) => setRenameFileName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      submitFileRename()
+                    }
+                  }}
+                  autoFocus
+                  className="flex-1"
+                />
+                {renameFileExtension && (
+                  <span className="text-sm text-slate-500 font-medium px-2 py-2 bg-slate-100 rounded border border-slate-200">
+                    {renameFileExtension}
+                  </span>
+                )}
+              </div>
+              {renameFileExtension && (
+                <p className="text-xs text-slate-500 mt-2">
+                  Faililaiend säilitatakse automaatselt
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-3 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowRenameFileDialog(false)
+                  setRenameFileId(null)
+                  setRenameFileName('')
+                  setRenameFileExtension('')
+                }}
+                disabled={isRenamingFile}
+                className="flex-1"
+              >
+                Tühista
+              </Button>
+              <Button
+                onClick={submitFileRename}
+                disabled={!renameFileName.trim() || isRenamingFile}
+                className="flex-1 bg-[#279989] hover:bg-[#1e7a6d] text-white"
+              >
+                {isRenamingFile ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvestan...
+                  </>
+                ) : (
+                  'Salvesta'
+                )}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Share Dialog */}
       {vault && shareFileIds.length > 0 && (
         <ShareDialog
@@ -2464,11 +3208,53 @@ export default function FileVaultPage() {
               <span className="hidden sm:inline">Jaga</span>
             </button>
             <button
+              onClick={() => setShowBulkMoveDialog(true)}
+              disabled={isMovingFiles}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              <Move className="w-4 h-4" />
+              <span className="hidden sm:inline">{isMovingFiles ? 'Teisaldan...' : 'Teisalda'}</span>
+            </button>
+            <button
               onClick={handleDeleteSelected}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               <span className="hidden sm:inline">Kustuta</span>
+            </button>
+            <div className="pl-2 border-l border-slate-200">
+              <button
+                onClick={() => setSelectedItems([])}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                title="Tühista valik"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Trash Selection Toolbar */}
+      {selectedItems.length > 0 && activeTab === 'trash' && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4 duration-200">
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-white rounded-xl shadow-lg border border-red-200">
+            <span className="text-sm font-medium text-slate-700 pr-2 border-r border-slate-200">
+              {selectedItems.length} valitud
+            </span>
+            <button
+              onClick={() => handleRestoreFiles(selectedItems)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[#279989] hover:bg-[#279989]/10 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span className="hidden sm:inline">Taasta</span>
+            </button>
+            <button
+              onClick={() => handlePermanentDelete(selectedItems)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Kustuta jäädavalt</span>
             </button>
             <div className="pl-2 border-l border-slate-200">
               <button
@@ -2505,6 +3291,74 @@ export default function FileVaultPage() {
         </div>
       )}
 
+      {/* Bulk Move Dialog */}
+      {showBulkMoveDialog && vault && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md m-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Teisalda {selectedItems.length} faili
+              </h3>
+              <button
+                onClick={() => setShowBulkMoveDialog(false)}
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-slate-600 mb-4">
+                Vali kaust, kuhu failid teisaldada:
+              </p>
+              <div className="max-h-[300px] overflow-y-auto border border-slate-200 rounded-lg">
+                {/* Root folder option */}
+                <button
+                  onClick={() => handleBulkMove('')}
+                  disabled={isMovingFiles || currentFolderId === null}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 disabled:opacity-50"
+                >
+                  <Folder className="w-5 h-5 text-slate-400" />
+                  <span className="text-sm text-slate-900 font-medium">Juurkaust (Kõik failid)</span>
+                </button>
+                {/* Folder list */}
+                {folders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    onClick={() => handleBulkMove(folder.id)}
+                    disabled={isMovingFiles || folder.id === currentFolderId}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 disabled:opacity-50 ${
+                      folder.id === currentFolderId ? 'bg-slate-50' : ''
+                    }`}
+                  >
+                    <Folder className="w-5 h-5 text-amber-500" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-slate-900">{folder.name}</span>
+                      {folder.id === currentFolderId && (
+                        <span className="text-xs text-slate-500 ml-2">(praegune)</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+                {folders.length === 0 && (
+                  <p className="text-sm text-slate-500 text-center py-8">
+                    Kaustu pole veel loodud
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+              <Button
+                variant="outline"
+                onClick={() => setShowBulkMoveDialog(false)}
+                disabled={isMovingFiles}
+              >
+                Tühista
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Context Menu */}
       {contextMenu && contextMenu.item && (
         <div
@@ -2528,7 +3382,43 @@ export default function FileVaultPage() {
                 Ava kaust
               </button>
             </>
+          ) : activeTab === 'trash' ? (
+            // Trash context menu - show restore and permanent delete
+            <>
+              <button
+                onClick={() => {
+                  handleRestoreFiles([contextMenu.item!.id])
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#279989] hover:bg-[#279989]/10"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Taasta
+              </button>
+              <button
+                onClick={() => {
+                  handlePreview(contextMenu.item as FileItem)
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                <Eye className="w-4 h-4" />
+                Eelvaade
+              </button>
+              <div className="h-px bg-slate-200 my-1" />
+              <button
+                onClick={() => {
+                  handlePermanentDelete([contextMenu.item!.id])
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Kustuta jäädavalt
+              </button>
+            </>
           ) : (
+            // Normal context menu
             <>
               <button
                 onClick={() => {
@@ -2569,6 +3459,16 @@ export default function FileVaultPage() {
               >
                 <Info className="w-4 h-4" />
                 Info
+              </button>
+              <button
+                onClick={() => {
+                  handleRenameFile(contextMenu.item as FileItem)
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                <Edit3 className="w-4 h-4" />
+                Nimeta ümber
               </button>
               <div className="h-px bg-slate-200 my-1" />
               <button

@@ -383,20 +383,20 @@ export async function DELETE(
         // Soft delete all files in folder and subfolders
         await supabaseAdmin
           .from('files')
-          .update({ deleted_at: now, deleted_by: user.id })
+          .update({ deleted_at: now })
           .like('path', `${existingFolder.path}/%`)
 
         // Soft delete all subfolders
         await supabaseAdmin
           .from('file_folders')
-          .update({ deleted_at: now, deleted_by: user.id })
+          .update({ deleted_at: now })
           .like('path', `${existingFolder.path}/%`)
       }
 
       // Soft delete the folder
       const { error: updateError } = await supabaseAdmin
         .from('file_folders')
-        .update({ deleted_at: now, deleted_by: user.id })
+        .update({ deleted_at: now })
         .eq('id', folderId)
 
       if (updateError) {
