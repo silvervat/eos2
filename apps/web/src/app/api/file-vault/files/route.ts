@@ -154,7 +154,9 @@ export async function GET(request: Request) {
         owner_id,
         folder_id,
         created_at,
-        updated_at
+        updated_at,
+        created_by,
+        tags
       `, { count: 'exact' })
       .eq('vault_id', vaultId)
 
@@ -196,6 +198,26 @@ export async function GET(request: Request) {
       query = query.in('extension', extensions)
     }
 
+    // Apply size filters
+    const minSize = searchParams.get('minSize')
+    const maxSize = searchParams.get('maxSize')
+    if (minSize) {
+      query = query.gte('size_bytes', parseInt(minSize))
+    }
+    if (maxSize) {
+      query = query.lte('size_bytes', parseInt(maxSize))
+    }
+
+    // Apply date filters
+    const dateFrom = searchParams.get('dateFrom')
+    const dateTo = searchParams.get('dateTo')
+    if (dateFrom) {
+      query = query.gte('created_at', `${dateFrom}T00:00:00.000Z`)
+    }
+    if (dateTo) {
+      query = query.lte('created_at', `${dateTo}T23:59:59.999Z`)
+    }
+
     // Apply sorting
     const validSortColumns = ['created_at', 'updated_at', 'name', 'size_bytes', 'mime_type']
     const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'created_at'
@@ -212,10 +234,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Fetch uploader profiles for all files
+    const creatorIds = [...new Set(files?.map(f => f.created_by).filter(Boolean) || [])]
+    let uploaderMap = new Map<string, { fullName: string; avatarUrl: string | null }>()
+
+    if (creatorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('auth_user_id, full_name, avatar_url')
+        .in('auth_user_id', creatorIds)
+
+      if (profiles) {
+        uploaderMap = new Map(
+          profiles.map(p => [p.auth_user_id, { fullName: p.full_name || 'Tundmatu', avatarUrl: p.avatar_url }])
+        )
+      }
+    }
+
     // CDN base URL for thumbnails
     const cdnBase = process.env.CDN_URL || ''
 
-    // Transform response with CDN thumbnail URLs
+    // Transform response with CDN thumbnail URLs and uploader info
     const transformedFiles = files?.map(file => ({
       id: file.id,
       name: file.name,
@@ -242,7 +281,9 @@ export async function GET(request: Request) {
       folderId: file.folder_id,
       createdAt: file.created_at,
       updatedAt: file.updated_at,
-      tags: [],
+      createdBy: file.created_by,
+      uploader: uploaderMap.get(file.created_by) || { fullName: 'Tundmatu', avatarUrl: null },
+      tags: file.tags || [],
     })) || []
 
     // Generate next cursor for efficient pagination on large datasets

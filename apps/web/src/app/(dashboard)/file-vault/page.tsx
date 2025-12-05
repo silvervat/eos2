@@ -33,6 +33,7 @@ import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
 import { ShareDialog } from '@/components/file-vault/ShareDialog'
 import { FilePreviewDialog } from '@/components/file-vault/FilePreviewDialog'
 import { FileTree, FileTreeRef } from '@/components/file-vault/FileTree'
+import { FileTreeSkeleton } from '@/components/file-vault/FileTreeSkeleton'
 import { FileInfoSidebar } from '@/components/file-vault/FileInfoSidebar'
 import {
   User,
@@ -1032,9 +1033,17 @@ export default function FileVaultPage() {
 
   return (
     <div className="flex h-[calc(100vh-80px)]">
-      {/* File Tree Sidebar */}
-      {vault && showFileTree && (
-        <div className="w-64 flex-shrink-0 hidden lg:block">
+      {/* File Tree Sidebar - Always rendered to prevent layout shift */}
+      <div
+        className={`
+          hidden lg:block flex-shrink-0 overflow-hidden
+          transition-[width] duration-200 ease-in-out
+          ${showFileTree ? 'w-64' : 'w-0'}
+        `}
+      >
+        {!vault || isLoading ? (
+          <FileTreeSkeleton />
+        ) : (
           <FileTree
             ref={fileTreeRef}
             vaultId={vault.id}
@@ -1043,11 +1052,11 @@ export default function FileVaultPage() {
             onCreateFolder={openNewFolderDialog}
             canManageFolders={true}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-w-0">
         {/* Top Bar with Tabs */}
         <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
           <div className="flex items-center justify-between px-6 py-3">
