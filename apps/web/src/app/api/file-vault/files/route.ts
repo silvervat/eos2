@@ -1,21 +1,21 @@
 /**
- * FILE VAULT - Files API Route (OPTIMIZED)
+ * FILE VAULT - Files API Route (OPTIMIZED v2)
  * GET /api/file-vault/files - List files
  * POST /api/file-vault/files - Create file record (for advanced use cases)
  *
  * Performance optimizations:
  * - Parallel auth + profile fetch
  * - Optimized query with proper indexes
+ * - In-memory caching with TTL
  * - Caching headers for browser/CDN
  */
 
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { cacheGet, cacheSet, CACHE_TTL } from '@/lib/cache'
+import { getFileListCacheKey } from '@/lib/file-vault/cache-invalidation'
 
 export const dynamic = 'force-dynamic'
-
-// Cache for vault access validation (per-request, prevents duplicate queries)
-const vaultAccessCache = new Map<string, boolean>()
 
 // GET /api/file-vault/files - List files with search and filters
 export async function GET(request: Request) {
@@ -41,6 +41,38 @@ export async function GET(request: Request) {
     // Validate vault ID early
     if (!vaultId) {
       return NextResponse.json({ error: 'Vault ID is required' }, { status: 400 })
+    }
+
+    // Generate cache key
+    const cacheKey = getFileListCacheKey({
+      vaultId,
+      folderId,
+      search,
+      mimeType,
+      extension,
+      sortBy,
+      sortOrder,
+      limit,
+      offset,
+    })
+
+    // Try cache first (skip if searching or getting deleted files)
+    if (!search && !includeDeleted && !uploadedByMe) {
+      const cached = await cacheGet<{
+        files: unknown[]
+        pagination: { total: number; limit: number; offset: number; hasMore: boolean }
+      }>(cacheKey)
+
+      if (cached) {
+        const duration = Date.now() - startTime
+        const response = NextResponse.json({
+          ...cached,
+          _meta: { duration, cached: true },
+        })
+        response.headers.set('Cache-Control', 'private, max-age=10, stale-while-revalidate=30')
+        response.headers.set('X-Cache', 'HIT')
+        return response
+      }
     }
 
     // Parallel fetch: auth user + profile in one query using RPC or join
@@ -184,8 +216,8 @@ export async function GET(request: Request) {
 
     const duration = Date.now() - startTime
 
-    // Create response with caching headers
-    const response = NextResponse.json({
+    // Prepare result for caching
+    const result = {
       files: transformedFiles,
       pagination: {
         total: count || 0,
@@ -193,6 +225,16 @@ export async function GET(request: Request) {
         offset,
         hasMore: (offset + limit) < (count || 0),
       },
+    }
+
+    // Store in cache (only if not a special query)
+    if (!search && !includeDeleted && !uploadedByMe) {
+      await cacheSet(cacheKey, result, CACHE_TTL.FILE_LIST)
+    }
+
+    // Create response with caching headers
+    const response = NextResponse.json({
+      ...result,
       _meta: {
         duration,
         cached: false,
@@ -202,6 +244,8 @@ export async function GET(request: Request) {
     // Add cache headers - short TTL for dynamic data
     // stale-while-revalidate allows serving stale content while fetching fresh
     response.headers.set('Cache-Control', 'private, max-age=5, stale-while-revalidate=30')
+    response.headers.set('X-Cache', 'MISS')
+    response.headers.set('X-Query-Duration', `${duration}ms`)
 
     return response
   } catch (error) {
