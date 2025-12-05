@@ -83,6 +83,8 @@ interface FileItem {
   updatedAt: string
   tags: string[]
   commentCount?: number
+  deletedAt?: string
+  deletedBy?: string
   folder?: {
     id: string
     name: string

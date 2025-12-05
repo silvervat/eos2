@@ -196,7 +196,7 @@ export async function PATCH(
     ]
 
     const updates: Record<string, unknown> = {
-      updated_by: user.id,
+      updated_at: new Date().toISOString(),
     }
 
     // Build update object

@@ -137,28 +137,7 @@ export async function GET(request: Request) {
     // Build query - simplified without relationships to avoid schema cache issues
     let query = supabase
       .from('files')
-      .select(`
-        id,
-        name,
-        path,
-        mime_type,
-        size_bytes,
-        extension,
-        width,
-        height,
-        thumbnail_small,
-        thumbnail_medium,
-        thumbnail_large,
-        metadata,
-        version,
-        is_public,
-        owner_id,
-        folder_id,
-        created_at,
-        updated_at,
-        created_by,
-        tags
-      `, { count: 'exact' })
+      .select('id, name, path, mime_type, size_bytes, extension, width, height, thumbnail_small, thumbnail_medium, thumbnail_large, metadata, version, is_public, owner_id, folder_id, created_at, updated_at, created_by, tags', { count: 'exact' })
       .eq('vault_id', vaultId)
 
     // Apply folder filter
