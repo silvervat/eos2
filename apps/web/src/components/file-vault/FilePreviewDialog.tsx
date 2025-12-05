@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { FileComments } from './FileComments'
 import { FileVersions } from './FileVersions'
+import { OfficePreview, isOfficeDocument } from './OfficePreview'
 
 interface FilePreviewDialogProps {
   open: boolean
@@ -128,7 +129,7 @@ export function FilePreviewDialog({
 
         let newPreviewUrl: string | null = null
         // Get preview URL from parallel request
-        if (downloadResponse.ok && isPreviewable(data.mimeType)) {
+        if (downloadResponse.ok && isPreviewable(data.mimeType, data.extension)) {
           const downloadData = await downloadResponse.json()
           newPreviewUrl = downloadData.downloadUrl
           setPreviewUrl(newPreviewUrl)
@@ -218,26 +219,15 @@ export function FilePreviewDialog({
     }
   }
 
-  // Check if file type can be previewed
-  const isOfficeDocument = (mimeType: string): boolean => {
-    const officeTypes = [
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-      'application/msword', // .doc
-      'application/vnd.ms-excel', // .xls
-      'application/vnd.ms-powerpoint', // .ppt
-    ]
-    return officeTypes.includes(mimeType)
-  }
+  // Check if file type can be previewed (local helper for non-Office types)
 
-  const isPreviewable = (mimeType: string): boolean => {
+  const isPreviewable = (mimeType: string, extension?: string): boolean => {
     return (
       mimeType.startsWith('image/') ||
       mimeType.startsWith('video/') ||
       mimeType.startsWith('audio/') ||
       mimeType === 'application/pdf' ||
-      isOfficeDocument(mimeType)
+      isOfficeDocument(mimeType, extension)
     )
   }
 
@@ -333,52 +323,14 @@ export function FilePreviewDialog({
     }
 
     // Office documents - use Microsoft Office Online viewer
-    if (isOfficeDocument(mimeType)) {
-      // The previewUrl needs to be publicly accessible for Office Online to work
-      // Since our files are private, we'll show a download prompt instead
-      // For public files, we could use: https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}
+    if (isOfficeDocument(mimeType, file.extension)) {
       return (
-        <div className="flex flex-col items-center justify-center h-full gap-6 bg-slate-50">
-          <div className="w-20 h-20 rounded-2xl bg-white shadow-lg flex items-center justify-center">
-            {mimeType.includes('word') ? (
-              <FileText className="w-10 h-10 text-blue-600" />
-            ) : mimeType.includes('spreadsheet') || mimeType.includes('excel') ? (
-              <FileText className="w-10 h-10 text-green-600" />
-            ) : (
-              <FileText className="w-10 h-10 text-orange-600" />
-            )}
-          </div>
-          <div className="text-center">
-            <h3 className="text-lg font-medium text-slate-900 mb-1">{file.name}</h3>
-            <p className="text-sm text-slate-500 mb-4">
-              {mimeType.includes('word') && 'Microsoft Word dokument'}
-              {mimeType.includes('spreadsheet') && 'Microsoft Excel tabel'}
-              {mimeType.includes('excel') && 'Microsoft Excel tabel'}
-              {mimeType.includes('presentation') && 'Microsoft PowerPoint esitlus'}
-              {mimeType.includes('powerpoint') && 'Microsoft PowerPoint esitlus'}
-            </p>
-            <p className="text-xs text-slate-400 max-w-sm mb-6">
-              Office dokumentide eelvaatamiseks laadi fail alla ja ava see oma arvutis.
-            </p>
-            <Button
-              onClick={handleDownload}
-              disabled={isDownloading}
-              className="bg-[#279989] hover:bg-[#1e7a6d] text-white"
-            >
-              {isDownloading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Laadin...
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4 mr-2" />
-                  Laadi alla
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
+        <OfficePreview
+          fileUrl={previewUrl}
+          fileName={file.name}
+          mimeType={mimeType}
+          onDownload={handleDownload}
+        />
       )
     }
 
@@ -642,7 +594,7 @@ export function FilePreviewDialog({
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
               </div>
-            ) : file && isPreviewable(file.mimeType) ? (
+            ) : file && isPreviewable(file.mimeType, file.extension) ? (
               renderPreview()
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-4 bg-slate-50">

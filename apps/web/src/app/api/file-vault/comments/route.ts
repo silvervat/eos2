@@ -144,12 +144,14 @@ export async function POST(request: Request) {
       .eq('auth_user_id', user.id)
       .single()
 
-    // Log activity
-    await supabase.from('file_accesses').insert({
+    // Log activity (non-blocking)
+    supabase.from('file_accesses').insert({
       file_id: fileId,
       action: 'comment',
       user_id: user.id,
       details: { comment_id: comment.id },
+    }).then(({ error }) => {
+      if (error) console.error('Failed to log comment activity:', error)
     })
 
     return NextResponse.json({

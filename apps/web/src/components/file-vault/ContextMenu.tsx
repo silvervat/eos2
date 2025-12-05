@@ -205,7 +205,7 @@ export function getFileContextMenuItems(
   if (handlers.onCopy) {
     items.push({
       id: 'copy',
-      label: 'Kopeeri',
+      label: 'Kopeeri lõikelauale',
       icon: <Copy className="w-4 h-4" />,
       onClick: handlers.onCopy,
     })

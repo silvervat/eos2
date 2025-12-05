@@ -98,9 +98,14 @@ export function FileComments({ fileId, fileName }: FileCommentsProps) {
           setComments(prev => [...prev, data.comment])
           setNewComment('')
         }
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Tundmatu viga' }))
+        console.error('Comment submission failed:', response.status, errorData)
+        alert(errorData.error || 'Kommentaari lisamine ebaõnnestus')
       }
     } catch (error) {
       console.error('Error submitting comment:', error)
+      alert('Võrguühenduse viga. Palun proovi uuesti.')
     } finally {
       setIsSubmitting(false)
     }

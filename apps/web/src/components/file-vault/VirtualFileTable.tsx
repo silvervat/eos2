@@ -15,6 +15,7 @@ import {
   Eye,
   Info,
   ChevronRight,
+  Copy,
 } from 'lucide-react'
 
 /**
@@ -67,6 +68,7 @@ interface VirtualFileTableProps {
   onShare: (file: FileItem) => void
   onShowInfo: (file: FileItem) => void
   onDelete: (id: string) => void
+  onCopyToClipboard?: (file: FileItem) => void
   onContextMenu: (e: React.MouseEvent, item: DisplayItem) => void
   onHoverPreview?: (file: FileItem | null, position: { x: number; y: number }) => void
   onLoadMore?: () => void  // Infinite scroll callback
@@ -152,6 +154,7 @@ const TableRow = memo(function TableRow({
   onShare,
   onShowInfo,
   onDelete,
+  onCopyToClipboard,
   onContextMenu,
   onHoverPreview,
 }: {
@@ -166,6 +169,7 @@ const TableRow = memo(function TableRow({
   onShare: (file: FileItem) => void
   onShowInfo: (file: FileItem) => void
   onDelete: (id: string) => void
+  onCopyToClipboard?: (file: FileItem) => void
   onContextMenu: (e: React.MouseEvent, item: DisplayItem) => void
   onHoverPreview?: (file: FileItem | null, position: { x: number; y: number }) => void
 }) {
@@ -298,6 +302,15 @@ const TableRow = memo(function TableRow({
               >
                 <Share2 className="w-4 h-4" />
               </button>
+              {onCopyToClipboard && (
+                <button
+                  onClick={() => onCopyToClipboard(fileItem)}
+                  className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                  title="Kopeeri lõikelauale"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              )}
               <button
                 onClick={() => onShowInfo(fileItem)}
                 className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
@@ -362,6 +375,7 @@ export function VirtualFileTable({
   onShare,
   onShowInfo,
   onDelete,
+  onCopyToClipboard,
   onContextMenu,
   onHoverPreview,
   onLoadMore,
@@ -471,6 +485,7 @@ export function VirtualFileTable({
                 onShare={onShare}
                 onShowInfo={onShowInfo}
                 onDelete={onDelete}
+                onCopyToClipboard={onCopyToClipboard}
                 onContextMenu={onContextMenu}
                 onHoverPreview={onHoverPreview}
               />
@@ -539,6 +554,7 @@ export function VirtualFileTable({
               onShare={onShare}
               onShowInfo={onShowInfo}
               onDelete={onDelete}
+              onCopyToClipboard={onCopyToClipboard}
               onContextMenu={onContextMenu}
               onHoverPreview={onHoverPreview}
             />

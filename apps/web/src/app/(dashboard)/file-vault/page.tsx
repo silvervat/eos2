@@ -898,6 +898,7 @@ export default function FileVaultPage() {
   // Rename file state
   const [renameFileId, setRenameFileId] = useState<string | null>(null)
   const [renameFileName, setRenameFileName] = useState('')
+  const [renameFileExtension, setRenameFileExtension] = useState('')
   const [showRenameFileDialog, setShowRenameFileDialog] = useState(false)
   const [isRenamingFile, setIsRenamingFile] = useState(false)
 
@@ -945,7 +946,15 @@ export default function FileVaultPage() {
   // Handle rename file
   const handleRenameFile = useCallback((file: { id: string; name: string }) => {
     setRenameFileId(file.id)
-    setRenameFileName(file.name)
+    // Split name from extension
+    const lastDotIndex = file.name.lastIndexOf('.')
+    if (lastDotIndex > 0) {
+      setRenameFileName(file.name.substring(0, lastDotIndex))
+      setRenameFileExtension(file.name.substring(lastDotIndex))
+    } else {
+      setRenameFileName(file.name)
+      setRenameFileExtension('')
+    }
     setShowRenameFileDialog(true)
   }, [])
 
@@ -953,12 +962,15 @@ export default function FileVaultPage() {
   const submitFileRename = async () => {
     if (!renameFileId || !renameFileName.trim()) return
 
+    // Combine name with extension
+    const fullName = renameFileName.trim() + renameFileExtension
+
     setIsRenamingFile(true)
     try {
       const response = await fetch(`/api/file-vault/files/${renameFileId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: renameFileName.trim() }),
+        body: JSON.stringify({ name: fullName }),
       })
 
       if (!response.ok) {
@@ -968,12 +980,13 @@ export default function FileVaultPage() {
 
       // Update local file list
       setFiles(prev => prev.map(f =>
-        f.id === renameFileId ? { ...f, name: renameFileName.trim() } : f
+        f.id === renameFileId ? { ...f, name: fullName } : f
       ))
 
       setShowRenameFileDialog(false)
       setRenameFileId(null)
       setRenameFileName('')
+      setRenameFileExtension('')
     } catch (err) {
       console.error('Error renaming file:', err)
       alert((err as Error).message)
@@ -1070,6 +1083,87 @@ export default function FileVaultPage() {
       }
     }
   }
+
+  // Copy file to clipboard - allows pasting into Outlook, Telegram, etc.
+  const handleCopyToClipboard = useCallback(async (file: FileItem) => {
+    try {
+      // Fetch download URL
+      const response = await fetch(`/api/file-vault/download/${file.id}`)
+      if (!response.ok) {
+        throw new Error('Ei saanud faili allalaadida')
+      }
+      const data = await response.json()
+
+      // Fetch the actual file as a blob
+      const fileResponse = await fetch(data.downloadUrl)
+      const blob = await fileResponse.blob()
+
+      // Create a File object from the blob
+      const fileObj = new File([blob], file.name, { type: blob.type })
+
+      // Check if clipboard API is available and supports file writing
+      if (!navigator.clipboard || !navigator.clipboard.write) {
+        throw new Error('Lõikelaua kirjutamine pole toetatud selles brauseris')
+      }
+
+      // Try to write to clipboard
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            [blob.type]: blob,
+          }),
+        ])
+        alert('Fail kopeeritud lõikelauale!')
+      } catch (clipboardError) {
+        // Fallback: Try using text/plain for unsupported types
+        console.warn('Direct clipboard write failed, attempting fallback:', clipboardError)
+
+        // For images, try PNG format
+        if (file.mimeType.startsWith('image/')) {
+          try {
+            // Convert to PNG if possible
+            const img = document.createElement('img')
+            img.src = URL.createObjectURL(blob)
+
+            await new Promise((resolve) => {
+              img.onload = resolve
+            })
+
+            const canvas = document.createElement('canvas')
+            canvas.width = img.width
+            canvas.height = img.height
+            const ctx = canvas.getContext('2d')
+            if (ctx) {
+              ctx.drawImage(img, 0, 0)
+              const pngBlob = await new Promise<Blob | null>((resolve) => {
+                canvas.toBlob(resolve, 'image/png')
+              })
+
+              if (pngBlob) {
+                await navigator.clipboard.write([
+                  new ClipboardItem({
+                    'image/png': pngBlob,
+                  }),
+                ])
+                alert('Pilt kopeeritud lõikelauale!')
+                URL.revokeObjectURL(img.src)
+                return
+              }
+            }
+            URL.revokeObjectURL(img.src)
+          } catch (imgError) {
+            console.error('Image conversion failed:', imgError)
+          }
+        }
+
+        // If all else fails, show a message
+        throw new Error('Seda failitüüpi ei saa lõikelauale kopeerida. Kasuta allalaadimist.')
+      }
+    } catch (error) {
+      console.error('Copy to clipboard error:', error)
+      alert((error as Error).message || 'Kopeerimine ebaõnnestus')
+    }
+  }, [])
 
   // Delete file - optimistic update
   const handleDelete = useCallback(async (fileId: string, permanent: boolean = false) => {
@@ -2203,6 +2297,16 @@ export default function FileVaultPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
+                            handleCopyToClipboard(item as FileItem)
+                          }}
+                          className="p-1.5 bg-white/90 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+                          title="Kopeeri lõikelauale"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
                             handleShowInfo(item as FileItem)
                           }}
                           className="p-1.5 bg-white/90 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
@@ -2899,6 +3003,7 @@ export default function FileVaultPage() {
                   setShowRenameFileDialog(false)
                   setRenameFileId(null)
                   setRenameFileName('')
+                  setRenameFileExtension('')
                 }}
                 className="p-1.5 rounded hover:bg-slate-100 text-slate-400"
               >
@@ -2909,17 +3014,30 @@ export default function FileVaultPage() {
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Faili nimi
               </label>
-              <Input
-                placeholder="Faili nimi"
-                value={renameFileName}
-                onChange={(e) => setRenameFileName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    submitFileRename()
-                  }
-                }}
-                autoFocus
-              />
+              <div className="flex items-center gap-1">
+                <Input
+                  placeholder="Faili nimi"
+                  value={renameFileName}
+                  onChange={(e) => setRenameFileName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      submitFileRename()
+                    }
+                  }}
+                  autoFocus
+                  className="flex-1"
+                />
+                {renameFileExtension && (
+                  <span className="text-sm text-slate-500 font-medium px-2 py-2 bg-slate-100 rounded border border-slate-200">
+                    {renameFileExtension}
+                  </span>
+                )}
+              </div>
+              {renameFileExtension && (
+                <p className="text-xs text-slate-500 mt-2">
+                  Faililaiend säilitatakse automaatselt
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-3 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
               <Button
@@ -2928,6 +3046,7 @@ export default function FileVaultPage() {
                   setShowRenameFileDialog(false)
                   setRenameFileId(null)
                   setRenameFileName('')
+                  setRenameFileExtension('')
                 }}
                 disabled={isRenamingFile}
                 className="flex-1"
