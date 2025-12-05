@@ -124,8 +124,9 @@ class RedisCache {
         this.stats.connectionStatus = 'connected'
       })
 
-      this.client.on('error', (err: Error) => {
-        console.error('[RedisCache] Redis error:', err.message)
+      this.client.on('error', (...args: unknown[]) => {
+        const err = args[0] as Error | undefined
+        console.error('[RedisCache] Redis error:', err?.message || 'Unknown error')
         this.stats.errors++
       })
 
