@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { FixedSizeList as VirtualList } from 'react-window'
-import InfiniteLoader from 'react-window-infinite-loader'
 import {
   FolderArchive,
   Upload,
@@ -59,7 +57,9 @@ import {
 
 // Pagination constants
 const PAGE_SIZE = 100
-const LIST_ROW_HEIGHT = 64
+// Row heights for different density modes
+const ROW_HEIGHT_NORMAL = 48
+const ROW_HEIGHT_COMPACT = 36
 
 // Types
 interface FileItem {
@@ -197,6 +197,37 @@ export default function FileVaultPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Row density state (compact/normal)
+  const [rowDensity, setRowDensity] = useState<'compact' | 'normal'>('normal')
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    item: DisplayItem | null
+  } | null>(null)
+
+  // Load row density from localStorage on mount
+  useEffect(() => {
+    const savedDensity = localStorage.getItem('file-vault-row-density')
+    if (savedDensity === 'compact' || savedDensity === 'normal') {
+      setRowDensity(savedDensity)
+    }
+  }, [])
+
+  // Save row density to localStorage
+  const handleRowDensityChange = useCallback((density: 'compact' | 'normal') => {
+    setRowDensity(density)
+    localStorage.setItem('file-vault-row-density', density)
+  }, [])
+
+  // Close context menu on click outside
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null)
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [])
+
   // Table sorting state
   const [sortColumn, setSortColumn] = useState<'name' | 'createdAt' | 'sizeBytes' | 'mimeType'>('createdAt')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
@@ -220,8 +251,6 @@ export default function FileVaultPage() {
   ])
 
   // Refs
-  const listContainerRef = useRef<HTMLDivElement>(null)
-  const infiniteLoaderRef = useRef<InfiniteLoader>(null)
   const vaultIdRef = useRef<string | null>(null)
   const isInitialLoadDone = useRef(false)
   const fileTreeRef = useRef<FileTreeRef>(null)
@@ -736,11 +765,6 @@ export default function FileVaultPage() {
       fetchFiles(vault.id, currentFolderId, 0, false)
     ])
     setIsRefreshing(false)
-
-    // Reset infinite loader
-    if (infiniteLoaderRef.current) {
-      infiniteLoaderRef.current.resetloadMoreItemsCache()
-    }
   }
 
   // Navigate to folder - synchronous, useEffect handles data loading
@@ -973,185 +997,20 @@ export default function FileVaultPage() {
     ...filteredFiles.map((f) => ({ ...f, type: 'file' as const })),
   ], [filteredFolders, filteredFiles])
 
-  // Infinite loader helpers
-  const isItemLoaded = useCallback((index: number) => {
-    return !hasMoreFiles || index < allItems.length
-  }, [hasMoreFiles, allItems.length])
+  // Row height based on density
+  const rowHeight = rowDensity === 'compact' ? ROW_HEIGHT_COMPACT : ROW_HEIGHT_NORMAL
+  const iconSize = rowDensity === 'compact' ? 'w-6 h-6' : 'w-8 h-8'
+  const iconInnerSize = rowDensity === 'compact' ? 'w-3 h-3' : 'w-4 h-4'
+  const textSize = rowDensity === 'compact' ? 'text-xs' : 'text-sm'
 
-  const itemCount = hasMoreFiles ? allItems.length + 1 : allItems.length
-
-  // Virtual list row renderer with enhanced features
-  const VirtualListRow = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
-    // Loading row
-    if (!isItemLoaded(index)) {
-      return (
-        <div style={style} className="flex items-center justify-center p-4">
-          <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
-          <span className="ml-2 text-sm text-slate-500">Laadin...</span>
-        </div>
-      )
-    }
-
-    const item = allItems[index]
-    if (!item) return null
-
-    const isFolder = item.type === 'folder'
-    const fileItem = item as FileItem
-    const Icon = isFolder ? Folder : getFileIcon(fileItem.mimeType, fileItem.extension)
-    const isSelected = selectedItems.includes(item.id)
-
-    return (
-      <div
-        style={style}
-        className={`flex items-center border-b border-slate-100 hover:bg-slate-50 transition-colors ${
-          isSelected ? 'bg-[#279989]/5' : ''
-        }`}
-        onDoubleClick={() => {
-          if (!isFolder) {
-            handlePreview(fileItem)
-          }
-        }}
-      >
-        {/* Checkbox - only this selects */}
-        <div className="w-10 px-3 flex-shrink-0">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => toggleSelect(item.id)}
-            className="w-4 h-4 rounded cursor-pointer"
-          />
-        </div>
-
-        {/* Name with icon/thumbnail */}
-        <div className="flex-1 min-w-[200px] px-3 py-2 flex items-center gap-3">
-          {/* Icon/Thumbnail - clicking opens file preview or navigates folder */}
-          <div
-            className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0 cursor-pointer bg-slate-100"
-            onClick={() => {
-              if (isFolder) {
-                navigateToFolder(item as FolderItem)
-              } else {
-                handlePreview(fileItem)
-              }
-            }}
-            onMouseEnter={(e) => {
-              if (!isFolder && fileItem.thumbnailMedium) {
-                const rect = e.currentTarget.getBoundingClientRect()
-                setHoverPreviewFile(fileItem)
-                setHoverPreviewPosition({ x: rect.right + 10, y: rect.top })
-              }
-            }}
-            onMouseLeave={() => setHoverPreviewFile(null)}
-          >
-            {!isFolder && fileItem.thumbnailSmall ? (
-              <img
-                src={fileItem.thumbnailSmall}
-                alt=""
-                className="w-full h-full object-cover rounded"
-              />
-            ) : (
-              <Icon
-                className="w-4 h-4"
-                style={{ color: '#64748b' }}
-              />
-            )}
-          </div>
-
-          {/* File name */}
-          <span
-            className={`text-sm text-slate-900 truncate ${isFolder ? 'cursor-pointer hover:text-[#279989]' : ''}`}
-            onClick={() => {
-              if (isFolder) {
-                navigateToFolder(item as FolderItem)
-              }
-            }}
-          >
-            {item.name}
-          </span>
-        </div>
-
-        {/* Type badge */}
-        <div className="w-20 px-3 flex-shrink-0 hidden sm:block">
-          {!isFolder ? (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getFileTypeColor(fileItem.mimeType, fileItem.extension)}`}>
-              {getFileTypeLabel(fileItem.mimeType, fileItem.extension)}
-            </span>
-          ) : (
-            <span className="text-xs text-slate-400">Kaust</span>
-          )}
-        </div>
-
-        {/* Size */}
-        <div className="w-24 px-3 text-sm text-slate-500 flex-shrink-0 hidden md:block">
-          {isFolder ? '-' : formatFileSize(fileItem.sizeBytes)}
-        </div>
-
-        {/* Date */}
-        <div className="w-28 px-3 text-sm text-slate-500 flex-shrink-0 hidden lg:block">
-          {formatDate(item.createdAt)}
-        </div>
-
-        {/* Actions */}
-        <div className="w-28 px-3 flex-shrink-0">
-          <div className="flex items-center justify-end gap-1">
-            {!isFolder && (
-              <>
-                <button
-                  onClick={() => handlePreview(fileItem)}
-                  className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
-                  title="Eelvaade"
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDownload(fileItem)}
-                  className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
-                  title="Laadi alla"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleShare(fileItem)}
-                  className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
-                  title="Jaga"
-                >
-                  <Share2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleShowInfo(fileItem)}
-                  className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
-                  title="Info"
-                >
-                  <Info className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDelete(item.id, false)}
-                  className="p-1.5 rounded hover:bg-red-50 text-slate-500 hover:text-red-600"
-                  title="Kustuta"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }, [allItems, selectedItems, isItemLoaded, navigateToFolder, toggleSelect, handlePreview, handleDownload, handleShare, handleShowInfo, handleDelete, setHoverPreviewFile, setHoverPreviewPosition])
-
-  // Calculate container height for virtual list
-  const [listHeight, setListHeight] = useState(500)
-
-  useEffect(() => {
-    const updateHeight = () => {
-      if (listContainerRef.current) {
-        const rect = listContainerRef.current.getBoundingClientRect()
-        setListHeight(Math.max(300, window.innerHeight - rect.top - 40))
-      }
-    }
-    updateHeight()
-    window.addEventListener('resize', updateHeight)
-    return () => window.removeEventListener('resize', updateHeight)
+  // Handle context menu
+  const handleContextMenu = useCallback((e: React.MouseEvent, item: DisplayItem) => {
+    e.preventDefault()
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      item
+    })
   }, [])
 
   // Handler for folder select from FileTree
@@ -2049,131 +1908,314 @@ export default function FileVaultPage() {
               )}
             </div>
           ) : (
-            /* List View with Virtual Scrolling */
+            /* List View */
             <Card className="overflow-hidden">
-              {/* Table Header - stays fixed */}
-              <div className="flex items-center border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500 uppercase">
-                <div className="w-10 px-3 py-2 flex-shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={selectedItems.length === filteredFiles.length && filteredFiles.length > 0}
-                    onChange={() => {
-                      if (selectedItems.length === filteredFiles.length) {
-                        setSelectedItems([])
-                      } else {
-                        setSelectedItems(filteredFiles.map(f => f.id))
-                      }
-                    }}
-                    className="w-4 h-4 rounded"
-                  />
-                </div>
-                <div className="flex-1 min-w-[200px] px-3 py-2">
+              {/* Row density toggle */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50/50">
+                <span className="text-xs text-slate-500">{allItems.length} kirjet</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-slate-500 mr-2">Tihedus:</span>
                   <button
-                    onClick={() => {
-                      if (sortColumn === 'name') {
-                        setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
-                      } else {
-                        setSortColumn('name')
-                        setSortDirection('asc')
-                      }
-                    }}
-                    className="flex items-center gap-1 hover:text-slate-700"
+                    onClick={() => handleRowDensityChange('normal')}
+                    className={`px-2 py-1 text-xs rounded ${rowDensity === 'normal' ? 'bg-[#279989] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                   >
-                    Nimi
-                    {sortColumn === 'name' && (
-                      <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                    )}
+                    Tavaline
                   </button>
-                </div>
-                <div className="w-20 px-3 py-2 flex-shrink-0 hidden sm:block">
                   <button
-                    onClick={() => {
-                      if (sortColumn === 'mimeType') {
-                        setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
-                      } else {
-                        setSortColumn('mimeType')
-                        setSortDirection('asc')
-                      }
-                    }}
-                    className="flex items-center gap-1 hover:text-slate-700"
+                    onClick={() => handleRowDensityChange('compact')}
+                    className={`px-2 py-1 text-xs rounded ${rowDensity === 'compact' ? 'bg-[#279989] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                   >
-                    Tüüp
-                    {sortColumn === 'mimeType' && (
-                      <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                    )}
+                    Kompaktne
                   </button>
-                </div>
-                <div className="w-24 px-3 py-2 flex-shrink-0 hidden md:block">
-                  <button
-                    onClick={() => {
-                      if (sortColumn === 'sizeBytes') {
-                        setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
-                      } else {
-                        setSortColumn('sizeBytes')
-                        setSortDirection('desc')
-                      }
-                    }}
-                    className="flex items-center gap-1 hover:text-slate-700"
-                  >
-                    Suurus
-                    {sortColumn === 'sizeBytes' && (
-                      <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </button>
-                </div>
-                <div className="w-28 px-3 py-2 flex-shrink-0 hidden lg:block">
-                  <button
-                    onClick={() => {
-                      if (sortColumn === 'createdAt') {
-                        setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
-                      } else {
-                        setSortColumn('createdAt')
-                        setSortDirection('desc')
-                      }
-                    }}
-                    className="flex items-center gap-1 hover:text-slate-700"
-                  >
-                    Lisatud
-                    {sortColumn === 'createdAt' && (
-                      <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </button>
-                </div>
-                <div className="w-28 px-3 py-2 text-right flex-shrink-0">
-                  Tegevused
                 </div>
               </div>
 
-              {/* Virtual Scrolling Body */}
-              <div ref={listContainerRef}>
-                {allItems.length > 0 ? (
-                  <InfiniteLoader
-                    ref={infiniteLoaderRef}
-                    isItemLoaded={isItemLoaded}
-                    itemCount={itemCount}
-                    loadMoreItems={loadMoreFiles}
-                    threshold={10}
-                  >
-                    {({ onItemsRendered, ref }) => (
-                      <VirtualList
-                        ref={ref}
-                        height={listHeight}
-                        itemCount={itemCount}
-                        itemSize={LIST_ROW_HEIGHT}
-                        width="100%"
-                        onItemsRendered={onItemsRendered}
-                        overscanCount={5}
-                      >
-                        {VirtualListRow}
-                      </VirtualList>
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="w-10 px-3 py-2 text-left">
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.length === filteredFiles.length && filteredFiles.length > 0}
+                          onChange={() => {
+                            if (selectedItems.length === filteredFiles.length) {
+                              setSelectedItems([])
+                            } else {
+                              setSelectedItems(filteredFiles.map(f => f.id))
+                            }
+                          }}
+                          className="w-4 h-4 rounded"
+                        />
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">
+                        <button
+                          onClick={() => {
+                            if (sortColumn === 'name') {
+                              setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                            } else {
+                              setSortColumn('name')
+                              setSortDirection('asc')
+                            }
+                          }}
+                          className="flex items-center gap-1 hover:text-slate-700"
+                        >
+                          Nimi
+                          {sortColumn === 'name' && (
+                            <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                          )}
+                        </button>
+                      </th>
+                      <th className="w-20 px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase hidden sm:table-cell">
+                        <button
+                          onClick={() => {
+                            if (sortColumn === 'mimeType') {
+                              setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                            } else {
+                              setSortColumn('mimeType')
+                              setSortDirection('asc')
+                            }
+                          }}
+                          className="flex items-center gap-1 hover:text-slate-700"
+                        >
+                          Tüüp
+                          {sortColumn === 'mimeType' && (
+                            <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                          )}
+                        </button>
+                      </th>
+                      <th className="w-24 px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase hidden md:table-cell">
+                        <button
+                          onClick={() => {
+                            if (sortColumn === 'sizeBytes') {
+                              setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                            } else {
+                              setSortColumn('sizeBytes')
+                              setSortDirection('desc')
+                            }
+                          }}
+                          className="flex items-center gap-1 hover:text-slate-700"
+                        >
+                          Suurus
+                          {sortColumn === 'sizeBytes' && (
+                            <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                          )}
+                        </button>
+                      </th>
+                      <th className="w-28 px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase hidden lg:table-cell">
+                        <button
+                          onClick={() => {
+                            if (sortColumn === 'createdAt') {
+                              setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+                            } else {
+                              setSortColumn('createdAt')
+                              setSortDirection('desc')
+                            }
+                          }}
+                          className="flex items-center gap-1 hover:text-slate-700"
+                        >
+                          Lisatud
+                          {sortColumn === 'createdAt' && (
+                            <span className="text-[#279989]">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                          )}
+                        </button>
+                      </th>
+                      <th className="w-32 px-3 py-2 text-right text-xs font-medium text-slate-500 uppercase">
+                        Tegevused
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {allItems.length > 0 ? (
+                      allItems.map((item) => {
+                        const isFolder = item.type === 'folder'
+                        const fileItem = item as FileItem
+                        const Icon = isFolder ? Folder : getFileIcon(fileItem.mimeType, fileItem.extension)
+                        const isSelected = selectedItems.includes(item.id)
+
+                        return (
+                          <tr
+                            key={item.id}
+                            className={`hover:bg-slate-50 transition-colors cursor-default ${isSelected ? 'bg-[#279989]/5' : ''}`}
+                            style={{ height: rowHeight }}
+                            onDoubleClick={() => {
+                              if (isFolder) {
+                                navigateToFolder(item as FolderItem)
+                              } else {
+                                handlePreview(fileItem)
+                              }
+                            }}
+                            onContextMenu={(e) => handleContextMenu(e, item)}
+                          >
+                            {/* Checkbox */}
+                            <td className="w-10 px-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelect(item.id)}
+                                className="w-4 h-4 rounded cursor-pointer"
+                              />
+                            </td>
+
+                            {/* Name with icon/thumbnail */}
+                            <td className="px-3">
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className={`${iconSize} rounded flex items-center justify-center flex-shrink-0 cursor-pointer ${isFolder ? 'bg-amber-100' : 'bg-slate-100'}`}
+                                  onClick={() => {
+                                    if (isFolder) {
+                                      navigateToFolder(item as FolderItem)
+                                    } else {
+                                      handlePreview(fileItem)
+                                    }
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!isFolder && fileItem.thumbnailMedium) {
+                                      const rect = e.currentTarget.getBoundingClientRect()
+                                      setHoverPreviewFile(fileItem)
+                                      setHoverPreviewPosition({ x: rect.right + 10, y: rect.top })
+                                    }
+                                  }}
+                                  onMouseLeave={() => setHoverPreviewFile(null)}
+                                >
+                                  {!isFolder && fileItem.thumbnailSmall ? (
+                                    <img
+                                      src={fileItem.thumbnailSmall}
+                                      alt=""
+                                      className="w-full h-full object-cover rounded"
+                                    />
+                                  ) : (
+                                    <Icon
+                                      className={iconInnerSize}
+                                      style={{ color: isFolder ? '#f59e0b' : '#64748b' }}
+                                    />
+                                  )}
+                                </div>
+                                <span
+                                  className={`${textSize} text-slate-900 truncate ${isFolder ? 'cursor-pointer hover:text-[#279989] font-medium' : ''}`}
+                                  onClick={() => {
+                                    if (isFolder) {
+                                      navigateToFolder(item as FolderItem)
+                                    }
+                                  }}
+                                >
+                                  {item.name}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Type badge */}
+                            <td className="w-20 px-3 hidden sm:table-cell">
+                              {!isFolder ? (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getFileTypeColor(fileItem.mimeType, fileItem.extension)}`}>
+                                  {getFileTypeLabel(fileItem.mimeType, fileItem.extension)}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-slate-400">Kaust</span>
+                              )}
+                            </td>
+
+                            {/* Size */}
+                            <td className={`w-24 px-3 ${textSize} text-slate-500 hidden md:table-cell`}>
+                              {isFolder ? '-' : formatFileSize(fileItem.sizeBytes)}
+                            </td>
+
+                            {/* Date */}
+                            <td className={`w-28 px-3 ${textSize} text-slate-500 hidden lg:table-cell`}>
+                              {formatDate(item.createdAt)}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="w-32 px-3">
+                              <div className="flex items-center justify-end gap-0.5">
+                                {!isFolder && (
+                                  <>
+                                    <button
+                                      onClick={() => handlePreview(fileItem)}
+                                      className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                                      title="Eelvaade"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDownload(fileItem)}
+                                      className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                                      title="Laadi alla"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleShare(fileItem)}
+                                      className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                                      title="Jaga"
+                                    >
+                                      <Share2 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleShowInfo(fileItem)}
+                                      className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                                      title="Info"
+                                    >
+                                      <Info className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDelete(item.id, false)}
+                                      className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500"
+                                      title="Kustuta"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                )}
+                                {isFolder && (
+                                  <button
+                                    onClick={() => navigateToFolder(item as FolderItem)}
+                                    className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                                    title="Ava kaust"
+                                  >
+                                    <ChevronRight className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-500">
+                          Andmeid ei leitud
+                        </td>
+                      </tr>
                     )}
-                  </InfiniteLoader>
-                ) : (
-                  <div className="py-8 text-center text-slate-500">
-                    Andmeid ei leitud
-                  </div>
-                )}
+                  </tbody>
+                </table>
               </div>
+
+              {/* Load more button */}
+              {hasMoreFiles && (
+                <div className="p-4 border-t border-slate-100 text-center">
+                  <Button
+                    variant="outline"
+                    onClick={loadMoreFiles}
+                    disabled={isLoadingMore}
+                    className="gap-2"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Laadin...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        Laadi rohkem ({totalFiles - files.length} jäänud)
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </Card>
           )}
         </>
@@ -2460,6 +2502,87 @@ export default function FileVaultPage() {
               {hoverPreviewFile.name}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && contextMenu.item && (
+        <div
+          className="fixed z-50 bg-white rounded-lg shadow-xl border border-slate-200 py-1 min-w-[180px] animate-in fade-in duration-100"
+          style={{
+            left: Math.min(contextMenu.x, window.innerWidth - 200),
+            top: Math.min(contextMenu.y, window.innerHeight - 300),
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {contextMenu.item.type === 'folder' ? (
+            <>
+              <button
+                onClick={() => {
+                  navigateToFolder(contextMenu.item as FolderItem)
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                <ChevronRight className="w-4 h-4" />
+                Ava kaust
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => {
+                  handlePreview(contextMenu.item as FileItem)
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                <Eye className="w-4 h-4" />
+                Eelvaade
+              </button>
+              <button
+                onClick={() => {
+                  handleDownload(contextMenu.item as FileItem)
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                <Download className="w-4 h-4" />
+                Laadi alla
+              </button>
+              <button
+                onClick={() => {
+                  handleShare(contextMenu.item as FileItem)
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                <Share2 className="w-4 h-4" />
+                Jaga
+              </button>
+              <button
+                onClick={() => {
+                  handleShowInfo(contextMenu.item as FileItem)
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                <Info className="w-4 h-4" />
+                Info
+              </button>
+              <div className="h-px bg-slate-200 my-1" />
+              <button
+                onClick={() => {
+                  handleDelete(contextMenu.item!.id, false)
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Kustuta
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
