@@ -14,10 +14,10 @@ const nextConfig = {
       bodySizeLimit: '100mb',
     },
     // Optimize package imports for faster builds
+    // Note: @tanstack/react-table excluded due to barrel optimization conflicts
     optimizePackageImports: [
       'lucide-react',
       '@tanstack/react-query',
-      '@tanstack/react-table',
       'date-fns',
       'recharts',
       '@tiptap/react',
