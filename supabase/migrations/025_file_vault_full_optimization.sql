@@ -1,15 +1,8 @@
 -- =============================================
 -- FILE VAULT - Comprehensive Performance Optimization
 -- =============================================
--- Version: 1.0.0
+-- Version: 1.0.1
 -- Date: 2024-12-05
--- Description: Full performance optimization including:
---   - Composite indexes for common query patterns
---   - Full-text search with GIN indexes
---   - Materialized views for analytics
---   - pg_cron background jobs for maintenance
---   - Performance monitoring functions
---   - Cache warming strategies
 -- =============================================
 
 -- ============================================
@@ -17,7 +10,6 @@
 -- ============================================
 
 -- Primary file listing query (vault + folder + deleted filter + sort)
--- Used by: GET /api/file-vault/files
 CREATE INDEX IF NOT EXISTS idx_files_vault_folder_deleted_created
 ON public.files(vault_id, folder_id, deleted_at, created_at DESC)
 WHERE deleted_at IS NULL;
@@ -47,9 +39,9 @@ CREATE INDEX IF NOT EXISTS idx_files_extension
 ON public.files(vault_id, extension, created_at DESC)
 WHERE deleted_at IS NULL;
 
--- Files by uploader (for "my uploads" filter)
-CREATE INDEX IF NOT EXISTS idx_files_uploaded_by
-ON public.files(uploaded_by, vault_id, created_at DESC)
+-- Files by creator (for "my uploads" filter)
+CREATE INDEX IF NOT EXISTS idx_files_created_by
+ON public.files(created_by, vault_id, created_at DESC)
 WHERE deleted_at IS NULL;
 
 -- Files by owner (for ownership queries)
@@ -147,7 +139,7 @@ WHERE deleted_at IS NULL;
 -- PART 6: MATERIALIZED VIEWS FOR ANALYTICS
 -- ============================================
 
--- Vault statistics materialized view (refreshed by cron)
+-- Vault statistics materialized view
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_vault_stats AS
 SELECT
   v.id AS vault_id,
@@ -226,23 +218,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_folder_stats_folder_id
 ON mv_folder_stats(folder_id);
 
 -- ============================================
--- PART 7: pg_cron BACKGROUND JOBS
+-- PART 7: HELPER FUNCTIONS
 -- ============================================
 
--- Enable pg_cron extension if available
-DO $$
-BEGIN
-  CREATE EXTENSION IF NOT EXISTS pg_cron;
-EXCEPTION WHEN OTHERS THEN
-  RAISE NOTICE 'pg_cron extension not available, skipping cron jobs';
-END$$;
-
--- Function to refresh vault statistics
+-- Function to refresh vault statistics (call manually or via scheduler)
 CREATE OR REPLACE FUNCTION refresh_vault_stats()
 RETURNS void AS $$
 BEGIN
-  REFRESH MATERIALIZED VIEW CONCURRENTLY mv_vault_stats;
-  RAISE NOTICE 'Vault stats refreshed at %', NOW();
+  REFRESH MATERIALIZED VIEW mv_vault_stats;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -250,107 +233,12 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION refresh_folder_stats()
 RETURNS void AS $$
 BEGIN
-  REFRESH MATERIALIZED VIEW CONCURRENTLY mv_folder_stats;
-  RAISE NOTICE 'Folder stats refreshed at %', NOW();
+  REFRESH MATERIALIZED VIEW mv_folder_stats;
 END;
 $$ LANGUAGE plpgsql;
-
--- Function to clean up expired upload sessions
-CREATE OR REPLACE FUNCTION cleanup_expired_upload_sessions()
-RETURNS INTEGER AS $$
-DECLARE
-  deleted_count INTEGER;
-BEGIN
-  DELETE FROM public.upload_sessions
-  WHERE expires_at < NOW() - INTERVAL '1 hour'
-    AND status NOT IN ('completed');
-  GET DIAGNOSTICS deleted_count = ROW_COUNT;
-  RAISE NOTICE 'Cleaned up % expired upload sessions', deleted_count;
-  RETURN deleted_count;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to permanently delete old trashed files
-CREATE OR REPLACE FUNCTION cleanup_old_trashed_files()
-RETURNS INTEGER AS $$
-DECLARE
-  deleted_count INTEGER;
-BEGIN
-  -- Files in trash for more than 30 days
-  DELETE FROM public.files
-  WHERE deleted_at < NOW() - INTERVAL '30 days';
-  GET DIAGNOSTICS deleted_count = ROW_COUNT;
-  RAISE NOTICE 'Permanently deleted % old trashed files', deleted_count;
-  RETURN deleted_count;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to cleanup old access logs (keep 90 days)
-CREATE OR REPLACE FUNCTION cleanup_old_access_logs()
-RETURNS INTEGER AS $$
-DECLARE
-  deleted_count INTEGER;
-BEGIN
-  DELETE FROM public.file_accesses
-  WHERE created_at < NOW() - INTERVAL '90 days';
-  GET DIAGNOSTICS deleted_count = ROW_COUNT;
-  RAISE NOTICE 'Cleaned up % old access logs', deleted_count;
-  RETURN deleted_count;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to update file access counts (for hot files tracking)
-CREATE OR REPLACE FUNCTION update_file_access_counts()
-RETURNS void AS $$
-BEGIN
-  -- Update files with their recent access count
-  UPDATE public.files f SET
-    metadata = jsonb_set(
-      COALESCE(metadata, '{}'::jsonb),
-      '{access_count_7d}',
-      to_jsonb(COALESCE(ac.access_count, 0))
-    )
-  FROM (
-    SELECT file_id, COUNT(*) AS access_count
-    FROM public.file_accesses
-    WHERE created_at > NOW() - INTERVAL '7 days'
-      AND file_id IS NOT NULL
-    GROUP BY file_id
-  ) ac
-  WHERE f.id = ac.file_id;
-
-  RAISE NOTICE 'Updated file access counts at %', NOW();
-END;
-$$ LANGUAGE plpgsql;
-
--- Schedule cron jobs (if pg_cron is available)
-DO $$
-BEGIN
-  -- Refresh vault stats every 5 minutes
-  PERFORM cron.schedule('refresh-vault-stats', '*/5 * * * *', 'SELECT refresh_vault_stats()');
-
-  -- Refresh folder stats every 10 minutes
-  PERFORM cron.schedule('refresh-folder-stats', '*/10 * * * *', 'SELECT refresh_folder_stats()');
-
-  -- Cleanup expired uploads every hour
-  PERFORM cron.schedule('cleanup-uploads', '0 * * * *', 'SELECT cleanup_expired_upload_sessions()');
-
-  -- Cleanup old trashed files daily at 3 AM
-  PERFORM cron.schedule('cleanup-trash', '0 3 * * *', 'SELECT cleanup_old_trashed_files()');
-
-  -- Cleanup old access logs weekly on Sunday at 4 AM
-  PERFORM cron.schedule('cleanup-access-logs', '0 4 * * 0', 'SELECT cleanup_old_access_logs()');
-
-  -- Update file access counts daily at 2 AM
-  PERFORM cron.schedule('update-access-counts', '0 2 * * *', 'SELECT update_file_access_counts()');
-
-  RAISE NOTICE 'pg_cron jobs scheduled successfully';
-EXCEPTION WHEN OTHERS THEN
-  RAISE NOTICE 'pg_cron not available, skipping job scheduling. Error: %', SQLERRM;
-END$$;
 
 -- ============================================
--- PART 8: MONITORING & PERFORMANCE FUNCTIONS
+-- PART 8: MONITORING FUNCTIONS
 -- ============================================
 
 -- Function to check index usage
@@ -422,36 +310,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to check slow queries
-CREATE OR REPLACE FUNCTION check_slow_queries(min_duration_ms INTEGER DEFAULT 100)
-RETURNS TABLE (
-  query TEXT,
-  calls BIGINT,
-  total_time_ms NUMERIC,
-  mean_time_ms NUMERIC,
-  max_time_ms NUMERIC,
-  rows_returned BIGINT
-) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT
-    SUBSTRING(s.query, 1, 200) AS query,
-    s.calls,
-    ROUND(s.total_exec_time::NUMERIC, 2) AS total_time_ms,
-    ROUND(s.mean_exec_time::NUMERIC, 2) AS mean_time_ms,
-    ROUND(s.max_exec_time::NUMERIC, 2) AS max_time_ms,
-    s.rows
-  FROM pg_stat_statements s
-  WHERE s.mean_exec_time > min_duration_ms
-    AND s.query LIKE '%files%' OR s.query LIKE '%folders%'
-  ORDER BY s.mean_exec_time DESC
-  LIMIT 20;
-EXCEPTION WHEN OTHERS THEN
-  -- pg_stat_statements not available
-  RETURN;
-END;
-$$ LANGUAGE plpgsql;
-
 -- Function to get performance summary
 CREATE OR REPLACE FUNCTION get_performance_summary()
 RETURNS TABLE (
@@ -464,19 +322,16 @@ DECLARE
   index_usage_ratio NUMERIC;
   seq_scan_count BIGINT;
 BEGIN
-  -- Calculate cache hit ratio
   SELECT ROUND((SUM(heap_blks_hit)::NUMERIC / NULLIF(SUM(heap_blks_hit + heap_blks_read), 0)::NUMERIC) * 100, 2)
   INTO cache_hit_ratio
   FROM pg_statio_user_tables
   WHERE relname LIKE 'file%' OR relname LIKE 'folder%';
 
-  -- Calculate index usage ratio
   SELECT ROUND((SUM(idx_scan)::NUMERIC / NULLIF(SUM(idx_scan + seq_scan), 0)::NUMERIC) * 100, 2)
   INTO index_usage_ratio
   FROM pg_stat_user_tables
   WHERE relname LIKE 'file%' OR relname LIKE 'folder%';
 
-  -- Count sequential scans
   SELECT SUM(seq_scan)
   INTO seq_scan_count
   FROM pg_stat_user_tables
@@ -508,42 +363,15 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION warm_vault_cache(p_vault_id UUID)
 RETURNS void AS $$
 BEGIN
-  -- Touch recent files to load into cache
   PERFORM id FROM public.files
   WHERE vault_id = p_vault_id
     AND deleted_at IS NULL
   ORDER BY created_at DESC
   LIMIT 500;
 
-  -- Touch folder structure
   PERFORM id FROM public.folders
   WHERE vault_id = p_vault_id
     AND deleted_at IS NULL;
-
-  RAISE NOTICE 'Cache warmed for vault %', p_vault_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to warm cache for all active vaults
-CREATE OR REPLACE FUNCTION warm_all_vaults_cache()
-RETURNS void AS $$
-DECLARE
-  v_vault_id UUID;
-BEGIN
-  FOR v_vault_id IN
-    SELECT id FROM public.file_vaults
-    WHERE deleted_at IS NULL
-    ORDER BY (
-      SELECT COUNT(*) FROM public.file_accesses
-      WHERE vault_id = file_vaults.id
-        AND created_at > NOW() - INTERVAL '24 hours'
-    ) DESC
-    LIMIT 10  -- Top 10 most active vaults
-  LOOP
-    PERFORM warm_vault_cache(v_vault_id);
-  END LOOP;
-
-  RAISE NOTICE 'All active vaults cache warmed at %', NOW();
 END;
 $$ LANGUAGE plpgsql;
 
@@ -551,26 +379,12 @@ $$ LANGUAGE plpgsql;
 -- PART 10: GRANTS
 -- ============================================
 
--- Grant execute on functions
 GRANT EXECUTE ON FUNCTION check_index_usage() TO authenticated;
 GRANT EXECUTE ON FUNCTION check_table_stats() TO authenticated;
 GRANT EXECUTE ON FUNCTION get_performance_summary() TO authenticated;
 GRANT EXECUTE ON FUNCTION warm_vault_cache(UUID) TO authenticated;
-
--- ============================================
--- COMMENTS
--- ============================================
-
-COMMENT ON INDEX idx_files_vault_folder_deleted_created IS 'Primary index for file listing queries - vault + folder + soft delete + sort';
-COMMENT ON INDEX idx_files_vault_created_desc IS 'Index for default file listing sorted by created date';
-COMMENT ON INDEX idx_files_search_vector IS 'GIN index for full-text search on file names and paths';
-COMMENT ON MATERIALIZED VIEW mv_vault_stats IS 'Pre-computed vault statistics for fast dashboard loading';
-COMMENT ON MATERIALIZED VIEW mv_folder_stats IS 'Pre-computed folder statistics for folder info panels';
-COMMENT ON FUNCTION refresh_vault_stats() IS 'Refreshes vault statistics materialized view';
-COMMENT ON FUNCTION check_index_usage() IS 'Returns index usage statistics for monitoring';
-COMMENT ON FUNCTION check_table_stats() IS 'Returns table statistics including cache hit ratios';
-COMMENT ON FUNCTION get_performance_summary() IS 'Returns high-level performance health indicators';
-COMMENT ON FUNCTION warm_vault_cache(UUID) IS 'Warms PostgreSQL cache for a specific vault';
+GRANT EXECUTE ON FUNCTION refresh_vault_stats() TO authenticated;
+GRANT EXECUTE ON FUNCTION refresh_folder_stats() TO authenticated;
 
 -- ============================================
 -- DONE
