@@ -16,6 +16,12 @@ import {
   Legend,
 } from 'recharts'
 import { TrendingUp, TrendingDown, ArrowRight } from 'lucide-react'
+import { ClientOnly } from '@/components/ui/ClientOnly'
+
+// Chart loading skeleton
+const ChartSkeleton = ({ height = 'h-[300px]' }: { height?: string }) => (
+  <div className={`${height} animate-pulse bg-slate-100 rounded-lg`} />
+)
 
 // Mock data for charts
 const revenueData = [
@@ -109,82 +115,86 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData}>
-                <defs>
-                  <linearGradient id="colorTulud" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#279989" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#279989" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                <YAxis
-                  tick={{ fontSize: 12 }}
-                  stroke="#94a3b8"
-                  tickFormatter={(value) => `${value / 1000}k`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                  }}
-                  formatter={(value: number) => [`${value.toLocaleString('et-EE')} €`, '']}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="tulud"
-                  stroke="#279989"
-                  strokeWidth={2}
-                  fill="url(#colorTulud)"
-                  name="Tulud"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="kulud"
-                  stroke="#94a3b8"
-                  strokeWidth={2}
-                  fill="#f1f5f9"
-                  name="Kulud"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          <ClientOnly fallback={<ChartSkeleton height="h-[300px]" />}>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={revenueData}>
+                  <defs>
+                    <linearGradient id="colorTulud" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#279989" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#279989" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                  <YAxis
+                    tick={{ fontSize: 12 }}
+                    stroke="#94a3b8"
+                    tickFormatter={(value) => `${value / 1000}k`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                    }}
+                    formatter={(value: number) => [`${value.toLocaleString('et-EE')} €`, '']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="tulud"
+                    stroke="#279989"
+                    strokeWidth={2}
+                    fill="url(#colorTulud)"
+                    name="Tulud"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="kulud"
+                    stroke="#94a3b8"
+                    strokeWidth={2}
+                    fill="#f1f5f9"
+                    name="Kulud"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </ClientOnly>
         </div>
 
         {/* Project Status Pie Chart */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-2">Projektide staatus</h2>
           <p className="text-sm text-slate-500 mb-4">Kokku 28 projekti</p>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={projectStatusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                  {projectStatusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                  }}
-                  formatter={(value: number, name: string) => [`${value} projekti`, name]}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          <ClientOnly fallback={<ChartSkeleton height="h-[200px]" />}>
+            <div className="h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={projectStatusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {projectStatusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                    }}
+                    formatter={(value: number, name: string) => [`${value} projekti`, name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </ClientOnly>
           <div className="grid grid-cols-2 gap-2 mt-4">
             {projectStatusData.map((item) => (
               <div key={item.name} className="flex items-center gap-2">
@@ -208,25 +218,27 @@ export default function DashboardPage() {
               <p className="text-sm text-slate-500">Alustatud vs lõpetatud</p>
             </div>
           </div>
-          <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyProjectsData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                  }}
-                />
-                <Legend />
-                <Bar dataKey="alustatud" fill="#279989" name="Alustatud" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="lõpetatud" fill="#22c55e" name="Lõpetatud" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <ClientOnly fallback={<ChartSkeleton height="h-[250px]" />}>
+            <div className="h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyProjectsData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="alustatud" fill="#279989" name="Alustatud" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="lõpetatud" fill="#22c55e" name="Lõpetatud" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </ClientOnly>
         </div>
 
         {/* Recent Activity */}
