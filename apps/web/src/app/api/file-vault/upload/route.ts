@@ -9,7 +9,6 @@ import { NextResponse } from 'next/server'
 import {
   generateStorageKey,
   calculateMd5,
-  calculateSha256,
   detectMimeType,
   getFileExtension,
   uploadFileToStorage,
@@ -21,6 +20,7 @@ import {
   generateAllThumbnails,
   getImageDimensions,
 } from '@/lib/file-vault/storage/thumbnail-generator'
+import crypto from 'crypto'
 import {
   trackPerformance,
   getRequestMetadata,
@@ -42,6 +42,9 @@ export async function POST(request: Request) {
   try {
     const supabase = createClient()
 
+    // Parse form data first (can start while auth happens)
+    const formDataPromise = request.formData()
+
     // Check authentication
     const {
       data: { user },
@@ -52,19 +55,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user's profile and tenant
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('id, tenant_id')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    if (!profile?.tenant_id) {
-      return NextResponse.json({ error: 'User profile not found' }, { status: 400 })
-    }
-
-    // Parse form data
-    const formData = await request.formData()
+    // Get form data (already started above)
+    const formData = await formDataPromise
     const file = formData.get('file') as File | null
     const vaultId = formData.get('vaultId') as string | null
     const folderId = formData.get('folderId') as string | null
@@ -86,16 +78,30 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify vault exists and user has access
-    const { data: vault, error: vaultError } = await supabase
-      .from('file_vaults')
-      .select('id, tenant_id, quota_bytes, used_bytes')
-      .eq('id', vaultId)
-      .eq('tenant_id', profile.tenant_id)
-      .is('deleted_at', null)
-      .single()
+    // Parallel fetch: profile + vault validation
+    const [profileResult, vaultResult] = await Promise.all([
+      supabase
+        .from('user_profiles')
+        .select('id, tenant_id')
+        .eq('auth_user_id', user.id)
+        .single(),
+      supabase
+        .from('file_vaults')
+        .select('id, tenant_id, quota_bytes, used_bytes')
+        .eq('id', vaultId)
+        .is('deleted_at', null)
+        .single(),
+    ])
 
-    if (vaultError || !vault) {
+    const profile = profileResult.data
+    const vault = vaultResult.data
+
+    if (!profile?.tenant_id) {
+      return NextResponse.json({ error: 'User profile not found' }, { status: 400 })
+    }
+
+    // Verify vault belongs to user's tenant
+    if (!vault || vault.tenant_id !== profile.tenant_id) {
       return NextResponse.json({ error: 'Vault not found or access denied' }, { status: 404 })
     }
 
@@ -116,61 +122,46 @@ export async function POST(request: Request) {
     const mimeType = detectMimeType(buffer, file.name)
     const extension = getFileExtension(file.name)
 
-    // Generate storage key and checksums
+    // Generate storage key and MD5 checksum (SHA256 calculated async later)
     const storageKey = generateStorageKey(vaultId, folderId, file.name)
     const checksumMd5 = calculateMd5(buffer)
-    const checksumSha256 = calculateSha256(buffer)
+
+    // Parallel: folder path lookup + duplicate check
+    const [folderPath, duplicateResult] = await Promise.all([
+      folderId ? getFolderPath(vaultId, folderId) : Promise.resolve(''),
+      supabase
+        .from('files')
+        .select('id, name')
+        .eq('vault_id', vaultId)
+        .eq('checksum_md5', checksumMd5)
+        .is('deleted_at', null)
+        .maybeSingle(),
+    ])
 
     // Build file path
-    const folderPath = folderId ? await getFolderPath(vaultId, folderId) : ''
     const filePath = `${folderPath}/${file.name}`.replace(/^\/+/, '/')
 
-    // Check for duplicate files (same checksum)
-    const { data: existingFile } = await supabase
-      .from('files')
-      .select('id, name')
-      .eq('vault_id', vaultId)
-      .eq('checksum_md5', checksumMd5)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (existingFile) {
+    // Check for duplicate files
+    if (duplicateResult.data) {
       return NextResponse.json(
         {
           error: 'Duplicate file',
-          existingFile: { id: existingFile.id, name: existingFile.name }
+          existingFile: { id: duplicateResult.data.id, name: duplicateResult.data.name }
         },
         { status: 409 }
       )
     }
 
-    // Upload file to storage
-    const { path: storagePath, publicUrl } = await uploadFileToStorage(
-      buffer,
-      storageKey,
-      mimeType
-    )
+    // Parallel: upload file to storage + get image dimensions
+    const isImageFile = isImage(mimeType)
+    const [uploadResult, dimensions] = await Promise.all([
+      uploadFileToStorage(buffer, storageKey, mimeType),
+      isImageFile ? getImageDimensions(buffer) : Promise.resolve(null),
+    ])
 
-    // Generate thumbnails for images
-    let thumbnailSmall: string | null = null
-    let thumbnailMedium: string | null = null
-    let thumbnailLarge: string | null = null
-    let width: number | null = null
-    let height: number | null = null
-
-    if (isImage(mimeType)) {
-      const dimensions = await getImageDimensions(buffer)
-      if (dimensions) {
-        width = dimensions.width
-        height = dimensions.height
-      }
-
-      const storageKeyBase = storageKey.replace(/\.[^/.]+$/, '')
-      const thumbnails = await generateAllThumbnails(buffer, storageKeyBase)
-      thumbnailSmall = thumbnails.small
-      thumbnailMedium = thumbnails.medium
-      thumbnailLarge = thumbnails.large
-    }
+    const { path: storagePath, publicUrl } = uploadResult
+    const width = dimensions?.width ?? null
+    const height = dimensions?.height ?? null
 
     // Parse custom metadata
     let metadata = {}
@@ -182,7 +173,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Create file record in database
+    // Create file record in database (thumbnails will be added async)
     const { data: fileRecord, error: insertError } = await supabaseAdmin
       .from('files')
       .insert({
@@ -198,12 +189,8 @@ export async function POST(request: Request) {
         size_bytes: file.size,
         extension,
         checksum_md5: checksumMd5,
-        checksum_sha256: checksumSha256,
         width,
         height,
-        thumbnail_small: thumbnailSmall,
-        thumbnail_medium: thumbnailMedium,
-        thumbnail_large: thumbnailLarge,
         metadata,
         owner_id: user.id,
         created_by: user.id,
@@ -227,8 +214,8 @@ export async function POST(request: Request) {
       .update({ used_bytes: newUsedBytes.toString() })
       .eq('id', vaultId)
 
-    // Log file access with performance data
-    await tracker.finish({
+    // Log file access with performance data (non-blocking)
+    tracker.finish({
       fileId: fileRecord.id,
       vaultId,
       tenantId: profile.tenant_id,
@@ -236,6 +223,46 @@ export async function POST(request: Request) {
       bytesTransferred: file.size,
       fileSizeBytes: file.size,
       mimeType,
+    }).catch(err => console.warn('Performance log error:', err))
+
+    // Generate thumbnails and SHA256 async (after response) - non-blocking
+    if (isImageFile) {
+      const storageKeyBase = storageKey.replace(/\.[^/.]+$/, '')
+      const fileIdForUpdate = fileRecord.id
+
+      // Fire-and-forget: generate thumbnails in background
+      Promise.resolve().then(async () => {
+        try {
+          // Generate thumbnails in parallel
+          const thumbnails = await generateAllThumbnails(buffer, storageKeyBase)
+
+          // Update file record with thumbnail URLs
+          await supabaseAdmin
+            .from('files')
+            .update({
+              thumbnail_small: thumbnails.small,
+              thumbnail_medium: thumbnails.medium,
+              thumbnail_large: thumbnails.large,
+            })
+            .eq('id', fileIdForUpdate)
+        } catch (err) {
+          console.warn('Background thumbnail generation error:', err)
+        }
+      })
+    }
+
+    // Calculate SHA256 in background (non-blocking)
+    const fileIdForSha = fileRecord.id
+    Promise.resolve().then(async () => {
+      try {
+        const checksumSha256 = crypto.createHash('sha256').update(buffer).digest('hex')
+        await supabaseAdmin
+          .from('files')
+          .update({ checksum_sha256: checksumSha256 })
+          .eq('id', fileIdForSha)
+      } catch (err) {
+        console.warn('Background SHA256 calculation error:', err)
+      }
     })
 
     return NextResponse.json({
@@ -244,11 +271,12 @@ export async function POST(request: Request) {
       path: fileRecord.path,
       mimeType: fileRecord.mime_type,
       sizeBytes: fileRecord.size_bytes,
-      thumbnailSmall,
-      thumbnailMedium,
-      thumbnailLarge,
+      thumbnailSmall: null, // Will be available after background generation
+      thumbnailMedium: null,
+      thumbnailLarge: null,
       width,
       height,
+      processingThumbnails: isImageFile, // Indicator that thumbnails are being generated
     }, { status: 201 })
 
   } catch (error) {

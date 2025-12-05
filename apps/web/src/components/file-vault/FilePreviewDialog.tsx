@@ -116,20 +116,22 @@ export function FilePreviewDialog({
 
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/file-vault/files/${fileId}`)
-      if (response.ok) {
-        const data = await response.json()
+      // Fetch file metadata and download URL in parallel
+      const [fileResponse, downloadResponse] = await Promise.all([
+        fetch(`/api/file-vault/files/${fileId}`),
+        fetch(`/api/file-vault/download/${fileId}`),
+      ])
+
+      if (fileResponse.ok) {
+        const data = await fileResponse.json()
         setFile(data)
 
         let newPreviewUrl: string | null = null
-        // Get preview URL for supported types - fetch in parallel with state update
-        if (isPreviewable(data.mimeType)) {
-          const downloadResponse = await fetch(`/api/file-vault/download/${fileId}`)
-          if (downloadResponse.ok) {
-            const downloadData = await downloadResponse.json()
-            newPreviewUrl = downloadData.downloadUrl
-            setPreviewUrl(newPreviewUrl)
-          }
+        // Get preview URL from parallel request
+        if (downloadResponse.ok && isPreviewable(data.mimeType)) {
+          const downloadData = await downloadResponse.json()
+          newPreviewUrl = downloadData.downloadUrl
+          setPreviewUrl(newPreviewUrl)
         }
 
         // Cache the result

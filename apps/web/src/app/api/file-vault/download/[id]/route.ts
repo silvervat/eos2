@@ -81,8 +81,8 @@ export async function GET(
     // Generate signed download URL
     const signedUrl = await getSignedDownloadUrl(file.storage_key, 3600) // 1 hour
 
-    // Log download access with performance data
-    await tracker.finish({
+    // Log download access with performance data (non-blocking)
+    tracker.finish({
       fileId,
       vaultId: file.vault_id,
       tenantId: profile.tenant_id,
@@ -90,7 +90,7 @@ export async function GET(
       bytesTransferred: file.size_bytes,
       fileSizeBytes: file.size_bytes,
       mimeType: file.mime_type,
-    })
+    }).catch(err => console.warn('Performance log error:', err))
 
     // If redirect requested, redirect to signed URL
     if (redirect) {

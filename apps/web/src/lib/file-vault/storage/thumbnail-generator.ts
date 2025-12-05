@@ -35,7 +35,7 @@ export async function generateThumbnail(
 }
 
 /**
- * Generate all thumbnail sizes for an image
+ * Generate all thumbnail sizes for an image (PARALLELIZED)
  */
 export async function generateAllThumbnails(
   buffer: Buffer,
@@ -45,21 +45,19 @@ export async function generateAllThumbnails(
   medium: string | null
   large: string | null
 }> {
-  const results: {
-    small: string | null
-    medium: string | null
-    large: string | null
-  } = {
-    small: null,
-    medium: null,
-    large: null,
-  }
-
   const sizes: ThumbnailSize[] = ['small', 'medium', 'large']
 
-  for (const size of sizes) {
-    try {
-      const thumbnailBuffer = await generateThumbnail(buffer, size)
+  // Generate all thumbnails in parallel
+  const thumbnailBuffers = await Promise.all(
+    sizes.map(size => generateThumbnail(buffer, size).catch(() => null))
+  )
+
+  // Upload all thumbnails in parallel
+  const uploadResults = await Promise.all(
+    sizes.map(async (size, index) => {
+      const thumbnailBuffer = thumbnailBuffers[index]
+      if (!thumbnailBuffer) return null
+
       const thumbnailKey = `${storageKeyBase}_thumb_${size}.webp`
 
       const { error } = await supabaseAdmin.storage
@@ -71,30 +69,39 @@ export async function generateAllThumbnails(
 
       if (error) {
         console.error(`Failed to upload ${size} thumbnail:`, error)
-        continue
+        return null
       }
 
-      // Use signed URL for private bucket (1 year expiry)
+      return thumbnailKey
+    })
+  )
+
+  // Get signed URLs for all uploaded thumbnails in parallel
+  const signedUrls = await Promise.all(
+    uploadResults.map(async (thumbnailKey) => {
+      if (!thumbnailKey) return null
+
       const { data: signedUrlData, error: signedError } = await supabaseAdmin.storage
         .from(FILE_VAULT_BUCKET)
         .createSignedUrl(thumbnailKey, 365 * 24 * 60 * 60) // 1 year
 
       if (signedError) {
-        console.error(`Failed to create signed URL for ${size} thumbnail:`, signedError)
-        // Fallback to public URL
+        console.error(`Failed to create signed URL:`, signedError)
         const { data: urlData } = supabaseAdmin.storage
           .from(FILE_VAULT_BUCKET)
           .getPublicUrl(thumbnailKey)
-        results[size] = urlData.publicUrl
-      } else {
-        results[size] = signedUrlData.signedUrl
+        return urlData.publicUrl
       }
-    } catch (error) {
-      console.error(`Failed to generate ${size} thumbnail:`, error)
-    }
-  }
 
-  return results
+      return signedUrlData.signedUrl
+    })
+  )
+
+  return {
+    small: signedUrls[0],
+    medium: signedUrls[1],
+    large: signedUrls[2],
+  }
 }
 
 /**

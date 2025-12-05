@@ -79,15 +79,15 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Log view access with performance data
-    await tracker.finish({
+    // Log view access with performance data (non-blocking)
+    tracker.finish({
       fileId,
       vaultId: file.vault_id,
       tenantId: profile.tenant_id,
       userId: user.id,
       fileSizeBytes: file.size_bytes,
       mimeType: file.mime_type,
-    })
+    }).catch(err => console.warn('Performance log error:', err))
 
     // Transform response
     return NextResponse.json({
@@ -376,8 +376,8 @@ export async function DELETE(
       }
     }
 
-    // Log delete access with performance data
-    await tracker.finish({
+    // Log delete access with performance data (non-blocking)
+    tracker.finish({
       fileId,
       vaultId: existingFile.vault_id,
       tenantId: profile.tenant_id,
@@ -385,7 +385,7 @@ export async function DELETE(
       fileSizeBytes: existingFile.size_bytes,
       mimeType: existingFile.mime_type,
       details: { permanent },
-    })
+    }).catch(err => console.warn('Performance log error:', err))
 
     return NextResponse.json({ success: true, permanent })
   } catch (error) {
