@@ -96,18 +96,18 @@ export const LazyVirtualFileTable = dynamic(
   }
 )
 
-// Form Builder - Complex drag-and-drop (default export)
+// Form Builder - Complex drag-and-drop (named export)
 export const LazyFormBuilder = dynamic(
-  () => import('@/components/admin/form-builder/form-builder'),
+  () => import('@/components/admin/form-builder/form-builder').then(mod => mod.FormBuilder),
   {
     loading: () => <EditorLoadingSkeleton />,
     ssr: false,
   }
 )
 
-// Workflow Builder - Complex flow editor (default export)
+// Workflow Builder - Complex flow editor (named export)
 export const LazyWorkflowBuilder = dynamic(
-  () => import('@/components/admin/cms/workflow-builder'),
+  () => import('@/components/admin/cms/workflow-builder').then(mod => mod.WorkflowBuilder),
   {
     loading: () => <EditorLoadingSkeleton />,
     ssr: false,
