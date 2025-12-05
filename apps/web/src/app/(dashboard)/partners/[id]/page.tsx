@@ -146,6 +146,9 @@ export default function PartnerDetailPage() {
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null)
   const [isDeletingContact, setIsDeletingContact] = useState(false)
 
+  // Table existence state
+  const [contactsTableExists, setContactsTableExists] = useState(true)
+
   const fetchPartner = async () => {
     try {
       setIsLoading(true)
@@ -161,6 +164,7 @@ export default function PartnerDetailPage() {
       setInvoices(data.invoices || [])
       setProjects(data.projects || [])
       setStats(data.stats || null)
+      setContactsTableExists(data.contactsTableExists !== false)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -489,13 +493,21 @@ export default function PartnerDetailPage() {
         <div>
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-slate-900">Kontaktisikud</h3>
-            <Button onClick={openAddContact} size="sm" className="gap-1" style={{ backgroundColor: '#279989' }}>
+            <Button onClick={openAddContact} size="sm" className="gap-1" style={{ backgroundColor: '#279989' }} disabled={!contactsTableExists}>
               <Plus className="w-4 h-4" />
               Lisa kontakt
             </Button>
           </div>
           <Card>
-            {contacts.length === 0 ? (
+            {!contactsTableExists ? (
+              <div className="text-center py-8 text-amber-600 bg-amber-50 rounded-lg">
+                <User className="w-10 h-10 mx-auto text-amber-400 mb-2" />
+                <p className="font-medium mb-2">Kontaktide tabel pole veel loodud</p>
+                <p className="text-sm text-amber-700 max-w-md mx-auto">
+                  Palun käivita migratsioon <code className="bg-amber-100 px-1 rounded">028_ensure_partners_tables.sql</code> Supabase SQL Editoris.
+                </p>
+              </div>
+            ) : contacts.length === 0 ? (
               <div className="text-center py-8 text-slate-500">
                 <User className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                 <p>Kontakte pole lisatud</p>

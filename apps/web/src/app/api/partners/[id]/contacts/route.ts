@@ -28,21 +28,33 @@ export async function GET(
 
     const { id } = params
 
-    const { data: contacts, error } = await supabase
-      .from('company_contacts')
-      .select('*')
-      .eq('company_id', id)
-      .is('deleted_at', null)
-      .order('is_primary', { ascending: false })
-      .order('last_name', { ascending: true })
+    // Try to fetch contacts - table may not exist yet
+    let contacts: Record<string, unknown>[] = []
+    try {
+      const { data, error } = await supabase
+        .from('company_contacts')
+        .select('*')
+        .eq('company_id', id)
+        .is('deleted_at', null)
+        .order('is_primary', { ascending: false })
+        .order('last_name', { ascending: true })
 
-    if (error) {
-      console.error('Error fetching contacts:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      if (error) {
+        // Check if table doesn't exist
+        if (error.message.includes('company_contacts') || error.code === '42P01') {
+          console.warn('company_contacts table does not exist yet')
+          return NextResponse.json({ contacts: [], tableExists: false })
+        }
+        throw error
+      }
+      contacts = data || []
+    } catch (dbError) {
+      console.warn('Error fetching contacts (table may not exist):', dbError)
+      return NextResponse.json({ contacts: [], tableExists: false })
     }
 
     return NextResponse.json({
-      contacts: contacts?.map(c => ({
+      contacts: contacts.map(c => ({
         id: c.id,
         firstName: c.first_name,
         lastName: c.last_name,
@@ -56,7 +68,8 @@ export async function GET(
         isBillingContact: c.is_billing_contact,
         notes: c.notes,
         createdAt: c.created_at,
-      })) || [],
+      })),
+      tableExists: true,
     })
   } catch (error) {
     console.error('Error in GET /api/partners/[id]/contacts:', error)
@@ -100,10 +113,14 @@ export async function POST(
 
     // If this is primary contact, unset other primary contacts
     if (body.isPrimary) {
-      await supabase
-        .from('company_contacts')
-        .update({ is_primary: false })
-        .eq('company_id', id)
+      try {
+        await supabase
+          .from('company_contacts')
+          .update({ is_primary: false })
+          .eq('company_id', id)
+      } catch {
+        // Table may not exist, continue with insert
+      }
     }
 
     const { data, error } = await supabase
@@ -127,6 +144,13 @@ export async function POST(
 
     if (error) {
       console.error('Error creating contact:', error)
+      // Check if table doesn't exist
+      if (error.message.includes('company_contacts') || error.code === '42P01' || error.message.includes('schema cache')) {
+        return NextResponse.json({
+          error: 'Kontaktide tabel pole veel loodud. Palun käivita migratsioon Supabase SQL Editoris.',
+          code: 'TABLE_NOT_EXISTS'
+        }, { status: 503 })
+      }
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 

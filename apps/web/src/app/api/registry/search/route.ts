@@ -52,18 +52,37 @@ export async function GET(request: Request) {
 
     const data = await response.json()
 
+    // Debug: log what we received from the API
+    console.log('Registry API response:', JSON.stringify(data).slice(0, 500))
+
     // The autocomplete API returns array of objects with: registry_code, name
     // Build URL to company page in e-Äriregister
-    const results: AutocompleteResult[] = Array.isArray(data)
-      ? data.map((item: Record<string, unknown>) => ({
-          name: (item.name as string) || '',
-          registryCode: String(item.registry_code || item.reg_code || ''),
-          // Build URL to company page in e-Äriregister
-          url: item.registry_code
-            ? `https://ariregister.rik.ee/est/company/${item.registry_code}`
+    let results: AutocompleteResult[] = []
+
+    if (Array.isArray(data)) {
+      results = data.map((item: Record<string, unknown>) => ({
+        name: (item.name as string) || '',
+        registryCode: String(item.registry_code || item.reg_code || ''),
+        // Build URL to company page in e-Äriregister
+        url: item.registry_code || item.reg_code
+          ? `https://ariregister.rik.ee/est/company/${item.registry_code || item.reg_code}`
+          : undefined,
+      }))
+    } else if (data && typeof data === 'object') {
+      // Handle if response is an object with results array
+      const items = data.results || data.data || data.companies || []
+      if (Array.isArray(items)) {
+        results = items.map((item: Record<string, unknown>) => ({
+          name: (item.name as string) || (item.nimi as string) || '',
+          registryCode: String(item.registry_code || item.reg_code || item.registrikood || ''),
+          url: (item.registry_code || item.reg_code)
+            ? `https://ariregister.rik.ee/est/company/${item.registry_code || item.reg_code}`
             : undefined,
         }))
-      : []
+      }
+    }
+
+    console.log('Parsed results count:', results.length)
 
     return NextResponse.json({
       results,

@@ -51,6 +51,7 @@ export async function GET(
 
     // Fetch contacts - wrapped for robustness
     let contacts: Record<string, unknown>[] = []
+    let contactsTableExists = true
     try {
       const { data: contactsData, error: contactsError } = await supabase
         .from('company_contacts')
@@ -60,11 +61,17 @@ export async function GET(
         .order('is_primary', { ascending: false })
         .order('last_name', { ascending: true })
 
+      if (contactsError) {
+        if (contactsError.message.includes('company_contacts') || contactsError.code === '42P01') {
+          contactsTableExists = false
+        }
+      }
       if (!contactsError && contactsData) {
         contacts = contactsData
       }
     } catch (e) {
       console.warn('Could not fetch contacts (table may not exist):', e)
+      contactsTableExists = false
     }
 
     // Fetch invoices summary - wrapped
@@ -177,6 +184,7 @@ export async function GET(
         status: safeGet(p, 'status', 'active'),
       })),
       stats,
+      contactsTableExists,
     })
   } catch (error) {
     console.error('Error in GET /api/partners/[id]:', error)
