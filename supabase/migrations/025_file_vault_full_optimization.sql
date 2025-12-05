@@ -18,47 +18,47 @@
 
 -- Primary file listing query (vault + folder + deleted filter + sort)
 -- Used by: GET /api/file-vault/files
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_vault_folder_deleted_created
+CREATE INDEX IF NOT EXISTS idx_files_vault_folder_deleted_created
 ON public.files(vault_id, folder_id, deleted_at, created_at DESC)
 WHERE deleted_at IS NULL;
 
 -- Files by vault with sort (most common query)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_vault_created_desc
+CREATE INDEX IF NOT EXISTS idx_files_vault_created_desc
 ON public.files(vault_id, created_at DESC)
 WHERE deleted_at IS NULL;
 
 -- Files by vault sorted by name (alphabetical listing)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_vault_name_asc
+CREATE INDEX IF NOT EXISTS idx_files_vault_name_asc
 ON public.files(vault_id, name ASC)
 WHERE deleted_at IS NULL;
 
 -- Files by vault sorted by size (largest first)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_vault_size_desc
+CREATE INDEX IF NOT EXISTS idx_files_vault_size_desc
 ON public.files(vault_id, size_bytes DESC)
 WHERE deleted_at IS NULL;
 
 -- Files by MIME type category (for type filtering)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_vault_mime
+CREATE INDEX IF NOT EXISTS idx_files_vault_mime
 ON public.files(vault_id, mime_type, created_at DESC)
 WHERE deleted_at IS NULL;
 
 -- Files by extension (for extension filtering)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_extension
+CREATE INDEX IF NOT EXISTS idx_files_extension
 ON public.files(vault_id, extension, created_at DESC)
 WHERE deleted_at IS NULL;
 
 -- Files by uploader (for "my uploads" filter)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_uploaded_by
+CREATE INDEX IF NOT EXISTS idx_files_uploaded_by
 ON public.files(uploaded_by, vault_id, created_at DESC)
 WHERE deleted_at IS NULL;
 
 -- Files by owner (for ownership queries)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_owner
+CREATE INDEX IF NOT EXISTS idx_files_owner
 ON public.files(owner_id, vault_id, created_at DESC)
 WHERE deleted_at IS NULL;
 
 -- Soft-deleted files (for trash view)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_deleted
+CREATE INDEX IF NOT EXISTS idx_files_deleted
 ON public.files(vault_id, deleted_at DESC)
 WHERE deleted_at IS NOT NULL;
 
@@ -78,7 +78,7 @@ BEGIN
 END$$;
 
 -- GIN index for full-text search
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_files_search_vector
+CREATE INDEX IF NOT EXISTS idx_files_search_vector
 ON public.files USING GIN(search_vector);
 
 -- Function to update search vector
@@ -113,12 +113,12 @@ WHERE search_vector IS NULL;
 -- ============================================
 
 -- Folders by vault and parent (tree navigation)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_folders_vault_parent
+CREATE INDEX IF NOT EXISTS idx_folders_vault_parent
 ON public.folders(vault_id, parent_id)
 WHERE deleted_at IS NULL;
 
 -- Folder path lookup
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_folders_path
+CREATE INDEX IF NOT EXISTS idx_folders_path
 ON public.folders(vault_id, path)
 WHERE deleted_at IS NULL;
 
@@ -127,11 +127,11 @@ WHERE deleted_at IS NULL;
 -- ============================================
 
 -- User profile by auth user (most common lookup)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_profiles_auth_user
+CREATE INDEX IF NOT EXISTS idx_user_profiles_auth_user
 ON public.user_profiles(auth_user_id);
 
 -- User profiles by tenant
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_profiles_tenant
+CREATE INDEX IF NOT EXISTS idx_user_profiles_tenant
 ON public.user_profiles(tenant_id);
 
 -- ============================================
@@ -139,7 +139,7 @@ ON public.user_profiles(tenant_id);
 -- ============================================
 
 -- Vaults by tenant (for vault listing)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_file_vaults_tenant
+CREATE INDEX IF NOT EXISTS idx_file_vaults_tenant
 ON public.file_vaults(tenant_id)
 WHERE deleted_at IS NULL;
 
