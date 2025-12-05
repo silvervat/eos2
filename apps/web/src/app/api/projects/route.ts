@@ -24,17 +24,10 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    // Build query with relationships
+    // Build query without relationships (to avoid schema cache issues)
     let query = supabase
       .from('projects')
-      .select(
-        `
-        *,
-        client:companies!client_id(id, name),
-        contact:company_contacts!contact_id(id, first_name, last_name, email, phone)
-      `,
-        { count: 'exact' }
-      )
+      .select('*', { count: 'exact' })
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
@@ -54,46 +47,81 @@ export async function GET(request: Request) {
     // Apply pagination
     query = query.range(offset, offset + limit - 1)
 
-    const { data, error, count } = await query
+    const { data: projects, error, count } = await query
 
     if (error) {
       console.error('Error fetching projects:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Collect unique client_ids and contact_ids for batch fetching
+    const clientIds = [...new Set((projects || []).map((p) => p.client_id).filter(Boolean))]
+    const contactIds = [...new Set((projects || []).map((p) => p.contact_id).filter(Boolean))]
+
+    // Fetch companies in batch
+    let companiesMap: Record<string, { id: string; name: string }> = {}
+    if (clientIds.length > 0) {
+      const { data: companies } = await supabase
+        .from('companies')
+        .select('id, name')
+        .in('id', clientIds)
+
+      if (companies) {
+        companiesMap = Object.fromEntries(companies.map((c) => [c.id, c]))
+      }
+    }
+
+    // Fetch contacts in batch
+    let contactsMap: Record<string, { id: string; first_name: string; last_name: string; email: string; phone: string }> = {}
+    if (contactIds.length > 0) {
+      const { data: contacts } = await supabase
+        .from('company_contacts')
+        .select('id, first_name, last_name, email, phone')
+        .in('id', contactIds)
+
+      if (contacts) {
+        contactsMap = Object.fromEntries(contacts.map((c) => [c.id, c]))
+      }
+    }
+
     // Transform data to match frontend interface
-    const transformedData = (data || []).map((project) => ({
-      id: project.id,
-      code: project.code,
-      name: project.name,
-      description: project.description,
-      type: project.type || 'ptv',
-      clientId: project.client_id,
-      client: project.client,
-      contactId: project.contact_id,
-      contact: project.contact
-        ? {
-            id: project.contact.id,
-            name: `${project.contact.first_name} ${project.contact.last_name}`.trim(),
-            email: project.contact.email,
-            phone: project.contact.phone,
-          }
-        : null,
-      status: project.status || 'starting',
-      budget: project.budget,
-      currency: project.currency,
-      startDate: project.start_date,
-      endDate: project.end_date,
-      address: project.address,
-      city: project.city,
-      country: project.country,
-      latitude: project.latitude,
-      longitude: project.longitude,
-      managerId: project.manager_id,
-      thumbnailUrl: project.thumbnail_url,
-      createdAt: project.created_at,
-      updatedAt: project.updated_at,
-    }))
+    const transformedData = (projects || []).map((project) => {
+      const client = project.client_id ? companiesMap[project.client_id] : null
+      const contact = project.contact_id ? contactsMap[project.contact_id] : null
+
+      return {
+        id: project.id,
+        code: project.code,
+        name: project.name,
+        description: project.description,
+        type: project.type || 'ptv',
+        clientId: project.client_id,
+        client: client ? { id: client.id, name: client.name } : null,
+        contactId: project.contact_id,
+        contact: contact
+          ? {
+              id: contact.id,
+              name: `${contact.first_name} ${contact.last_name}`.trim(),
+              email: contact.email,
+              phone: contact.phone,
+            }
+          : null,
+        status: project.status || 'starting',
+        budget: project.budget,
+        currency: project.currency,
+        startDate: project.start_date,
+        endDate: project.end_date,
+        address: project.address,
+        city: project.city,
+        country: project.country,
+        latitude: project.latitude,
+        longitude: project.longitude,
+        managerId: project.manager_id,
+        thumbnailUrl: project.thumbnail_url,
+        createdAt: project.created_at,
+        updatedAt: project.updated_at,
+      }
+    })
 
     return NextResponse.json({
       data: transformedData,
