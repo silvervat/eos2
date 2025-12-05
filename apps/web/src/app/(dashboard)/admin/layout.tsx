@@ -47,6 +47,12 @@ const menuItems = [
     path: '/admin/permissions',
   },
   {
+    key: 'file-vault',
+    label: 'Failihoidla',
+    icon: '📁',
+    path: '/admin/file-vault',
+  },
+  {
     key: 'todos',
     label: 'TODO',
     icon: '✅',
