@@ -84,7 +84,21 @@ export default function PartnersPage() {
   const [rowDensity, setRowDensity] = useState<'compact' | 'normal'>('compact')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; partnerId: string } | null>(null)
 
-  // Form state
+  // Inline editing state
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editData, setEditData] = useState<Partial<Partner>>({})
+  const [isAddingNew, setIsAddingNew] = useState(false)
+  const [newRowData, setNewRowData] = useState({
+    name: '',
+    registryCode: '',
+    type: 'client',
+    email: '',
+    phone: '',
+    city: '',
+  })
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Form state (for modal - keeping for compatibility)
   const [formData, setFormData] = useState({
     name: '',
     registryCode: '',
@@ -183,6 +197,81 @@ export default function PartnersPage() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Inline editing functions
+  const startEditing = (partner: Partner) => {
+    setEditingId(partner.id)
+    setEditData({
+      name: partner.name,
+      registryCode: partner.registryCode,
+      type: partner.type,
+      email: partner.email,
+      phone: partner.phone,
+      city: partner.city,
+    })
+  }
+
+  const cancelEditing = () => {
+    setEditingId(null)
+    setEditData({})
+  }
+
+  const saveEditing = async () => {
+    if (!editingId) return
+    setIsSaving(true)
+
+    try {
+      const response = await fetch(`/api/partners/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editData),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to update partner')
+      }
+
+      setEditingId(null)
+      setEditData({})
+      fetchPartners()
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const saveNewRow = async () => {
+    if (!newRowData.name.trim()) return
+    setIsSaving(true)
+
+    try {
+      const response = await fetch('/api/partners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newRowData),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create partner')
+      }
+
+      setIsAddingNew(false)
+      setNewRowData({ name: '', registryCode: '', type: 'client', email: '', phone: '', city: '' })
+      fetchPartners()
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const cancelNewRow = () => {
+    setIsAddingNew(false)
+    setNewRowData({ name: '', registryCode: '', type: 'client', email: '', phone: '', city: '' })
   }
 
   const toggleSelectAll = () => {
@@ -539,13 +628,13 @@ export default function PartnersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredAndSortedPartners.length === 0 ? (
+                {filteredAndSortedPartners.length === 0 && !isAddingNew ? (
                   <tr>
                     <td colSpan={11} className="text-center py-8">
                       <Building className="w-10 h-10 mx-auto text-slate-300" />
                       <p className="mt-2 text-sm text-slate-500">Ettevõtteid ei leitud</p>
                       <Button
-                        onClick={() => setShowAddModal(true)}
+                        onClick={() => setIsAddingNew(true)}
                         size="sm"
                         className="mt-3 gap-1.5"
                         style={{ backgroundColor: '#279989' }}
@@ -556,84 +645,300 @@ export default function PartnersPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredAndSortedPartners.map((partner) => (
-                    <tr
-                      key={partner.id}
-                      className={`${rowHeight} hover:bg-slate-50 transition-colors cursor-pointer ${selectedRows.has(partner.id) ? 'bg-blue-50' : ''}`}
-                      onClick={() => window.location.href = `/partners/${partner.id}`}
-                      onContextMenu={(e) => handleContextMenu(e, partner.id)}
-                    >
-                      <td className={cellPadding} onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selectedRows.has(partner.id)}
-                          onChange={() => toggleSelectRow(partner.id)}
-                          className="w-3.5 h-3.5 rounded border-slate-300 text-[#279989] focus:ring-[#279989]"
-                        />
-                      </td>
-                      <td className={`${cellPadding} ${fontSize}`}>
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center flex-shrink-0">
-                            <Building className="w-3 h-3 text-slate-500" />
-                          </div>
-                          <span className="font-medium text-slate-900 truncate">{partner.name}</span>
-                        </div>
-                      </td>
-                      <td className={`${cellPadding} ${fontSize}`}>
-                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${typeColors[partner.type] || 'bg-slate-100 text-slate-700'}`}>
-                          {typeLabels[partner.type] || partner.type}
-                        </span>
-                      </td>
-                      <td className={`${cellPadding} ${fontSize} text-slate-600 hidden md:table-cell`}>
-                        {partner.registryCode || '-'}
-                      </td>
-                      <td className={`${cellPadding} ${fontSize} text-slate-600 hidden lg:table-cell`}>
-                        {partner.email ? (
-                          <a
-                            href={`mailto:${partner.email}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="hover:text-[#279989]"
-                          >
-                            {partner.email}
-                          </a>
-                        ) : '-'}
-                      </td>
-                      <td className={`${cellPadding} ${fontSize} text-slate-600 hidden lg:table-cell`}>
-                        {partner.phone ? (
-                          <a
-                            href={`tel:${partner.phone}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="hover:text-[#279989]"
-                          >
-                            {partner.phone}
-                          </a>
-                        ) : '-'}
-                      </td>
-                      <td className={`${cellPadding} ${fontSize} text-slate-600 hidden md:table-cell`}>
-                        {partner.city || '-'}
-                      </td>
-                      <td className={`${cellPadding} ${fontSize} text-center text-slate-600`}>
-                        {partner.contactsCount}
-                      </td>
-                      <td className={`${cellPadding} ${fontSize} text-center text-slate-600 hidden lg:table-cell`}>
-                        {partner.stats?.invoices || 0}
-                      </td>
-                      <td className={`${cellPadding} ${fontSize} text-center text-slate-600 hidden lg:table-cell`}>
-                        {partner.stats?.projects || 0}
-                      </td>
-                      <td className={cellPadding} onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="p-1 rounded hover:bg-slate-100"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setContextMenu({ x: e.clientX, y: e.clientY, partnerId: partner.id })
-                          }}
+                  <>
+                    {filteredAndSortedPartners.map((partner) => (
+                      editingId === partner.id ? (
+                        // Editing row
+                        <tr key={partner.id} className={`${rowHeight} bg-blue-50`}>
+                          <td className={cellPadding}>
+                            <input
+                              type="checkbox"
+                              disabled
+                              className="w-3.5 h-3.5 rounded border-slate-300"
+                            />
+                          </td>
+                          <td className={`${cellPadding} ${fontSize}`}>
+                            <input
+                              type="text"
+                              value={editData.name || ''}
+                              onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                              className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                              placeholder="Nimi"
+                              autoFocus
+                            />
+                          </td>
+                          <td className={`${cellPadding} ${fontSize}`}>
+                            <select
+                              value={editData.type || 'client'}
+                              onChange={(e) => setEditData({ ...editData, type: e.target.value })}
+                              className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                            >
+                              <option value="client">Klient</option>
+                              <option value="supplier">Tarnija</option>
+                              <option value="subcontractor">Alltöövõtja</option>
+                              <option value="partner">Partner</option>
+                              <option value="manufacturer">Tootja</option>
+                            </select>
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} hidden md:table-cell`}>
+                            <input
+                              type="text"
+                              value={editData.registryCode || ''}
+                              onChange={(e) => setEditData({ ...editData, registryCode: e.target.value })}
+                              className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                              placeholder="Reg. kood"
+                            />
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} hidden lg:table-cell`}>
+                            <input
+                              type="email"
+                              value={editData.email || ''}
+                              onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                              className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                              placeholder="E-post"
+                            />
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} hidden lg:table-cell`}>
+                            <input
+                              type="text"
+                              value={editData.phone || ''}
+                              onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                              className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                              placeholder="Telefon"
+                            />
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} hidden md:table-cell`}>
+                            <input
+                              type="text"
+                              value={editData.city || ''}
+                              onChange={(e) => setEditData({ ...editData, city: e.target.value })}
+                              className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                              placeholder="Linn"
+                            />
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} text-center text-slate-400`}>
+                            {partner.contactsCount}
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} text-center text-slate-400 hidden lg:table-cell`}>
+                            {partner.stats?.invoices || 0}
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} text-center text-slate-400 hidden lg:table-cell`}>
+                            {partner.stats?.projects || 0}
+                          </td>
+                          <td className={cellPadding}>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={saveEditing}
+                                disabled={isSaving}
+                                className="p-1 rounded bg-[#279989] text-white hover:bg-[#1e7a6d]"
+                              >
+                                {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                              </button>
+                              <button
+                                onClick={cancelEditing}
+                                className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        // Normal row
+                        <tr
+                          key={partner.id}
+                          className={`${rowHeight} hover:bg-slate-50 transition-colors cursor-pointer ${selectedRows.has(partner.id) ? 'bg-blue-50' : ''}`}
+                          onClick={() => window.location.href = `/partners/${partner.id}`}
+                          onContextMenu={(e) => handleContextMenu(e, partner.id)}
                         >
-                          <MoreHorizontal className="w-4 h-4 text-slate-400" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                          <td className={cellPadding} onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedRows.has(partner.id)}
+                              onChange={() => toggleSelectRow(partner.id)}
+                              className="w-3.5 h-3.5 rounded border-slate-300 text-[#279989] focus:ring-[#279989]"
+                            />
+                          </td>
+                          <td className={`${cellPadding} ${fontSize}`}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center flex-shrink-0">
+                                <Building className="w-3 h-3 text-slate-500" />
+                              </div>
+                              <span className="font-medium text-slate-900 truncate">{partner.name}</span>
+                            </div>
+                          </td>
+                          <td className={`${cellPadding} ${fontSize}`}>
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${typeColors[partner.type] || 'bg-slate-100 text-slate-700'}`}>
+                              {typeLabels[partner.type] || partner.type}
+                            </span>
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} text-slate-600 hidden md:table-cell`}>
+                            {partner.registryCode || '-'}
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} text-slate-600 hidden lg:table-cell`}>
+                            {partner.email ? (
+                              <a
+                                href={`mailto:${partner.email}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="hover:text-[#279989]"
+                              >
+                                {partner.email}
+                              </a>
+                            ) : '-'}
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} text-slate-600 hidden lg:table-cell`}>
+                            {partner.phone ? (
+                              <a
+                                href={`tel:${partner.phone}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="hover:text-[#279989]"
+                              >
+                                {partner.phone}
+                              </a>
+                            ) : '-'}
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} text-slate-600 hidden md:table-cell`}>
+                            {partner.city || '-'}
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} text-center text-slate-600`}>
+                            {partner.contactsCount}
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} text-center text-slate-600 hidden lg:table-cell`}>
+                            {partner.stats?.invoices || 0}
+                          </td>
+                          <td className={`${cellPadding} ${fontSize} text-center text-slate-600 hidden lg:table-cell`}>
+                            {partner.stats?.projects || 0}
+                          </td>
+                          <td className={cellPadding} onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1">
+                              <button
+                                className="p-1 rounded hover:bg-slate-100"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  startEditing(partner)
+                                }}
+                              >
+                                <Edit className="w-3 h-3 text-slate-400" />
+                              </button>
+                              <button
+                                className="p-1 rounded hover:bg-slate-100"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setContextMenu({ x: e.clientX, y: e.clientY, partnerId: partner.id })
+                                }}
+                              >
+                                <MoreHorizontal className="w-4 h-4 text-slate-400" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    ))}
+
+                    {/* Add new row */}
+                    {isAddingNew ? (
+                      <tr className={`${rowHeight} bg-green-50`}>
+                        <td className={cellPadding}>
+                          <Plus className="w-3.5 h-3.5 text-green-600" />
+                        </td>
+                        <td className={`${cellPadding} ${fontSize}`}>
+                          <input
+                            type="text"
+                            value={newRowData.name}
+                            onChange={(e) => setNewRowData({ ...newRowData, name: e.target.value })}
+                            className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                            placeholder="Ettevõtte nimi *"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveNewRow()
+                              if (e.key === 'Escape') cancelNewRow()
+                            }}
+                          />
+                        </td>
+                        <td className={`${cellPadding} ${fontSize}`}>
+                          <select
+                            value={newRowData.type}
+                            onChange={(e) => setNewRowData({ ...newRowData, type: e.target.value })}
+                            className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                          >
+                            <option value="client">Klient</option>
+                            <option value="supplier">Tarnija</option>
+                            <option value="subcontractor">Alltöövõtja</option>
+                            <option value="partner">Partner</option>
+                            <option value="manufacturer">Tootja</option>
+                          </select>
+                        </td>
+                        <td className={`${cellPadding} ${fontSize} hidden md:table-cell`}>
+                          <input
+                            type="text"
+                            value={newRowData.registryCode}
+                            onChange={(e) => setNewRowData({ ...newRowData, registryCode: e.target.value })}
+                            className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                            placeholder="Reg. kood"
+                          />
+                        </td>
+                        <td className={`${cellPadding} ${fontSize} hidden lg:table-cell`}>
+                          <input
+                            type="email"
+                            value={newRowData.email}
+                            onChange={(e) => setNewRowData({ ...newRowData, email: e.target.value })}
+                            className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                            placeholder="E-post"
+                          />
+                        </td>
+                        <td className={`${cellPadding} ${fontSize} hidden lg:table-cell`}>
+                          <input
+                            type="text"
+                            value={newRowData.phone}
+                            onChange={(e) => setNewRowData({ ...newRowData, phone: e.target.value })}
+                            className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                            placeholder="Telefon"
+                          />
+                        </td>
+                        <td className={`${cellPadding} ${fontSize} hidden md:table-cell`}>
+                          <input
+                            type="text"
+                            value={newRowData.city}
+                            onChange={(e) => setNewRowData({ ...newRowData, city: e.target.value })}
+                            className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                            placeholder="Linn"
+                          />
+                        </td>
+                        <td className={`${cellPadding} ${fontSize} text-center text-slate-400`}>-</td>
+                        <td className={`${cellPadding} ${fontSize} text-center text-slate-400 hidden lg:table-cell`}>-</td>
+                        <td className={`${cellPadding} ${fontSize} text-center text-slate-400 hidden lg:table-cell`}>-</td>
+                        <td className={cellPadding}>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={saveNewRow}
+                              disabled={isSaving || !newRowData.name.trim()}
+                              className="p-1 rounded bg-[#279989] text-white hover:bg-[#1e7a6d] disabled:opacity-50"
+                            >
+                              {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            </button>
+                            <button
+                              onClick={cancelNewRow}
+                              className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr
+                        className={`${rowHeight} hover:bg-slate-50 transition-colors cursor-pointer border-t border-dashed border-slate-200`}
+                        onClick={() => setIsAddingNew(true)}
+                      >
+                        <td colSpan={11} className={`${cellPadding} text-center`}>
+                          <div className="flex items-center justify-center gap-2 text-slate-400 hover:text-[#279989]">
+                            <Plus className="w-4 h-4" />
+                            <span className={`${fontSize}`}>Lisa uus ettevõte</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 )}
               </tbody>
             </table>

@@ -43,7 +43,7 @@ function ProjectsGallery({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
       {data.map((project) => {
         const statusConfig = PROJECT_STATUSES[project.status] || PROJECT_STATUSES.starting
         const typeLabel = PROJECT_TYPES[project.type] || project.type
@@ -51,7 +51,7 @@ function ProjectsGallery({
         return (
           <div
             key={project.id}
-            className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow cursor-pointer group relative"
+            className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow cursor-pointer group relative"
             onClick={() => onProjectClick?.(project)}
           >
             {/* Edit button */}
@@ -60,13 +60,13 @@ function ProjectsGallery({
                 e.stopPropagation()
                 onEdit?.(project)
               }}
-              className="absolute top-3 right-14 z-10 p-1.5 rounded-lg bg-white/90 text-slate-600 hover:bg-white hover:text-slate-900 shadow-sm transition-colors"
+              className="absolute top-1.5 right-8 z-10 p-1 rounded bg-white/90 text-slate-600 hover:bg-white hover:text-slate-900 shadow-sm transition-colors"
             >
-              <Pencil className="h-4 w-4" />
+              <Pencil className="h-3 w-3" />
             </button>
 
             {/* Thumbnail */}
-            <div className="aspect-video bg-slate-100 relative overflow-hidden">
+            <div className="aspect-[4/3] bg-slate-100 relative overflow-hidden">
               {project.thumbnailUrl ? (
                 <img
                   src={project.thumbnailUrl}
@@ -75,25 +75,25 @@ function ProjectsGallery({
                 />
               ) : project.latitude && project.longitude ? (
                 <img
-                  src={`https://staticmap.openstreetmap.de/staticmap.php?center=${project.latitude},${project.longitude}&zoom=14&size=400x200&markers=${project.latitude},${project.longitude},red-pushpin`}
+                  src={`https://staticmap.openstreetmap.de/staticmap.php?center=${project.latitude},${project.longitude}&zoom=14&size=200x150&markers=${project.latitude},${project.longitude},red-pushpin`}
                   alt="Kaart"
                   className="w-full h-full object-cover opacity-70"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <ImageIcon className="h-12 w-12 text-slate-300" />
+                  <ImageIcon className="h-6 w-6 text-slate-300" />
                 </div>
               )}
               {/* Type badge */}
-              <div className="absolute top-3 left-3">
-                <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-white/90 text-slate-700 shadow-sm">
+              <div className="absolute top-1.5 left-1.5">
+                <span className="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-white/90 text-slate-700 shadow-sm">
                   {typeLabel}
                 </span>
               </div>
               {/* Status badge */}
-              <div className="absolute top-3 right-3">
+              <div className="absolute top-1.5 right-1.5">
                 <span
-                  className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusConfig.color}`}
+                  className={`inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded-full ${statusConfig.color}`}
                 >
                   {statusConfig.label}
                 </span>
@@ -101,39 +101,23 @@ function ProjectsGallery({
             </div>
 
             {/* Content */}
-            <div className="p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <span className="font-mono text-xs text-slate-500">{project.code}</span>
-                  <h3 className="font-semibold text-slate-900 line-clamp-1">{project.name}</h3>
-                </div>
+            <div className="p-2">
+              <div className="mb-1">
+                <span className="font-mono text-[10px] text-slate-500">{project.code}</span>
+                <h3 className="font-medium text-xs text-slate-900 line-clamp-1">{project.name}</h3>
               </div>
 
-              {project.description && (
-                <p className="text-sm text-slate-500 line-clamp-2 mb-3">{project.description}</p>
-              )}
-
-              <div className="space-y-1.5 text-sm text-slate-600">
+              <div className="space-y-0.5 text-[11px] text-slate-600">
                 {project.client && (
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-slate-400" />
+                  <div className="flex items-center gap-1">
+                    <Building2 className="h-3 w-3 text-slate-400 flex-shrink-0" />
                     <span className="truncate">{project.client.name}</span>
                   </div>
                 )}
                 {project.address && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-slate-400" />
+                  <div className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" />
                     <span className="truncate">{project.address}</span>
-                  </div>
-                )}
-                {project.startDate && (
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-slate-400" />
-                    <span>
-                      {new Date(project.startDate).toLocaleDateString('et-EE')}
-                      {project.endDate &&
-                        ` - ${new Date(project.endDate).toLocaleDateString('et-EE')}`}
-                    </span>
                   </div>
                 )}
               </div>
