@@ -33,7 +33,7 @@ interface ThumbnailOptions {
   width?: number
   height?: number
   quality?: number
-  format?: 'webp' | 'avif' | 'jpeg' | 'png' | 'auto'
+  format?: 'webp' | 'avif' | 'jpeg' | 'png' | 'auto' | 'original'
   fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside'
 }
 
