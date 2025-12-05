@@ -92,13 +92,25 @@ const personnelItems = [
   { href: '/personnel/groups', label: 'Grupid', icon: Building2 },
 ]
 
+// Partners items (Ettevõtted)
+const partnersItems = [
+  { href: '/partners', label: 'Ettevõtted', icon: Building },
+  { href: '/partners/contacts', label: 'Kontaktid', icon: Users },
+  { href: '/partners/statistics', label: 'Statistika', icon: TrendingUp },
+  { href: '/partners/ratings', label: 'Hindamised', icon: BarChart3 },
+]
+
 // Warehouse items
 const warehouseItems = [
   { href: '/warehouse', label: 'Ülevaade', icon: LayoutDashboard },
   { href: '/warehouse/locations', label: 'Laod', icon: MapPin },
   { href: '/warehouse/assets', label: 'Varad', icon: Package },
+  { href: '/warehouse/piece-products', label: 'Tükitooted', icon: Boxes },
+  { href: '/warehouse/ikv', label: 'IKV', icon: ClipboardCheck },
+  { href: '/warehouse/categories', label: 'Kategooriad', icon: Tags },
   { href: '/warehouse/transfers', label: 'Ülekanded', icon: ArrowRightLeft },
   { href: '/warehouse/maintenance', label: 'Hooldused', icon: Wrench },
+  { href: '/warehouse/reports', label: 'Raportid', icon: BarChart3 },
 ]
 
 // Quotes items
@@ -153,6 +165,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [projectsExpanded, setProjectsExpanded] = useState(false)
+  const [partnersExpanded, setPartnersExpanded] = useState(false)
   const [personnelExpanded, setPersonnelExpanded] = useState(false)
   const [warehouseExpanded, setWarehouseExpanded] = useState(false)
   const [quotesExpanded, setQuotesExpanded] = useState(false)
@@ -164,6 +177,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Auto-expand menus based on current path
   useEffect(() => {
     if (pathname?.startsWith('/projects')) setProjectsExpanded(true)
+    if (pathname?.startsWith('/partners')) setPartnersExpanded(true)
     if (pathname?.startsWith('/personnel')) setPersonnelExpanded(true)
     if (pathname?.startsWith('/warehouse')) setWarehouseExpanded(true)
     if (pathname?.startsWith('/quotes')) setQuotesExpanded(true)
@@ -182,6 +196,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const newState = !allExpanded
     setAllExpanded(newState)
     setProjectsExpanded(newState)
+    setPartnersExpanded(newState)
     setPersonnelExpanded(newState)
     setWarehouseExpanded(newState)
     setQuotesExpanded(newState)
@@ -206,7 +221,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navItems = [
     { href: '/dashboard', label: 'Töölaud', icon: LayoutDashboard },
     { href: '/projects', label: 'Projektid', icon: FolderKanban, hasSubmenu: true, submenuKey: 'projects' },
-    { href: '/partners', label: 'Partnerid', icon: Building },
+    { href: '/partners', label: 'Ettevõtted', icon: Building, hasSubmenu: true, submenuKey: 'partners' },
     { href: '/quotes', label: 'Pakkumised', icon: Receipt, hasSubmenu: true, submenuKey: 'quotes' },
     { href: '/personnel', label: 'Personaal', icon: UsersRound, hasSubmenu: true, submenuKey: 'personnel' },
     { href: '/warehouse', label: 'Laohaldus', icon: Warehouse, hasSubmenu: true, submenuKey: 'warehouse' },
@@ -221,7 +236,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const adminItems = [
     { href: '/admin/cms', label: 'CMS', icon: Database },
     { href: '/admin/templates', label: 'Mallid', icon: FileType },
-    { href: '/admin/ultra-tables', label: 'Tabelid', icon: Table },
+    { href: '/admin/tables', label: 'Tabelid', icon: Table },
     { href: '/admin/cache', label: 'Vahemälu', icon: HardDrive },
     { href: '/trash', label: 'Prügi', icon: Trash2 },
     { href: '/notifications', label: 'Teavitused', icon: Bell },
@@ -230,6 +245,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const getSubmenuItems = (key: string) => {
     if (key === 'projects') return projectTypes
+    if (key === 'partners') return partnersItems
     if (key === 'personnel') return personnelItems
     if (key === 'warehouse') return warehouseItems
     if (key === 'quotes') return quotesItems
@@ -241,6 +257,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isSubmenuExpanded = (key: string) => {
     if (key === 'projects') return projectsExpanded
+    if (key === 'partners') return partnersExpanded
     if (key === 'personnel') return personnelExpanded
     if (key === 'warehouse') return warehouseExpanded
     if (key === 'quotes') return quotesExpanded
@@ -252,6 +269,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const toggleSubmenu = (key: string) => {
     if (key === 'projects') setProjectsExpanded(!projectsExpanded)
+    if (key === 'partners') setPartnersExpanded(!partnersExpanded)
     if (key === 'personnel') setPersonnelExpanded(!personnelExpanded)
     if (key === 'warehouse') setWarehouseExpanded(!warehouseExpanded)
     if (key === 'quotes') setQuotesExpanded(!quotesExpanded)

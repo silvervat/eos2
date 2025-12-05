@@ -1,19 +1,53 @@
 /**
- * FILE VAULT - Folders API Route
+ * FILE VAULT - Folders API Route (OPTIMIZED)
  * GET /api/file-vault/folders - List folders (tree structure)
  * POST /api/file-vault/folders - Create new folder
+ *
+ * Performance optimizations:
+ * - Parallel auth + profile fetch
+ * - Single query with file counts using RPC
+ * - In-memory caching with TTL
  */
 
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
+import { cacheGet, cacheSet, CACHE_TTL } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/file-vault/folders - Get folder tree
 export async function GET(request: Request) {
+  const startTime = Date.now()
+
   try {
     const supabase = createClient()
+
+    // Parse query parameters early
+    const { searchParams } = new URL(request.url)
+    const vaultId = searchParams.get('vaultId')
+    const parentId = searchParams.get('parentId')
+    const includeFiles = searchParams.get('includeFiles') === 'true'
+    const flat = searchParams.get('flat') === 'true'
+    const includeStats = searchParams.get('includeStats') === 'true'
+
+    if (!vaultId) {
+      return NextResponse.json({ error: 'Vault ID is required' }, { status: 400 })
+    }
+
+    // Generate cache key
+    const cacheKey = `folders:${vaultId}:${parentId || 'all'}:${flat}:${includeStats}`
+
+    // Try cache first
+    const cached = await cacheGet<{ folders: unknown[] }>(cacheKey)
+    if (cached) {
+      const response = NextResponse.json({
+        ...cached,
+        _meta: { duration: Date.now() - startTime, cached: true },
+      })
+      response.headers.set('X-Cache', 'HIT')
+      return response
+    }
 
     // Check authentication
     const {
@@ -25,38 +59,30 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user's profile and tenant
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('id, tenant_id')
-      .eq('auth_user_id', user.id)
-      .single()
+    // Parallel fetch: profile + vault validation
+    const [profileResult, vaultResult] = await Promise.all([
+      supabase
+        .from('user_profiles')
+        .select('id, tenant_id')
+        .eq('auth_user_id', user.id)
+        .single(),
+      supabase
+        .from('file_vaults')
+        .select('id, tenant_id')
+        .eq('id', vaultId)
+        .is('deleted_at', null)
+        .single(),
+    ])
+
+    const profile = profileResult.data
+    const vault = vaultResult.data
 
     if (!profile?.tenant_id) {
       return NextResponse.json({ error: 'User profile not found' }, { status: 400 })
     }
 
-    // Parse query parameters
-    const { searchParams } = new URL(request.url)
-    const vaultId = searchParams.get('vaultId')
-    const parentId = searchParams.get('parentId')
-    const includeFiles = searchParams.get('includeFiles') === 'true'
-    const flat = searchParams.get('flat') === 'true'
-
-    if (!vaultId) {
-      return NextResponse.json({ error: 'Vault ID is required' }, { status: 400 })
-    }
-
-    // Verify vault access
-    const { data: vault, error: vaultError } = await supabase
-      .from('file_vaults')
-      .select('id')
-      .eq('id', vaultId)
-      .eq('tenant_id', profile.tenant_id)
-      .is('deleted_at', null)
-      .single()
-
-    if (vaultError || !vault) {
+    // Verify vault belongs to user's tenant
+    if (!vault || vault.tenant_id !== profile.tenant_id) {
       return NextResponse.json({ error: 'Vault not found or access denied' }, { status: 404 })
     }
 
@@ -93,7 +119,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Transform and optionally build tree
+    // Transform folders
     const transformedFolders = folders?.map(folder => ({
       id: folder.id,
       name: folder.name,
@@ -105,37 +131,65 @@ export async function GET(request: Request) {
       ownerId: folder.owner_id,
       createdAt: folder.created_at,
       updatedAt: folder.updated_at,
+      fileCount: 0,
     })) || []
 
-    // If flat mode, return as list
-    if (flat || parentId) {
-      // Get file counts for each folder
-      const folderIds = transformedFolders.map(f => f.id)
-      if (folderIds.length > 0) {
+    // If flat mode with stats, get file counts in single optimized query
+    if ((flat || parentId) && transformedFolders.length > 0) {
+      // Use a single aggregation query for all folder counts
+      const { data: fileCountsData } = await supabase.rpc('get_folder_file_counts', {
+        p_vault_id: vaultId,
+        p_folder_ids: transformedFolders.map(f => f.id),
+      })
+
+      // If RPC doesn't exist, fallback to basic count query
+      if (fileCountsData) {
+        const countMap: Record<string, number> = {}
+        fileCountsData.forEach((row: { folder_id: string; file_count: number }) => {
+          countMap[row.folder_id] = row.file_count
+        })
+        transformedFolders.forEach(folder => {
+          folder.fileCount = countMap[folder.id] || 0
+        })
+      } else {
+        // Fallback: single query with group by simulation
         const { data: fileCounts } = await supabase
           .from('files')
           .select('folder_id')
           .eq('vault_id', vaultId)
-          .in('folder_id', folderIds)
+          .in('folder_id', transformedFolders.map(f => f.id))
           .is('deleted_at', null)
 
         const countMap: Record<string, number> = {}
         fileCounts?.forEach(f => {
           countMap[f.folder_id] = (countMap[f.folder_id] || 0) + 1
         })
-
         transformedFolders.forEach(folder => {
-          (folder as Record<string, unknown>).fileCount = countMap[folder.id] || 0
+          folder.fileCount = countMap[folder.id] || 0
         })
       }
-
-      return NextResponse.json({ folders: transformedFolders })
     }
 
-    // Build tree structure
-    const tree = buildFolderTree(transformedFolders)
+    // Prepare result
+    let result: { folders: unknown[] }
+    if (flat || parentId) {
+      result = { folders: transformedFolders }
+    } else {
+      // Build tree structure
+      result = { folders: buildFolderTree(transformedFolders as FolderNode[]) }
+    }
 
-    return NextResponse.json({ folders: tree })
+    // Cache the result
+    await cacheSet(cacheKey, result, CACHE_TTL.FILE_LIST)
+
+    const response = NextResponse.json({
+      ...result,
+      _meta: { duration: Date.now() - startTime, cached: false },
+    })
+    response.headers.set('X-Cache', 'MISS')
+    response.headers.set('Cache-Control', 'private, max-age=10, stale-while-revalidate=30')
+
+    return response
   } catch (error) {
     console.error('Error in GET /api/file-vault/folders:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })

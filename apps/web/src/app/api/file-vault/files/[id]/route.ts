@@ -10,6 +10,10 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import { deleteFileFromStorage, FILE_VAULT_BUCKET } from '@/lib/file-vault/storage/file-storage'
 import { deleteThumbnails } from '@/lib/file-vault/storage/thumbnail-generator'
+import {
+  trackPerformance,
+  getRequestMetadata,
+} from '@/lib/file-vault/performance-logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +22,15 @@ export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  // Start performance tracking
+  const { ipAddress, userAgent } = getRequestMetadata(request)
+  const tracker = trackPerformance({
+    action: 'view',
+    operationType: 'file_view',
+    ipAddress,
+    userAgent,
+  })
+
   try {
     const supabase = createClient()
     const fileId = params.id
@@ -66,14 +79,15 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Log view access
-    await supabaseAdmin.from('file_accesses').insert({
-      file_id: fileId,
-      action: 'view',
-      ip_address: request.headers.get('x-forwarded-for') || 'unknown',
-      user_agent: request.headers.get('user-agent'),
-      user_id: user.id,
-    })
+    // Log view access with performance data (non-blocking)
+    tracker.finish({
+      fileId,
+      vaultId: file.vault_id,
+      tenantId: profile.tenant_id,
+      userId: user.id,
+      fileSizeBytes: file.size_bytes,
+      mimeType: file.mime_type,
+    }).catch(err => console.warn('Performance log error:', err))
 
     // Transform response
     return NextResponse.json({
@@ -115,6 +129,8 @@ export async function GET(
       recentAccesses: file.accesses?.slice(0, 10) || [],
     })
   } catch (error) {
+    // Log error with performance data
+    await tracker.error((error as Error).message)
     console.error('Error in GET /api/file-vault/files/[id]:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
@@ -255,6 +271,15 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  // Start performance tracking
+  const { ipAddress, userAgent } = getRequestMetadata(request)
+  const tracker = trackPerformance({
+    action: 'delete',
+    operationType: 'file_delete',
+    ipAddress,
+    userAgent,
+  })
+
   try {
     const supabase = createClient()
     const fileId = params.id
@@ -351,17 +376,21 @@ export async function DELETE(
       }
     }
 
-    // Log delete access
-    await supabaseAdmin.from('file_accesses').insert({
-      file_id: fileId,
-      action: 'delete',
-      ip_address: request.headers.get('x-forwarded-for') || 'unknown',
-      user_agent: request.headers.get('user-agent'),
-      user_id: user.id,
-    })
+    // Log delete access with performance data (non-blocking)
+    tracker.finish({
+      fileId,
+      vaultId: existingFile.vault_id,
+      tenantId: profile.tenant_id,
+      userId: user.id,
+      fileSizeBytes: existingFile.size_bytes,
+      mimeType: existingFile.mime_type,
+      details: { permanent },
+    }).catch(err => console.warn('Performance log error:', err))
 
     return NextResponse.json({ success: true, permanent })
   } catch (error) {
+    // Log error with performance data
+    await tracker.error((error as Error).message)
     console.error('Error in DELETE /api/file-vault/files/[id]:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }

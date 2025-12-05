@@ -245,12 +245,34 @@ export function FileUploadDialog({
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        const errorMessage = (error.error || '').toLowerCase()
+        // Try to parse as JSON, but handle text responses gracefully
+        let errorMessage = 'Üleslaadimise viga'
+        let existingFile = null
+
+        const contentType = response.headers.get('content-type') || ''
+        if (contentType.includes('application/json')) {
+          try {
+            const error = await response.json()
+            errorMessage = error.error || errorMessage
+            existingFile = error.existingFile
+          } catch {
+            // JSON parse failed, use default message
+          }
+        } else {
+          // Not JSON response - likely server error like "Request Entity Too Large"
+          const text = await response.text()
+          if (text.toLowerCase().includes('too large') || response.status === 413) {
+            errorMessage = 'Fail on liiga suur'
+          } else if (text.length < 200) {
+            errorMessage = text || `Viga: ${response.status}`
+          } else {
+            errorMessage = `Serveri viga: ${response.status}`
+          }
+        }
 
         // Check for duplicate error (status 409 or error message contains duplicate)
-        if (response.status === 409 || errorMessage.includes('duplikaat') || errorMessage.includes('duplicate')) {
-          const existingName = error.existingFile?.name || 'olemasolev fail'
+        if (response.status === 409 || errorMessage.toLowerCase().includes('duplikaat') || errorMessage.toLowerCase().includes('duplicate')) {
+          const existingName = existingFile?.name || 'olemasolev fail'
           setFiles(prev =>
             prev.map(f =>
               f.id === uploadFile.id
@@ -261,7 +283,7 @@ export function FileUploadDialog({
           return null
         }
 
-        throw new Error(error.error || 'Upload failed')
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()
@@ -293,23 +315,40 @@ export function FileUploadDialog({
     }
   }
 
-  // Upload all files (parallel)
+  // Upload all files with concurrent queue (max 3 at a time, start next immediately when one finishes)
   const handleUpload = async () => {
     if (files.length === 0) return
 
     setIsUploading(true)
     const pendingFiles = files.filter(f => f.status === 'pending')
     const uploadedFiles: UploadedFile[] = []
+    const maxConcurrent = 3
 
-    // Upload in parallel (max 3 at a time)
-    const batchSize = 3
-    for (let i = 0; i < pendingFiles.length; i += batchSize) {
-      const batch = pendingFiles.slice(i, i + batchSize)
-      const results = await Promise.all(batch.map(file => uploadFile(file)))
-      results.forEach(result => {
-        if (result) uploadedFiles.push(result)
-      })
+    // Create a queue-based upload system
+    let currentIndex = 0
+    const uploadNext = async (): Promise<void> => {
+      if (currentIndex >= pendingFiles.length) return
+
+      const fileToUpload = pendingFiles[currentIndex]
+      currentIndex++
+
+      const result = await uploadFile(fileToUpload)
+      if (result) {
+        uploadedFiles.push(result)
+      }
+
+      // Start next file immediately
+      await uploadNext()
     }
+
+    // Start initial concurrent uploads
+    const initialUploads = []
+    for (let i = 0; i < Math.min(maxConcurrent, pendingFiles.length); i++) {
+      initialUploads.push(uploadNext())
+    }
+
+    // Wait for all uploads to complete
+    await Promise.all(initialUploads)
 
     setIsUploading(false)
 

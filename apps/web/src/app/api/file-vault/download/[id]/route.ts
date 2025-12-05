@@ -7,6 +7,10 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import { getSignedDownloadUrl, FILE_VAULT_BUCKET } from '@/lib/file-vault/storage/file-storage'
+import {
+  trackPerformance,
+  getRequestMetadata,
+} from '@/lib/file-vault/performance-logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +19,15 @@ export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  // Start performance tracking
+  const { ipAddress, userAgent } = getRequestMetadata(request)
+  const tracker = trackPerformance({
+    action: 'download',
+    operationType: 'file_download',
+    ipAddress,
+    userAgent,
+  })
+
   try {
     const supabase = createClient()
     const fileId = params.id
@@ -68,15 +81,16 @@ export async function GET(
     // Generate signed download URL
     const signedUrl = await getSignedDownloadUrl(file.storage_key, 3600) // 1 hour
 
-    // Log download access
-    await supabaseAdmin.from('file_accesses').insert({
-      file_id: fileId,
-      action: 'download',
-      ip_address: request.headers.get('x-forwarded-for') || 'unknown',
-      user_agent: request.headers.get('user-agent'),
-      user_id: user.id,
-      bytes_transferred: file.size_bytes,
-    })
+    // Log download access with performance data (non-blocking)
+    tracker.finish({
+      fileId,
+      vaultId: file.vault_id,
+      tenantId: profile.tenant_id,
+      userId: user.id,
+      bytesTransferred: file.size_bytes,
+      fileSizeBytes: file.size_bytes,
+      mimeType: file.mime_type,
+    }).catch(err => console.warn('Performance log error:', err))
 
     // If redirect requested, redirect to signed URL
     if (redirect) {
@@ -92,6 +106,8 @@ export async function GET(
       contentDisposition: inline ? 'inline' : 'attachment',
     })
   } catch (error) {
+    // Log error with performance data
+    await tracker.error((error as Error).message)
     console.error('Error in GET /api/file-vault/download/[id]:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
