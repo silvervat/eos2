@@ -33,6 +33,7 @@ import {
   Move,
   GripVertical,
   Edit3,
+  RotateCcw,
 } from 'lucide-react'
 import { Button, Input, Card } from '@rivest/ui'
 import { FileUploadDialog } from '@/components/file-vault/FileUploadDialog'
@@ -82,6 +83,8 @@ interface FileItem {
   updatedAt: string
   tags: string[]
   commentCount?: number
+  deletedAt?: string
+  deletedBy?: string
   folder?: {
     id: string
     name: string
@@ -263,8 +266,8 @@ export default function FileVaultPage() {
   const isInitialLoadDone = useRef(false)
   const fileTreeRef = useRef<FileTreeRef>(null)
 
-  // Active tab: 'all' | 'my-files' | 'organize' | 'shares' | 'statistics'
-  const [activeTab, setActiveTab] = useState<'all' | 'my-files' | 'organize' | 'shares' | 'statistics'>('all')
+  // Active tab: 'all' | 'my-files' | 'organize' | 'shares' | 'statistics' | 'trash'
+  const [activeTab, setActiveTab] = useState<'all' | 'my-files' | 'organize' | 'shares' | 'statistics' | 'trash'>('all')
 
   // Dialog state
   const [showUploadDialog, setShowUploadDialog] = useState(false)
@@ -434,19 +437,28 @@ export default function FileVaultPage() {
     folderId: string | null,
     offset: number = 0,
     append: boolean = false,
-    filter?: 'all' | 'my-files'
+    filter?: 'all' | 'my-files' | 'trash'
   ) => {
     try {
       const filesParams = new URLSearchParams({
         vaultId,
-        ...(folderId ? { folderId } : { folderId: 'root' }),
         limit: String(PAGE_SIZE),
         offset: String(offset),
       })
 
+      // For trash view, don't filter by folder - show all deleted files
+      if (filter !== 'trash') {
+        filesParams.set('folderId', folderId || 'root')
+      }
+
       // Add filter for "my files" tab
       if (filter === 'my-files') {
         filesParams.set('uploadedByMe', 'true')
+      }
+
+      // Add filter for trash tab
+      if (filter === 'trash') {
+        filesParams.set('trashedOnly', 'true')
       }
 
       const filesResponse = await fetch(`/api/file-vault/files?${filesParams}`)
@@ -477,7 +489,7 @@ export default function FileVaultPage() {
     if (!vault || isLoadingMore || !hasMoreFiles) return
 
     setIsLoadingMore(true)
-    const filter = activeTab === 'my-files' ? 'my-files' : 'all'
+    const filter = activeTab === 'trash' ? 'trash' : (activeTab === 'my-files' ? 'my-files' : 'all')
     await fetchFiles(vault.id, currentFolderId, files.length, true, filter)
     setIsLoadingMore(false)
   }, [vault, currentFolderId, files.length, hasMoreFiles, isLoadingMore, fetchFiles, activeTab])
@@ -750,12 +762,12 @@ export default function FileVaultPage() {
     if (!isInitialLoadDone.current || !vaultIdRef.current) return
 
     const loadTabData = async () => {
-      if (activeTab === 'all' || activeTab === 'my-files') {
+      if (activeTab === 'all' || activeTab === 'my-files' || activeTab === 'trash') {
         // Reload files with the appropriate filter
         setIsLoading(true)
         setFiles([])
         setHasMoreFiles(true)
-        const filter = activeTab === 'my-files' ? 'my-files' : 'all'
+        const filter = activeTab === 'trash' ? 'trash' : (activeTab === 'my-files' ? 'my-files' : 'all')
         await fetchFiles(vaultIdRef.current!, currentFolderId, 0, false, filter)
         setIsLoading(false)
       } else if (activeTab === 'organize') {
@@ -1196,6 +1208,69 @@ export default function FileVaultPage() {
     }
   }, [selectedItems])
 
+  // Restore files from trash
+  const handleRestoreFiles = useCallback(async (fileIds: string[]) => {
+    if (fileIds.length === 0 || !vault) return
+
+    try {
+      const response = await fetch('/api/file-vault/files/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'restore',
+          fileIds,
+          vaultId: vault.id,
+        }),
+      })
+
+      if (response.ok) {
+        // Remove restored files from current view
+        setFiles(prev => prev.filter(f => !fileIds.includes(f.id)))
+        setSelectedItems([])
+        // Refresh file tree
+        fileTreeRef.current?.refresh()
+      } else {
+        const data = await response.json()
+        throw new Error(data.error || 'Taastamine ebaõnnestus')
+      }
+    } catch (error) {
+      console.error('Error restoring files:', error)
+      alert((error as Error).message)
+    }
+  }, [vault])
+
+  // Permanently delete files
+  const handlePermanentDelete = useCallback(async (fileIds: string[]) => {
+    if (fileIds.length === 0 || !vault) return
+
+    if (!confirm(`Kas oled kindel, et soovid ${fileIds.length} fail${fileIds.length === 1 ? 'i' : 'i'} jäädavalt kustutada? Seda tegevust ei saa tagasi võtta.`)) {
+      return
+    }
+
+    try {
+      // Delete each file permanently
+      const deletePromises = fileIds.map(fileId =>
+        fetch(`/api/file-vault/files/${fileId}?permanent=true`, {
+          method: 'DELETE',
+        })
+      )
+
+      const results = await Promise.all(deletePromises)
+      const allSuccess = results.every(r => r.ok)
+
+      if (allSuccess) {
+        // Remove deleted files from current view
+        setFiles(prev => prev.filter(f => !fileIds.includes(f.id)))
+        setSelectedItems([])
+      } else {
+        throw new Error('Mõne faili kustutamine ebaõnnestus')
+      }
+    } catch (error) {
+      console.error('Error permanently deleting files:', error)
+      alert((error as Error).message)
+    }
+  }, [vault])
+
   // Filter by search (client-side for already loaded items)
   const filteredFolders = useMemo(() =>
     folders.filter((folder) =>
@@ -1359,6 +1434,19 @@ export default function FileVaultPage() {
                 >
                   <BarChart3 className="w-4 h-4" />
                   <span>Statistika</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('trash')}
+                  className={`
+                    flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors
+                    ${activeTab === 'trash'
+                      ? 'bg-red-100 text-red-600 font-medium'
+                      : 'text-slate-600 hover:bg-slate-100'
+                    }
+                  `}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Prügikast</span>
                 </button>
               </div>
             </div>
@@ -1802,9 +1890,20 @@ export default function FileVaultPage() {
         </div>
       )}
 
-      {/* Files View (all and my-files tabs) */}
-      {(activeTab === 'all' || activeTab === 'my-files') && (
+      {/* Files View (all, my-files, and trash tabs) */}
+      {(activeTab === 'all' || activeTab === 'my-files' || activeTab === 'trash') && (
         <>
+      {/* Trash Banner */}
+      {activeTab === 'trash' && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+          <Trash2 className="w-5 h-5 text-red-500 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-700">Prügikast</p>
+            <p className="text-xs text-red-600">Siin olevad failid kustutatakse automaatselt 30 päeva pärast. Taasta failid või kustuta need jäädavalt.</p>
+          </div>
+        </div>
+      )}
+
       {/* Breadcrumbs */}
       <div className="flex items-center gap-1 text-sm">
         {breadcrumbs.map((crumb, index) => (
@@ -2920,6 +3019,40 @@ export default function FileVaultPage() {
         </div>
       )}
 
+      {/* Trash Selection Toolbar */}
+      {selectedItems.length > 0 && activeTab === 'trash' && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4 duration-200">
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-white rounded-xl shadow-lg border border-red-200">
+            <span className="text-sm font-medium text-slate-700 pr-2 border-r border-slate-200">
+              {selectedItems.length} valitud
+            </span>
+            <button
+              onClick={() => handleRestoreFiles(selectedItems)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[#279989] hover:bg-[#279989]/10 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span className="hidden sm:inline">Taasta</span>
+            </button>
+            <button
+              onClick={() => handlePermanentDelete(selectedItems)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Kustuta jäädavalt</span>
+            </button>
+            <div className="pl-2 border-l border-slate-200">
+              <button
+                onClick={() => setSelectedItems([])}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                title="Tühista valik"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hover Preview Popup - shows larger thumbnail on hover */}
       {hoverPreviewFile && hoverPreviewFile.thumbnailMedium && (
         <div
@@ -3033,7 +3166,43 @@ export default function FileVaultPage() {
                 Ava kaust
               </button>
             </>
+          ) : activeTab === 'trash' ? (
+            // Trash context menu - show restore and permanent delete
+            <>
+              <button
+                onClick={() => {
+                  handleRestoreFiles([contextMenu.item!.id])
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#279989] hover:bg-[#279989]/10"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Taasta
+              </button>
+              <button
+                onClick={() => {
+                  handlePreview(contextMenu.item as FileItem)
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                <Eye className="w-4 h-4" />
+                Eelvaade
+              </button>
+              <div className="h-px bg-slate-200 my-1" />
+              <button
+                onClick={() => {
+                  handlePermanentDelete([contextMenu.item!.id])
+                  setContextMenu(null)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Kustuta jäädavalt
+              </button>
+            </>
           ) : (
+            // Normal context menu
             <>
               <button
                 onClick={() => {

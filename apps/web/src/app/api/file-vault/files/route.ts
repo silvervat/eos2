@@ -52,6 +52,7 @@ export async function GET(request: Request) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500) // Increased cap to 500
     const offset = parseInt(searchParams.get('offset') || '0')
     const includeDeleted = searchParams.get('includeDeleted') === 'true'
+    const trashedOnly = searchParams.get('trashedOnly') === 'true'
     const uploadedByMe = searchParams.get('uploadedByMe') === 'true'
     const cursor = searchParams.get('cursor') // For cursor-based pagination
 
@@ -74,7 +75,7 @@ export async function GET(request: Request) {
     })
 
     // Determine if this is a special query (non-cacheable)
-    const isSpecialQuery = search || includeDeleted || uploadedByMe
+    const isSpecialQuery = search || includeDeleted || trashedOnly || uploadedByMe
 
     // Try cache first (skip if searching or getting deleted files)
     if (!isSpecialQuery) {
@@ -156,7 +157,9 @@ export async function GET(request: Request) {
         created_at,
         updated_at,
         created_by,
-        tags
+        tags,
+        deleted_at,
+        deleted_by
       `, { count: 'exact' })
       .eq('vault_id', vaultId)
 
@@ -168,7 +171,10 @@ export async function GET(request: Request) {
     }
 
     // Apply soft delete filter
-    if (!includeDeleted) {
+    if (trashedOnly) {
+      // Only show trashed/deleted files
+      query = query.not('deleted_at', 'is', null)
+    } else if (!includeDeleted) {
       query = query.is('deleted_at', null)
     }
 
@@ -307,6 +313,8 @@ export async function GET(request: Request) {
       uploader: uploaderMap.get(file.created_by) || { fullName: 'Tundmatu', avatarUrl: null },
       tags: file.tags || [],
       commentCount: commentCountMap.get(file.id) || 0,
+      deletedAt: file.deleted_at,
+      deletedBy: file.deleted_by,
     })) || []
 
     // Generate next cursor for efficient pagination on large datasets
