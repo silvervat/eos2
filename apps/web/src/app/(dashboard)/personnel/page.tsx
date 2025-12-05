@@ -6,7 +6,7 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { Users, Building2, UserPlus, TrendingUp } from 'lucide-react'
+import { Users, Building2, UserPlus, TrendingUp, Clock, CalendarDays, ChevronRight } from 'lucide-react'
 
 export default function PersonnelPage() {
   // Mock statistika
@@ -96,6 +96,45 @@ export default function PersonnelPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Quick actions */}
+      <div className="grid grid-cols-2 gap-4">
+        <Link
+          href="/personnel/work-hours"
+          className="bg-white p-6 rounded-xl border hover:shadow-md transition-shadow group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Clock className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-800">Tööaeg</h3>
+                <p className="text-sm text-gray-500">Registreeri ja jälgi tööaega</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
+          </div>
+        </Link>
+
+        <Link
+          href="/personnel/leave"
+          className="bg-white p-6 rounded-xl border hover:shadow-md transition-shadow group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <CalendarDays className="w-6 h-6 text-green-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-800">Puhkused</h3>
+                <p className="text-sm text-gray-500">Taotlused ja saldod</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
+          </div>
+        </Link>
       </div>
 
       {/* Kaks veergu */}

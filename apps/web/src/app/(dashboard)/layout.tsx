@@ -45,8 +45,33 @@ import {
   Send,
   TrendingUp,
   Ruler,
+  Clock,
+  CalendarDays,
+  ScanLine,
+  FilePlus,
+  FileCheck,
+  FileMinus,
+  CreditCard,
+  Eye,
+  WrenchIcon,
+  Calendar,
+  UserCheck,
+  Boxes,
+  ClipboardList,
+  Tags,
+  Truck,
+  Caravan,
+  HardHat,
+  FileCheck2,
+  Banknote,
+  Shield,
+  ClipboardCheck,
+  MapPin,
+  HardDrive,
 } from 'lucide-react'
 import { NotificationDropdown } from '@/components/notifications/notification-dropdown'
+import { HeaderWorkTimer } from '@/components/personnel'
+import { WorkSessionProvider } from '@/contexts/WorkSessionContext'
 
 // Project types
 const projectTypes = [
@@ -62,12 +87,15 @@ const projectTypes = [
 const personnelItems = [
   { href: '/personnel', label: 'Ülevaade', icon: UsersRound },
   { href: '/personnel/employees', label: 'Töötajad', icon: Users },
+  { href: '/personnel/work-hours', label: 'Tööaeg', icon: Clock },
+  { href: '/personnel/leave', label: 'Puhkused', icon: CalendarDays },
   { href: '/personnel/groups', label: 'Grupid', icon: Building2 },
 ]
 
 // Warehouse items
 const warehouseItems = [
   { href: '/warehouse', label: 'Ülevaade', icon: LayoutDashboard },
+  { href: '/warehouse/locations', label: 'Laod', icon: MapPin },
   { href: '/warehouse/assets', label: 'Varad', icon: Package },
   { href: '/warehouse/transfers', label: 'Ülekanded', icon: ArrowRightLeft },
   { href: '/warehouse/maintenance', label: 'Hooldused', icon: Wrench },
@@ -83,6 +111,43 @@ const quotesItems = [
   { href: '/quotes/statistics', label: 'Statistika', icon: TrendingUp },
 ]
 
+// Invoices items
+const invoicesItems = [
+  { href: '/invoices', label: 'Ülevaade', icon: Receipt },
+  { href: '/invoices/approval', label: 'Viseerimine', icon: FileCheck },
+  { href: '/invoices/scanning', label: 'Skaneerimine', icon: ScanLine },
+  { href: '/invoices/received', label: 'Saabunud arved', icon: FileMinus },
+  { href: '/invoices/created', label: 'Koostatud arved', icon: FilePlus },
+  { href: '/invoices/payments', label: 'Tasumised', icon: CreditCard },
+  { href: '/invoices/reports', label: 'Ülevaated', icon: Eye },
+  { href: '/invoices/new', label: 'Arve koostamine', icon: FilePlus },
+]
+
+// Workshop items
+const workshopItems = [
+  { href: '/workshop', label: 'Ülevaade', icon: WrenchIcon },
+  { href: '/workshop/schedule', label: 'Graafik', icon: Calendar },
+  { href: '/workshop/sales', label: 'Müük', icon: ShoppingCart },
+  { href: '/workshop/clients', label: 'Kliendid', icon: UserCheck },
+  { href: '/workshop/units', label: 'Üksused', icon: Boxes },
+  { href: '/workshop/inventory', label: 'Ladu', icon: Package },
+  { href: '/workshop/orders', label: 'Tellimused', icon: ClipboardList },
+  { href: '/workshop/services', label: 'Teenused & hinnakirjad', icon: Tags },
+]
+
+// Vehicles items
+const vehiclesItems = [
+  { href: '/vehicles', label: 'Ülevaade', icon: Truck },
+  { href: '/vehicles/cars', label: 'Sõidukid', icon: Truck },
+  { href: '/vehicles/trailers', label: 'Haagised', icon: Caravan },
+  { href: '/vehicles/equipment', label: 'Tehnika', icon: HardHat },
+  { href: '/vehicles/inspections', label: 'Ülevaatused & kindlustused', icon: FileCheck2 },
+  { href: '/vehicles/leasing', label: 'Liisingud', icon: Banknote },
+  { href: '/vehicles/maintenance', label: 'Hooldused', icon: Wrench },
+  { href: '/vehicles/warranties', label: 'Garantiid', icon: Shield },
+  { href: '/vehicles/checks', label: 'Kontrollid', icon: ClipboardCheck },
+]
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -91,6 +156,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [personnelExpanded, setPersonnelExpanded] = useState(false)
   const [warehouseExpanded, setWarehouseExpanded] = useState(false)
   const [quotesExpanded, setQuotesExpanded] = useState(false)
+  const [invoicesExpanded, setInvoicesExpanded] = useState(false)
+  const [workshopExpanded, setWorkshopExpanded] = useState(false)
+  const [vehiclesExpanded, setVehiclesExpanded] = useState(false)
   const [allExpanded, setAllExpanded] = useState(false)
 
   // Auto-expand menus based on current path
@@ -99,6 +167,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (pathname?.startsWith('/personnel')) setPersonnelExpanded(true)
     if (pathname?.startsWith('/warehouse')) setWarehouseExpanded(true)
     if (pathname?.startsWith('/quotes')) setQuotesExpanded(true)
+    if (pathname?.startsWith('/invoices')) setInvoicesExpanded(true)
+    if (pathname?.startsWith('/workshop')) setWorkshopExpanded(true)
+    if (pathname?.startsWith('/vehicles')) setVehiclesExpanded(true)
   }, [pathname])
 
   // Close sidebar on route change (mobile)
@@ -114,6 +185,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setPersonnelExpanded(newState)
     setWarehouseExpanded(newState)
     setQuotesExpanded(newState)
+    setInvoicesExpanded(newState)
+    setWorkshopExpanded(newState)
+    setVehiclesExpanded(newState)
   }
 
   // Load collapsed state from localStorage
@@ -136,7 +210,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/quotes', label: 'Pakkumised', icon: Receipt, hasSubmenu: true, submenuKey: 'quotes' },
     { href: '/personnel', label: 'Personaal', icon: UsersRound, hasSubmenu: true, submenuKey: 'personnel' },
     { href: '/warehouse', label: 'Laohaldus', icon: Warehouse, hasSubmenu: true, submenuKey: 'warehouse' },
-    { href: '/invoices', label: 'Arved', icon: FileText },
+    { href: '/invoices', label: 'Arved', icon: FileText, hasSubmenu: true, submenuKey: 'invoices' },
+    { href: '/workshop', label: 'Töökoda', icon: WrenchIcon, hasSubmenu: true, submenuKey: 'workshop' },
+    { href: '/vehicles', label: 'Sõidukid & Tehnika', icon: Truck, hasSubmenu: true, submenuKey: 'vehicles' },
     { href: '/documents', label: 'Dokumendid', icon: File },
     { href: '/file-vault', label: 'Failid', icon: FolderArchive },
     { href: '/reports', label: 'Aruanded', icon: BarChart3 },
@@ -146,6 +222,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/admin/cms', label: 'CMS', icon: Database },
     { href: '/admin/templates', label: 'Mallid', icon: FileType },
     { href: '/admin/ultra-tables', label: 'Tabelid', icon: Table },
+    { href: '/admin/cache', label: 'Vahemälu', icon: HardDrive },
     { href: '/trash', label: 'Prügi', icon: Trash2 },
     { href: '/notifications', label: 'Teavitused', icon: Bell },
     { href: '/settings', label: 'Seaded', icon: Settings },
@@ -156,6 +233,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (key === 'personnel') return personnelItems
     if (key === 'warehouse') return warehouseItems
     if (key === 'quotes') return quotesItems
+    if (key === 'invoices') return invoicesItems
+    if (key === 'workshop') return workshopItems
+    if (key === 'vehicles') return vehiclesItems
     return []
   }
 
@@ -164,6 +244,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (key === 'personnel') return personnelExpanded
     if (key === 'warehouse') return warehouseExpanded
     if (key === 'quotes') return quotesExpanded
+    if (key === 'invoices') return invoicesExpanded
+    if (key === 'workshop') return workshopExpanded
+    if (key === 'vehicles') return vehiclesExpanded
     return false
   }
 
@@ -172,9 +255,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (key === 'personnel') setPersonnelExpanded(!personnelExpanded)
     if (key === 'warehouse') setWarehouseExpanded(!warehouseExpanded)
     if (key === 'quotes') setQuotesExpanded(!quotesExpanded)
+    if (key === 'invoices') setInvoicesExpanded(!invoicesExpanded)
+    if (key === 'workshop') setWorkshopExpanded(!workshopExpanded)
+    if (key === 'vehicles') setVehiclesExpanded(!vehiclesExpanded)
   }
 
   return (
+    <WorkSessionProvider>
     <div className="min-h-screen flex">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
@@ -374,6 +461,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 className="w-40 md:w-56 pl-8 pr-3 py-1.5 border border-slate-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989] focus:border-[#279989]"
               />
             </div>
+
+            {/* Work Timer */}
+            <HeaderWorkTimer />
           </div>
 
           <div className="flex items-center gap-1">
@@ -392,5 +482,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="flex-1 p-3 lg:p-4 overflow-y-auto">{children}</div>
       </main>
     </div>
+    </WorkSessionProvider>
   )
 }
