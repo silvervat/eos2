@@ -215,7 +215,6 @@ export async function POST(request: Request) {
         country: body.country || 'Estonia',
         zip_code: body.zipCode || null,
         registry_url: body.registryUrl || null,
-        historical_names: body.historicalNames || null,
         bank_account: body.bankAccount || null,
         payment_term_days: body.paymentTermDays || 14,
         credit_limit: body.creditLimit || null,

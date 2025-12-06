@@ -135,6 +135,13 @@ export default function PartnersPage() {
     phone: '',
     address: '',
   })
+
+  // Inline registry search state
+  const [inlineRegistryResults, setInlineRegistryResults] = useState<RegistryResult[]>([])
+  const [showInlineRegistryDropdown, setShowInlineRegistryDropdown] = useState(false)
+  const [isSearchingInlineRegistry, setIsSearchingInlineRegistry] = useState(false)
+  const inlineRegistryRef = useRef<HTMLDivElement>(null)
+  const inlineRegistrySelectedRef = useRef(false)
   const [isSaving, setIsSaving] = useState(false)
 
   // Registry search state
@@ -227,6 +234,9 @@ export default function PartnersPage() {
       if (addressSearchRef.current && !addressSearchRef.current.contains(e.target as Node)) {
         setShowAddressDropdown(false)
       }
+      if (inlineRegistryRef.current && !inlineRegistryRef.current.contains(e.target as Node)) {
+        setShowInlineRegistryDropdown(false)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -269,6 +279,36 @@ export default function PartnersPage() {
     }, 300)
     return () => clearTimeout(timer)
   }, [formData.name, showAddModal, searchRegistry])
+
+  // Debounced inline registry search (for table add row)
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      // Skip search if user just selected a result
+      if (inlineRegistrySelectedRef.current) {
+        inlineRegistrySelectedRef.current = false
+        return
+      }
+      if (newRowData.name.length >= 2 && isAddingNew) {
+        setIsSearchingInlineRegistry(true)
+        try {
+          const response = await fetch(`/api/registry/search?q=${encodeURIComponent(newRowData.name)}`)
+          const data = await response.json()
+          if (response.ok && data.results) {
+            setInlineRegistryResults(data.results)
+            setShowInlineRegistryDropdown(true)
+          }
+        } catch (err) {
+          console.error('Inline registry search error:', err)
+        } finally {
+          setIsSearchingInlineRegistry(false)
+        }
+      } else {
+        setInlineRegistryResults([])
+        setShowInlineRegistryDropdown(false)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [newRowData.name, isAddingNew])
 
   // Search Estonian addresses (Maa-amet)
   const searchAddress = useCallback(async (query: string) => {
@@ -543,6 +583,41 @@ export default function PartnersPage() {
   const cancelNewRow = () => {
     setIsAddingNew(false)
     setNewRowData({ name: '', registryCode: '', vatNumber: '', type: 'client', email: '', phone: '', address: '' })
+    setInlineRegistryResults([])
+    setShowInlineRegistryDropdown(false)
+    inlineRegistrySelectedRef.current = false
+  }
+
+  // Select inline registry result and fetch additional data
+  const selectInlineRegistryResult = async (result: RegistryResult) => {
+    inlineRegistrySelectedRef.current = true
+    setNewRowData(prev => ({
+      ...prev,
+      name: result.name,
+      registryCode: result.registryCode,
+      address: result.legalAddress || prev.address,
+    }))
+    setShowInlineRegistryDropdown(false)
+    setInlineRegistryResults([])
+
+    // Fetch detailed company info (VAT number)
+    if (result.registryCode) {
+      try {
+        const companyResponse = await fetch(`/api/registry/company?code=${result.registryCode}`)
+        if (companyResponse.ok) {
+          const companyData = await companyResponse.json()
+          setNewRowData(prev => ({
+            ...prev,
+            vatNumber: companyData.vatNumber || prev.vatNumber,
+            address: companyData.legalAddress || prev.address,
+            email: companyData.email || prev.email,
+            phone: companyData.phone || prev.phone,
+          }))
+        }
+      } catch (err) {
+        console.error('Inline registry fetch error:', err)
+      }
+    }
   }
 
   const toggleSelectAll = () => {
@@ -1096,18 +1171,44 @@ export default function PartnersPage() {
                           <Plus className="w-3.5 h-3.5 text-green-600" />
                         </td>
                         <td className={`${cellPadding} ${fontSize}`}>
-                          <input
-                            type="text"
-                            value={newRowData.name}
-                            onChange={(e) => setNewRowData({ ...newRowData, name: e.target.value })}
-                            className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
-                            placeholder="Ettevõtte nimi *"
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') saveNewRow()
-                              if (e.key === 'Escape') cancelNewRow()
-                            }}
-                          />
+                          <div ref={inlineRegistryRef} className="relative">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={newRowData.name}
+                                onChange={(e) => setNewRowData({ ...newRowData, name: e.target.value })}
+                                className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#279989]"
+                                placeholder="Ettevõtte nimi *"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !showInlineRegistryDropdown) saveNewRow()
+                                  if (e.key === 'Escape') cancelNewRow()
+                                }}
+                              />
+                              {isSearchingInlineRegistry && (
+                                <Loader2 className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 animate-spin text-slate-400" />
+                              )}
+                            </div>
+                            {/* Inline registry dropdown */}
+                            {showInlineRegistryDropdown && inlineRegistryResults.length > 0 && (
+                              <div className="absolute z-50 w-64 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 max-h-48 overflow-y-auto">
+                                <div className="px-2 py-1 text-xs text-slate-500 bg-slate-50 border-b">
+                                  Äriregister
+                                </div>
+                                {inlineRegistryResults.map((result, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => selectInlineRegistryResult(result)}
+                                    className="w-full text-left px-2 py-1.5 text-xs hover:bg-slate-50 flex items-center justify-between"
+                                  >
+                                    <span className="font-medium truncate">{result.name}</span>
+                                    <span className="text-slate-500 font-mono ml-2">{result.registryCode}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className={`${cellPadding} ${fontSize}`}>
                           <select
