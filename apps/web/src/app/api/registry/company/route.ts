@@ -124,6 +124,19 @@ export async function GET(request: Request) {
         }
       }
 
+      // If search by code failed, we still have basic info - return what we have
+      // This is better than returning 404 when we know the code exists
+      if (vatNumber) {
+        return NextResponse.json({
+          registryCode: cleanCode,
+          name: '',
+          status: 'unknown',
+          vatNumber: vatNumber,
+          url: `https://ariregister.rik.ee/est/company/${cleanCode}`,
+          ...(debug ? { _debug: debugInfo } : {}),
+        })
+      }
+
       return NextResponse.json(
         { error: 'Ettevõtet ei leitud', ...(debug ? { _debug: debugInfo } : {}) },
         { status: 404 }
