@@ -6,7 +6,8 @@
 
 import React, { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Search, MoreVertical, Hammer, Calendar, User, MapPin } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Search, MoreVertical, Hammer, Calendar, User, MapPin, Eye } from 'lucide-react'
 
 interface Project {
   id: string
@@ -36,6 +37,7 @@ const statusConfig: Record<string, { label: string; color: string; bg: string }>
 }
 
 export default function MontaazProjectsPage() {
+  const router = useRouter()
   const [projects] = useState<Project[]>(mockProjects)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -96,10 +98,20 @@ export default function MontaazProjectsPage() {
           </thead>
           <tbody className="divide-y">
             {filteredProjects.map((project) => (
-              <tr key={project.id} className="hover:bg-gray-50">
+              <tr
+                key={project.id}
+                className="hover:bg-gray-50 cursor-pointer transition-colors"
+                onClick={() => router.push(`/projects/montaaz/${project.id}`)}
+              >
                 <td className="px-4 py-3">
-                  <p className="font-medium">{project.name}</p>
-                  <p className="text-xs text-gray-500">{project.number}</p>
+                  <Link
+                    href={`/projects/montaaz/${project.id}`}
+                    className="block"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="font-medium text-[#279989] hover:underline">{project.name}</p>
+                    <p className="text-xs text-gray-500">{project.number}</p>
+                  </Link>
                 </td>
                 <td className="px-4 py-3">{project.client}</td>
                 <td className="px-4 py-3 text-xs text-gray-500"><MapPin className="w-3 h-3 inline mr-1" />{project.address}</td>
@@ -117,7 +129,24 @@ export default function MontaazProjectsPage() {
                     {statusConfig[project.status].label}
                   </span>
                 </td>
-                <td className="px-4 py-3"><button className="p-1 hover:bg-gray-100 rounded"><MoreVertical className="w-4 h-4 text-gray-400" /></button></td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    <Link
+                      href={`/projects/montaaz/${project.id}`}
+                      className="p-1 hover:bg-[#279989]/10 rounded text-[#279989]"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Ava projekt"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Link>
+                    <button
+                      className="p-1 hover:bg-gray-100 rounded"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className="w-4 h-4 text-gray-400" />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
