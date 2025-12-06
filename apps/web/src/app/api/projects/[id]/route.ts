@@ -131,17 +131,18 @@ export async function PATCH(
     // Only include fields that exist in the database schema
     if (body.code !== undefined) updateData.code = body.code
     if (body.name !== undefined) updateData.name = body.name
-    if (body.description !== undefined) updateData.description = body.description
+    if (body.description !== undefined) updateData.description = body.description || null
     if (body.type !== undefined) updateData.type = body.type
     if (body.status !== undefined) updateData.status = body.status
     if (body.currency !== undefined) updateData.currency = body.currency
-    if (body.startDate !== undefined) updateData.start_date = body.startDate
-    if (body.endDate !== undefined) updateData.end_date = body.endDate
-    if (body.address !== undefined) updateData.address = body.address
-    if (body.city !== undefined) updateData.city = body.city
-    if (body.country !== undefined) updateData.country = body.country
-    if (body.latitude !== undefined) updateData.latitude = body.latitude
-    if (body.longitude !== undefined) updateData.longitude = body.longitude
+    // Convert empty strings to null for date fields (PostgreSQL doesn't accept empty strings for dates)
+    if (body.startDate !== undefined) updateData.start_date = body.startDate || null
+    if (body.endDate !== undefined) updateData.end_date = body.endDate || null
+    if (body.address !== undefined) updateData.address = body.address || null
+    if (body.city !== undefined) updateData.city = body.city || null
+    if (body.country !== undefined) updateData.country = body.country || null
+    if (body.latitude !== undefined) updateData.latitude = body.latitude || null
+    if (body.longitude !== undefined) updateData.longitude = body.longitude || null
     if (body.metadata !== undefined) updateData.metadata = body.metadata
     // Note: client_id, contact_id, manager_id, thumbnail_url columns don't exist in schema
 
