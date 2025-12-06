@@ -34,6 +34,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
+    const debug = searchParams.get('debug') === 'true'
 
     if (!code) {
       return NextResponse.json(
@@ -51,11 +52,11 @@ export async function GET(request: Request) {
       )
     }
 
-    // Fetch company details from Estonian Business Registry
-    // The public page at https://ariregister.rik.ee/est/company/{code} contains the data
-    // We'll use the API endpoint that returns JSON data
-    const detailUrl = `https://ariregister.rik.ee/est/api/company/${cleanCode}`
+    // Try multiple API endpoints to get company data
+    const debugInfo: Record<string, unknown> = {}
 
+    // 1. Try the company detail API
+    const detailUrl = `https://ariregister.rik.ee/est/api/company/${cleanCode}`
     console.log('Fetching company details from:', detailUrl)
 
     const response = await fetch(detailUrl, {
@@ -66,10 +67,15 @@ export async function GET(request: Request) {
       next: { revalidate: 300 }, // Cache for 5 minutes
     })
 
+    if (debug) {
+      debugInfo.detailApiStatus = response.status
+      debugInfo.detailApiStatusText = response.statusText
+    }
+
     if (!response.ok) {
       console.error('Company API error:', response.status, response.statusText)
 
-      // Try alternative approach - scrape basic info from search
+      // Try alternative approach - get basic info from search
       const searchUrl = `https://ariregister.rik.ee/est/api/autocomplete?q=${cleanCode}`
       const searchResponse = await fetch(searchUrl, {
         headers: {
@@ -78,33 +84,60 @@ export async function GET(request: Request) {
         },
       })
 
+      if (debug) {
+        debugInfo.searchApiStatus = searchResponse.status
+      }
+
+      // Also try VAT check from VIES
+      let vatNumber: string | undefined
+      try {
+        vatNumber = await checkVatNumber(cleanCode)
+        if (debug) {
+          debugInfo.vatCheckResult = vatNumber || 'not found'
+        }
+      } catch (e) {
+        if (debug) {
+          debugInfo.vatCheckError = String(e)
+        }
+      }
+
       if (searchResponse.ok) {
         const searchData = await searchResponse.json()
+        if (debug) {
+          debugInfo.searchData = searchData
+        }
         if (Array.isArray(searchData) && searchData.length > 0) {
           const company = searchData.find((c: Record<string, unknown>) =>
             String(c.registry_code || c.reg_code) === cleanCode
           )
           if (company) {
-            return NextResponse.json({
+            const result = {
               registryCode: cleanCode,
               name: company.name || '',
               status: 'active',
+              vatNumber: vatNumber,
               url: `https://ariregister.rik.ee/est/company/${cleanCode}`,
-            })
+              ...(debug ? { _debug: debugInfo } : {}),
+            }
+            return NextResponse.json(result)
           }
         }
       }
 
       return NextResponse.json(
-        { error: 'Ettevõtet ei leitud' },
+        { error: 'Ettevõtet ei leitud', ...(debug ? { _debug: debugInfo } : {}) },
         { status: 404 }
       )
     }
 
     const data = await response.json()
-    console.log('Company API response:', JSON.stringify(data).slice(0, 1000))
+    console.log('Company API response:', JSON.stringify(data).slice(0, 2000))
 
     // Parse the response - structure may vary
+    // Debug: log all available keys
+    const availableKeys = Object.keys(data)
+    console.log('Available keys in response:', availableKeys)
+
     const result: CompanyDetails = {
       registryCode: cleanCode,
       name: extractField(data, ['nimi', 'name', 'arinimi', 'business_name']) || '',
@@ -124,15 +157,29 @@ export async function GET(request: Request) {
       url: `https://ariregister.rik.ee/est/company/${cleanCode}`,
     }
 
+    // Include raw data keys for debugging (only in development)
+    console.log('Parsed result:', JSON.stringify(result))
+
     // Also try to get VAT number from EMTA if not found in main data
     if (!result.vatNumber) {
       const vatNumber = await checkVatNumber(cleanCode)
       if (vatNumber) {
         result.vatNumber = vatNumber
       }
+      if (debug) {
+        debugInfo.vatCheckResult = vatNumber || 'not found'
+      }
     }
 
-    return NextResponse.json(result)
+    if (debug) {
+      debugInfo.rawDataKeys = Object.keys(data)
+      debugInfo.rawData = data
+    }
+
+    return NextResponse.json({
+      ...result,
+      ...(debug ? { _debug: debugInfo } : {}),
+    })
   } catch (error) {
     console.error('Error in company lookup:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
