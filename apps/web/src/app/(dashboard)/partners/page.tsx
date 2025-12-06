@@ -887,8 +887,8 @@ export default function PartnersPage() {
 
       {/* Table */}
       {!isLoading && !error && (
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-white rounded-lg border border-slate-200">
+          <div className="overflow-x-auto overflow-y-visible">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>

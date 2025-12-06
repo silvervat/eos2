@@ -223,6 +223,8 @@ export async function POST(request: Request) {
     if (body.address) insertData.address = body.address
     if (body.city) insertData.city = body.city
     if (body.country) insertData.country = body.country
+    if (body.latitude) insertData.latitude = body.latitude
+    if (body.longitude) insertData.longitude = body.longitude
     if (body.metadata) insertData.metadata = body.metadata
 
     // Create project using SELECT *
