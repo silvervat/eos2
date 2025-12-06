@@ -24,6 +24,8 @@ import {
   FileCheck,
   Building,
   Users,
+  AlertTriangle,
+  MessageSquareMore,
 } from 'lucide-react'
 
 interface NavItem {
@@ -47,6 +49,8 @@ export default function MontaazProjectLayout({
     { href: baseUrl, label: 'Ülevaade', icon: Hammer },
     { href: `${baseUrl}/uleesanded`, label: 'Ülesanded', icon: CheckSquare },
     { href: `${baseUrl}/detailplaan`, label: 'Detailplaan', icon: CalendarDays },
+    { href: `${baseUrl}/puudused`, label: 'Puudused', icon: AlertTriangle },
+    { href: `${baseUrl}/koosolekud`, label: 'Koosolekud', icon: MessageSquareMore },
     { href: `${baseUrl}/susteemid`, label: 'Süsteemid', icon: Layers },
     { href: `${baseUrl}/etp`, label: 'ETP', icon: BookOpen },
     { href: `${baseUrl}/aktid`, label: 'Aktid', icon: FileCheck },
