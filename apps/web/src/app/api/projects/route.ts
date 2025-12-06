@@ -199,11 +199,13 @@ export async function POST(request: Request) {
     const code = body.code || `PRJ-${Date.now().toString(36).toUpperCase()}`
 
     // Build insert data dynamically - only add fields that have values
-    // Note: client_id, contact_id, manager_id require migration 027_ensure_projects_columns.sql
+    // Note: Some columns may not exist depending on migration status
     const insertData: Record<string, unknown> = {
-      tenant_id: profile.tenant_id,
       name: body.name,
     }
+
+    // Only add tenant_id if profile has it (column may not exist in older schemas)
+    // This will be caught by DB error if column doesn't exist
 
     // Add optional fields only if they have values
     // Core fields that should always exist
