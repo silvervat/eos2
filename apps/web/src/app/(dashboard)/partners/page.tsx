@@ -360,7 +360,7 @@ export default function PartnersPage() {
     // Mark that user selected a result to prevent re-triggering search
     registrySelectedRef.current = true
 
-    // Fill in all available fields from registry
+    // Fill in basic fields from registry immediately
     setFormData(prev => ({
       ...prev,
       name: result.name,
@@ -372,25 +372,49 @@ export default function PartnersPage() {
     setShowRegistryDropdown(false)
     setRegistryResults([])
 
-    // Check e-invoice capability
+    // Fetch detailed company info and e-invoice capability in parallel
     if (result.registryCode) {
       setIsCheckingEInvoice(true)
       try {
-        const response = await fetch(`/api/registry/einvoice?code=${result.registryCode}`)
-        const data = await response.json()
-        if (response.ok) {
+        // Fetch both endpoints in parallel
+        const [companyResponse, eInvoiceResponse] = await Promise.all([
+          fetch(`/api/registry/company?code=${result.registryCode}`),
+          fetch(`/api/registry/einvoice?code=${result.registryCode}`),
+        ])
+
+        // Process company details
+        if (companyResponse.ok) {
+          const companyData = await companyResponse.json()
+          setFormData(prev => ({
+            ...prev,
+            // Only update if we got new data
+            vatNumber: companyData.vatNumber || prev.vatNumber,
+            address: companyData.legalAddress || prev.address,
+            email: companyData.email || prev.email,
+            phone: companyData.phone || prev.phone,
+          }))
+
+          // If we got a VAT number, mark validation as valid
+          if (companyData.vatNumber) {
+            setVatValidation({ valid: true, name: companyData.name })
+          }
+        }
+
+        // Process e-invoice data
+        if (eInvoiceResponse.ok) {
+          const eInvoiceData = await eInvoiceResponse.json()
           setEInvoiceInfo({
-            capable: data.eInvoiceCapable || false,
-            operator: data.operators?.[0]?.name || undefined,
+            capable: eInvoiceData.eInvoiceCapable || false,
+            operator: eInvoiceData.operators?.[0]?.name || undefined,
           })
           setFormData(prev => ({
             ...prev,
-            eInvoiceCapable: data.eInvoiceCapable || false,
-            eInvoiceOperator: data.operators?.[0]?.name || '',
+            eInvoiceCapable: eInvoiceData.eInvoiceCapable || false,
+            eInvoiceOperator: eInvoiceData.operators?.[0]?.name || '',
           }))
         }
       } catch (err) {
-        console.error('E-invoice check error:', err)
+        console.error('Registry fetch error:', err)
       } finally {
         setIsCheckingEInvoice(false)
       }

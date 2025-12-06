@@ -26,6 +26,7 @@ import {
   Check,
   ExternalLink,
   Star,
+  RefreshCw,
 } from 'lucide-react'
 import { Button, Card, Input } from '@rivest/ui'
 
@@ -145,6 +146,10 @@ export default function PartnerDetailPage() {
   // Delete confirmation
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null)
   const [isDeletingContact, setIsDeletingContact] = useState(false)
+
+  // Registry refresh state
+  const [isRefreshingFromRegistry, setIsRefreshingFromRegistry] = useState(false)
+  const [registryRefreshResult, setRegistryRefreshResult] = useState<{ success: boolean; message: string } | null>(null)
 
   // Table existence state
   const [contactsTableExists, setContactsTableExists] = useState(true)
@@ -289,6 +294,100 @@ export default function PartnerDetailPage() {
     }
   }
 
+  // Refresh partner data from Estonian Business Registry
+  const handleRefreshFromRegistry = async () => {
+    if (!partner?.registryCode) {
+      setRegistryRefreshResult({ success: false, message: 'Registrikood puudub' })
+      return
+    }
+
+    setIsRefreshingFromRegistry(true)
+    setRegistryRefreshResult(null)
+
+    try {
+      // Fetch company details and e-invoice info in parallel
+      const [companyResponse, eInvoiceResponse] = await Promise.all([
+        fetch(`/api/registry/company?code=${partner.registryCode}`),
+        fetch(`/api/registry/einvoice?code=${partner.registryCode}`),
+      ])
+
+      const updates: Record<string, unknown> = {}
+      let updatedFields: string[] = []
+
+      // Process company details
+      if (companyResponse.ok) {
+        const companyData = await companyResponse.json()
+
+        if (companyData.vatNumber && companyData.vatNumber !== partner.vatNumber) {
+          updates.vatNumber = companyData.vatNumber
+          updatedFields.push('KMKR')
+        }
+        if (companyData.legalAddress && companyData.legalAddress !== partner.address) {
+          updates.address = companyData.legalAddress
+          updatedFields.push('aadress')
+        }
+        if (companyData.email && companyData.email !== partner.email) {
+          updates.email = companyData.email
+          updatedFields.push('e-post')
+        }
+        if (companyData.phone && companyData.phone !== partner.phone) {
+          updates.phone = companyData.phone
+          updatedFields.push('telefon')
+        }
+      }
+
+      // Process e-invoice data
+      if (eInvoiceResponse.ok) {
+        const eInvoiceData = await eInvoiceResponse.json()
+
+        if (eInvoiceData.eInvoiceCapable !== partner.eInvoiceCapable) {
+          updates.eInvoiceCapable = eInvoiceData.eInvoiceCapable
+          updatedFields.push('e-arve')
+        }
+        if (eInvoiceData.operators?.[0]?.name && eInvoiceData.operators[0].name !== partner.eInvoiceOperator) {
+          updates.eInvoiceOperator = eInvoiceData.operators[0].name
+        }
+      }
+
+      // If there are updates, save them
+      if (Object.keys(updates).length > 0) {
+        const saveResponse = await fetch(`/api/partners/${partnerId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        })
+
+        if (!saveResponse.ok) {
+          throw new Error('Andmete salvestamine ebaõnnestus')
+        }
+
+        setRegistryRefreshResult({
+          success: true,
+          message: `Uuendatud: ${updatedFields.join(', ')}`,
+        })
+
+        // Refresh the page data
+        fetchPartner()
+      } else {
+        setRegistryRefreshResult({
+          success: true,
+          message: 'Kõik andmed on juba ajakohased',
+        })
+      }
+    } catch (err) {
+      console.error('Registry refresh error:', err)
+      setRegistryRefreshResult({
+        success: false,
+        message: 'Äriregistri päring ebaõnnestus',
+      })
+    } finally {
+      setIsRefreshingFromRegistry(false)
+
+      // Clear the result message after 5 seconds
+      setTimeout(() => setRegistryRefreshResult(null), 5000)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -345,7 +444,26 @@ export default function PartnerDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {/* Registry refresh result message */}
+          {registryRefreshResult && (
+            <span className={`text-sm px-2 py-1 rounded ${registryRefreshResult.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {registryRefreshResult.message}
+            </span>
+          )}
+          {partner.registryCode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshFromRegistry}
+              disabled={isRefreshingFromRegistry}
+              className="gap-1.5"
+              title="Värskenda andmeid Äriregistrist"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshingFromRegistry ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Äriregister</span>
+            </Button>
+          )}
           <Button variant="outline" size="icon">
             <Edit className="w-4 h-4" />
           </Button>
