@@ -19,6 +19,11 @@ import {
   PenTool,
   Calendar,
   Share2,
+  CalendarDays,
+  CheckSquare,
+  FileCheck,
+  Building,
+  Users,
 } from 'lucide-react'
 
 interface NavItem {
@@ -40,12 +45,16 @@ export default function MontaazProjectLayout({
 
   const navItems: NavItem[] = [
     { href: baseUrl, label: 'Ülevaade', icon: Hammer },
+    { href: `${baseUrl}/uleesanded`, label: 'Ülesanded', icon: CheckSquare },
+    { href: `${baseUrl}/detailplaan`, label: 'Detailplaan', icon: CalendarDays },
     { href: `${baseUrl}/susteemid`, label: 'Süsteemid', icon: Layers },
     { href: `${baseUrl}/etp`, label: 'ETP', icon: BookOpen },
+    { href: `${baseUrl}/aktid`, label: 'Aktid', icon: FileCheck },
     { href: `${baseUrl}/tellimused`, label: 'Tellimused', icon: ShoppingCart },
     { href: `${baseUrl}/tarned`, label: 'Tarned', icon: Truck },
     { href: `${baseUrl}/lisatood`, label: 'Lisatööd', icon: PlusCircle },
-    { href: `${baseUrl}/lepingud`, label: 'Lepingud', icon: FileText },
+    { href: `${baseUrl}/lepingud/tellija`, label: 'Tellija lepingud', icon: Building },
+    { href: `${baseUrl}/lepingud/atv`, label: 'ATV lepingud', icon: Users },
     { href: `${baseUrl}/teenused`, label: 'Teenused', icon: Wrench },
     { href: `${baseUrl}/teostatud-mahud`, label: 'Teostatud mahud', icon: BarChart3 },
     { href: `${baseUrl}/spetsifikatsioonid`, label: 'Spetsifikatsioonid', icon: ListChecks },

@@ -90,6 +90,8 @@ const personnelItems = [
   { href: '/personnel/work-hours', label: 'Tööaeg', icon: Clock },
   { href: '/personnel/leave', label: 'Puhkused', icon: CalendarDays },
   { href: '/personnel/groups', label: 'Grupid', icon: Building2 },
+  { href: '/personnel/competencies', label: 'Kompetentsid', icon: Shield },
+  { href: '/personnel/documents', label: 'Dokumendid', icon: FileText },
 ]
 
 // Partners items (Ettevõtted)
@@ -237,6 +239,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/admin/cms', label: 'CMS', icon: Database },
     { href: '/admin/templates', label: 'Mallid', icon: FileType },
     { href: '/admin/tables', label: 'Tabelid', icon: Table },
+    { href: '/admin/integrations', label: 'Integratsioonid', icon: Zap },
     { href: '/admin/cache', label: 'Vahemälu', icon: HardDrive },
     { href: '/trash', label: 'Prügi', icon: Trash2 },
     { href: '/notifications', label: 'Teavitused', icon: Bell },
