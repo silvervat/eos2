@@ -24,6 +24,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
+    const debug = searchParams.get('debug') === 'true'
 
     if (!code) {
       return NextResponse.json(
@@ -32,18 +33,32 @@ export async function GET(request: Request) {
       )
     }
 
-    // Try the Estonian Business Registry E-Invoice API
-    // Endpoint: https://ariregister.rik.ee/est/api/einvoice?q=registry_code
-    // This service is free and doesn't require authentication
-    const url = `https://ariregister.rik.ee/est/api/einvoice?q=${encodeURIComponent(code)}`
+    const debugInfo: Record<string, unknown> = {}
 
-    const response = await fetch(url, {
+    // Try the Estonian E-Invoice Router API
+    // The correct endpoint is: https://www.rik.ee/et/e-arveldaja/api
+    // But we'll try multiple endpoints to find the correct one
+
+    // 1. Try ariregister.rik.ee endpoint
+    const url1 = `https://ariregister.rik.ee/est/api/einvoice?q=${encodeURIComponent(code)}`
+
+    // 2. Try the e-arveldaja endpoint (official e-invoice router)
+    const url2 = `https://e-arveldaja.rik.ee/api/check?code=${encodeURIComponent(code)}`
+
+    console.log('Trying e-invoice endpoints:', url1)
+
+    const response = await fetch(url1, {
       headers: {
         'User-Agent': 'EOS2-ERP/1.0',
         Accept: 'application/json',
       },
       next: { revalidate: 300 }, // Cache for 5 minutes
     })
+
+    if (debug) {
+      debugInfo.endpoint1 = url1
+      debugInfo.endpoint1Status = response.status
+    }
 
     // If the specific endpoint fails, return a default response
     // The e-invoice capability can still be checked manually
@@ -57,10 +72,17 @@ export async function GET(request: Request) {
         operators: [],
         status: 'unknown',
         message: 'E-arve staatust ei saanud kontrollida',
+        ...(debug ? { _debug: debugInfo } : {}),
       })
     }
 
     const data = await response.json()
+
+    if (debug) {
+      debugInfo.rawResponse = data
+    }
+
+    console.log('E-invoice API response:', JSON.stringify(data).slice(0, 500))
 
     // Transform response based on actual API response structure
     // The API may return different structures depending on the result
@@ -100,7 +122,14 @@ export async function GET(request: Request) {
       operators,
     }
 
-    return NextResponse.json(result)
+    if (debug) {
+      debugInfo.parsedResult = result
+    }
+
+    return NextResponse.json({
+      ...result,
+      ...(debug ? { _debug: debugInfo } : {}),
+    })
   } catch (error) {
     console.error('Error in e-invoice check:', error)
     // Return unknown status on error - don't block the user
