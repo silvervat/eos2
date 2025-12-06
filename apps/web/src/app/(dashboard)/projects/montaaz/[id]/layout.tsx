@@ -18,6 +18,7 @@ import {
   Box,
   PenTool,
   Calendar,
+  Share2,
 } from 'lucide-react'
 
 interface NavItem {
@@ -51,6 +52,7 @@ export default function MontaazProjectLayout({
     { href: `${baseUrl}/trimble-connect`, label: 'Trimble Connect', icon: Box },
     { href: `${baseUrl}/joonised`, label: 'Joonised', icon: PenTool },
     { href: `${baseUrl}/graafikud`, label: 'Graafikud', icon: Calendar },
+    { href: `${baseUrl}/tellijale-jagatud`, label: 'Tellijale jagatud', icon: Share2 },
   ]
 
   const isActive = (href: string) => {
