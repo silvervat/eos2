@@ -341,7 +341,7 @@ export function FilePreviewDialog({
     if (!showSidebar || !file) return null
 
     return (
-      <div className="w-80 border-l border-slate-200 flex flex-col bg-white">
+      <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-200 flex flex-col bg-white max-h-[40vh] md:max-h-none overflow-auto md:overflow-hidden">
         {/* Tabs */}
         <div className="flex border-b border-slate-200">
           <button
@@ -524,9 +524,9 @@ export function FilePreviewDialog({
         }
       }}
     >
-      <div className={`${getModalClasses()} h-auto max-h-[95vh] m-4 flex bg-white rounded-xl shadow-2xl overflow-hidden`}>
+      <div className={`${getModalClasses()} h-auto max-h-[95vh] m-4 flex flex-col md:flex-row bg-white rounded-xl shadow-2xl overflow-hidden`}>
         {/* Main content */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 min-h-[50vh] md:min-h-0">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
             <div className="flex items-center gap-3 min-w-0">
