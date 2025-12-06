@@ -752,8 +752,11 @@ export default function FileVaultPage() {
       setHasMoreFiles(true)
 
       const filter = activeTab === 'my-files' ? 'my-files' : 'all'
-      // Only fetch files for the new folder, don't refetch folders (tree is already loaded)
-      await fetchFiles(vaultIdRef.current!, currentFolderId, 0, false, filter)
+      // Fetch both folders and files for the new folder
+      await Promise.all([
+        fetchFolders(vaultIdRef.current!, currentFolderId),
+        fetchFiles(vaultIdRef.current!, currentFolderId, 0, false, filter)
+      ])
       setIsLoadingFolderFiles(false)
     }
     loadFolderData()
