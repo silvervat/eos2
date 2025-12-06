@@ -80,6 +80,15 @@ export async function GET(request: Request) {
 
     if (debug) {
       debugInfo.rawResponse = data
+      debugInfo.responseType = Array.isArray(data) ? 'array' : typeof data
+      if (Array.isArray(data)) {
+        debugInfo.arrayLength = data.length
+        if (data.length > 0) {
+          debugInfo.firstItemKeys = Object.keys(data[0])
+        }
+      } else if (data && typeof data === 'object') {
+        debugInfo.objectKeys = Object.keys(data)
+      }
     }
 
     console.log('E-invoice API response:', JSON.stringify(data).slice(0, 500))
@@ -93,25 +102,70 @@ export async function GET(request: Request) {
       // If response is array, check if any entries exist
       eInvoiceCapable = data.length > 0
       operators = data.map((op: Record<string, unknown>) => ({
-        name: String(op.teenusepakkuja || op.operator_name || op.name || 'Teadmata'),
-        channel: String(op.channel || op.type || 'e-arve'),
-        address: op.address as string | undefined,
+        // Try various field names that operators might use
+        name: String(
+          op.teenusepakkuja ||
+          op.operaator ||
+          op.operator_name ||
+          op.operator ||
+          op.name ||
+          op.nimi ||
+          'Teadmata'
+        ),
+        channel: String(op.channel || op.kanal || op.type || op.tyyp || 'e-arve'),
+        address: (op.address || op.aadress || op.roaming_address) as string | undefined,
       }))
     } else if (data && typeof data === 'object') {
-      // Handle object response
-      if (data.staatus === 'OK' || data.status === 'OK') {
+      // Handle object response - check various status indicators
+      const hasPositiveStatus =
+        data.staatus === 'OK' ||
+        data.status === 'OK' ||
+        data.success === true ||
+        data.found === true ||
+        data.exists === true ||
+        data.eInvoiceCapable === true
+
+      if (hasPositiveStatus) {
         eInvoiceCapable = true
       }
-      if (data.operators || data.einvoice_operators || data.teenusepakkujad) {
-        const ops = data.operators || data.einvoice_operators || data.teenusepakkujad || []
-        operators = Array.isArray(ops)
-          ? ops.map((op: Record<string, unknown>) => ({
-              name: String(op.teenusepakkuja || op.operator_name || op.name || 'Teadmata'),
-              channel: String(op.channel || op.type || 'e-arve'),
-              address: op.address as string | undefined,
-            }))
-          : []
+
+      // Try to find operators in various possible locations
+      const operatorData =
+        data.operators ||
+        data.einvoice_operators ||
+        data.teenusepakkujad ||
+        data.operaatorid ||
+        data.channels ||
+        data.kanalid ||
+        data.data ||
+        data.results
+
+      if (operatorData) {
+        const ops = Array.isArray(operatorData) ? operatorData : [operatorData]
+        operators = ops.map((op: Record<string, unknown>) => ({
+          name: String(
+            op.teenusepakkuja ||
+            op.operaator ||
+            op.operator_name ||
+            op.operator ||
+            op.name ||
+            op.nimi ||
+            'Teadmata'
+          ),
+          channel: String(op.channel || op.kanal || op.type || op.tyyp || 'e-arve'),
+          address: (op.address || op.aadress || op.roaming_address) as string | undefined,
+        }))
         eInvoiceCapable = operators.length > 0
+      }
+
+      // Also check if data itself contains operator-like info
+      if (!eInvoiceCapable && (data.teenusepakkuja || data.operaator || data.operator)) {
+        eInvoiceCapable = true
+        operators = [{
+          name: String(data.teenusepakkuja || data.operaator || data.operator || 'Teadmata'),
+          channel: String(data.channel || data.kanal || 'e-arve'),
+          address: data.address as string | undefined,
+        }]
       }
     }
 
