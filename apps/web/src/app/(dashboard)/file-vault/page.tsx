@@ -1566,7 +1566,7 @@ export default function FileVaultPage() {
       >
         {/* Top Bar with Tabs */}
         <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
-          <div className="flex items-center justify-between px-6 py-3">
+          <div className="flex items-center justify-between px-2 sm:px-4 md:px-6 py-3">
             {/* Left: Toggle sidebar + Tabs */}
             <div className="flex items-center gap-4">
               {/* Toggle file tree button */}
@@ -1715,7 +1715,7 @@ export default function FileVaultPage() {
 
           {/* Vault info bar */}
           {vault && (
-            <div className="flex items-center justify-between px-6 py-2 bg-slate-50 border-t border-slate-100 text-sm">
+            <div className="flex items-center justify-between px-2 sm:px-4 md:px-6 py-2 bg-slate-50 border-t border-slate-100 text-sm">
               <span className="text-slate-600">
                 {vault.name} - {formatFileSize(Number(vault.usedBytes))} / {formatFileSize(Number(vault.quotaBytes))} kasutatud
                 {totalFiles > 0 && <span className="ml-2 text-slate-400">({totalFiles} faili)</span>}
@@ -1734,7 +1734,7 @@ export default function FileVaultPage() {
         </div>
 
         {/* Content area with padding */}
-        <div className="p-6 space-y-6">
+        <div className="p-2 sm:p-4 md:p-6 space-y-4 md:space-y-6">
 
       {/* Statistics Tab */}
       {activeTab === 'statistics' && (
@@ -2307,7 +2307,7 @@ export default function FileVaultPage() {
       {!isLoading && !error && (
         <>
           {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 min-[1920px]:grid-cols-10 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 min-[1920px]:grid-cols-10 gap-2 sm:gap-3 md:gap-4">
               {allItems.map((item) => {
                 const isFolder = item.type === 'folder'
                 const Icon = isFolder ? Folder : getFileIcon((item as FileItem).mimeType)
