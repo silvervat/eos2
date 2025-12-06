@@ -12,137 +12,164 @@ import {
   type ColumnFiltersState,
 } from '@tanstack/react-table'
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, ChevronsUpDown, Search } from 'lucide-react'
-import type { Project } from '@/hooks/use-projects'
-
-const statusConfig = {
-  draft: { label: 'Mustand', color: 'bg-slate-100 text-slate-700' },
-  active: { label: 'Aktiivne', color: 'bg-green-100 text-green-700' },
-  on_hold: { label: 'Ootel', color: 'bg-yellow-100 text-yellow-700' },
-  completed: { label: 'Lõpetatud', color: 'bg-blue-100 text-blue-700' },
-  cancelled: { label: 'Tühistatud', color: 'bg-red-100 text-red-700' },
-  archived: { label: 'Arhiveeritud', color: 'bg-gray-100 text-gray-700' },
-}
-
-export const columns: ColumnDef<Project>[] = [
-  {
-    accessorKey: 'code',
-    header: 'Kood',
-    cell: ({ row }) => (
-      <span className="font-mono text-sm text-slate-600">
-        {row.getValue('code')}
-      </span>
-    ),
-  },
-  {
-    accessorKey: 'name',
-    header: ({ column }) => (
-      <button
-        className="flex items-center gap-1 hover:text-slate-900"
-        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-      >
-        Nimi
-        {column.getIsSorted() === 'asc' ? (
-          <ChevronUp className="h-4 w-4" />
-        ) : column.getIsSorted() === 'desc' ? (
-          <ChevronDown className="h-4 w-4" />
-        ) : (
-          <ChevronsUpDown className="h-4 w-4 opacity-50" />
-        )}
-      </button>
-    ),
-    cell: ({ row }) => (
-      <div>
-        <span className="font-medium text-slate-900">{row.getValue('name')}</span>
-        {row.original.description && (
-          <p className="text-sm text-slate-500 truncate max-w-xs">
-            {row.original.description}
-          </p>
-        )}
-      </div>
-    ),
-  },
-  {
-    accessorKey: 'clientName',
-    header: 'Klient',
-    cell: ({ row }) => (
-      <span className="text-sm text-slate-600">
-        {row.getValue('clientName') || '-'}
-      </span>
-    ),
-  },
-  {
-    accessorKey: 'status',
-    header: 'Staatus',
-    cell: ({ row }) => {
-      const status = row.getValue('status') as keyof typeof statusConfig
-      const config = statusConfig[status] || statusConfig.draft
-      return (
-        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${config.color}`}>
-          {config.label}
-        </span>
-      )
-    },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
-    },
-  },
-  {
-    accessorKey: 'budget',
-    header: ({ column }) => (
-      <button
-        className="flex items-center gap-1 hover:text-slate-900"
-        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-      >
-        Eelarve
-        {column.getIsSorted() === 'asc' ? (
-          <ChevronUp className="h-4 w-4" />
-        ) : column.getIsSorted() === 'desc' ? (
-          <ChevronDown className="h-4 w-4" />
-        ) : (
-          <ChevronsUpDown className="h-4 w-4 opacity-50" />
-        )}
-      </button>
-    ),
-    cell: ({ row }) => {
-      const budget = row.getValue('budget') as number | undefined
-      if (!budget) return <span className="text-slate-400">-</span>
-      return (
-        <span className="font-medium text-right block">
-          {budget.toLocaleString('et-EE')} €
-        </span>
-      )
-    },
-  },
-  {
-    accessorKey: 'city',
-    header: 'Linn',
-    cell: ({ row }) => (
-      <span className="text-sm text-slate-600">
-        {row.getValue('city') || '-'}
-      </span>
-    ),
-  },
-  {
-    accessorKey: 'managerName',
-    header: 'Projektijuht',
-    cell: ({ row }) => (
-      <span className="text-sm text-slate-600">
-        {row.getValue('managerName') || '-'}
-      </span>
-    ),
-  },
-]
+import { ChevronDown, ChevronUp, ChevronsUpDown, Search, Image as ImageIcon, Pencil, MapPin } from 'lucide-react'
+import {
+  type Project,
+  type ProjectType,
+  type ProjectStatus,
+  PROJECT_TYPES,
+  PROJECT_STATUSES,
+} from '@/hooks/use-projects'
 
 interface ProjectsTableProps {
   data: Project[]
   isLoading?: boolean
+  onRowClick?: (project: Project) => void
+  onEdit?: (project: Project) => void
 }
 
-export function ProjectsTable({ data, isLoading }: ProjectsTableProps) {
+export function ProjectsTable({ data, isLoading, onRowClick, onEdit }: ProjectsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+
+  const columns: ColumnDef<Project>[] = [
+    {
+      accessorKey: 'thumbnailUrl',
+      header: '',
+      cell: ({ row }) => {
+        const thumbnailUrl = row.getValue('thumbnailUrl') as string | undefined
+        return (
+          <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center flex-shrink-0">
+            {thumbnailUrl ? (
+              <img
+                src={thumbnailUrl}
+                alt={row.original.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <ImageIcon className="h-5 w-5 text-slate-400" />
+            )}
+          </div>
+        )
+      },
+      enableSorting: false,
+    },
+    {
+      accessorKey: 'code',
+      header: 'Kood',
+      cell: ({ row }) => (
+        <span className="font-mono text-sm text-slate-600">
+          {row.getValue('code')}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'name',
+      header: ({ column }) => (
+        <button
+          className="flex items-center gap-1 hover:text-slate-900"
+          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        >
+          Nimi
+          {column.getIsSorted() === 'asc' ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : column.getIsSorted() === 'desc' ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronsUpDown className="h-4 w-4 opacity-50" />
+          )}
+        </button>
+      ),
+      cell: ({ row }) => (
+        <div>
+          <span className="font-medium text-slate-900">{row.getValue('name')}</span>
+          {row.original.description && (
+            <p className="text-sm text-slate-500 truncate max-w-xs">
+              {row.original.description}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'type',
+      header: 'Tüüp',
+      cell: ({ row }) => {
+        const type = row.getValue('type') as ProjectType
+        return (
+          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-700">
+            {PROJECT_TYPES[type] || type}
+          </span>
+        )
+      },
+      filterFn: (row, id, value) => {
+        return value.includes(row.getValue(id))
+      },
+    },
+    {
+      accessorKey: 'client',
+      header: 'Klient',
+      cell: ({ row }) => {
+        const client = row.original.client
+        return (
+          <span className="text-sm text-slate-600">
+            {client?.name || '-'}
+          </span>
+        )
+      },
+    },
+    {
+      accessorKey: 'address',
+      header: 'Aadress',
+      cell: ({ row }) => {
+        const address = row.original.address
+        const country = row.original.country
+        if (!address) return <span className="text-slate-400">-</span>
+        return (
+          <div className="flex items-center gap-1.5 text-sm text-slate-600">
+            <MapPin className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+            <span className="truncate max-w-[200px]">
+              {country && country !== 'Eesti' && country !== 'Estonia' ? `${country}, ` : ''}
+              {address}
+            </span>
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'status',
+      header: 'Staatus',
+      cell: ({ row }) => {
+        const status = row.getValue('status') as ProjectStatus
+        const config = PROJECT_STATUSES[status] || PROJECT_STATUSES.starting
+        return (
+          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${config.color}`}>
+            {config.label}
+          </span>
+        )
+      },
+      filterFn: (row, id, value) => {
+        return value.includes(row.getValue(id))
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onEdit?.(row.original)
+          }}
+          className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
+      ),
+      enableSorting: false,
+    },
+  ]
 
   const table = useReactTable({
     data,
@@ -193,6 +220,23 @@ export function ProjectsTable({ data, isLoading }: ProjectsTableProps) {
             />
           </div>
           <select
+            value={(columnFilters.find(f => f.id === 'type')?.value as string[])?.join(',') || ''}
+            onChange={(e) => {
+              const value = e.target.value
+              setColumnFilters(prev => {
+                const other = prev.filter(f => f.id !== 'type')
+                if (!value) return other
+                return [...other, { id: 'type', value: value.split(',') }]
+              })
+            }}
+            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="">Kõik tüübid</option>
+            {Object.entries(PROJECT_TYPES).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+          <select
             value={(columnFilters.find(f => f.id === 'status')?.value as string[])?.join(',') || ''}
             onChange={(e) => {
               const value = e.target.value
@@ -205,10 +249,9 @@ export function ProjectsTable({ data, isLoading }: ProjectsTableProps) {
             className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="">Kõik staatused</option>
-            <option value="draft">Mustand</option>
-            <option value="active">Aktiivne</option>
-            <option value="on_hold">Ootel</option>
-            <option value="completed">Lõpetatud</option>
+            {Object.entries(PROJECT_STATUSES).map(([key, { label }]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -244,6 +287,7 @@ export function ProjectsTable({ data, isLoading }: ProjectsTableProps) {
                 <tr
                   key={row.id}
                   className="hover:bg-slate-50 cursor-pointer transition-colors"
+                  onClick={() => onRowClick?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-6 py-4">

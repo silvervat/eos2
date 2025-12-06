@@ -2,12 +2,20 @@
  * PARTNERS API
  * GET /api/partners - List all partners (companies)
  * POST /api/partners - Create a new partner
+ *
+ * Robust against missing tables/columns in schema cache
  */
 
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
+
+// Helper to safely get field value with fallback
+function safeGet<T>(obj: Record<string, unknown>, key: string, defaultValue: T): T {
+  const value = obj?.[key]
+  return value !== undefined && value !== null ? (value as T) : defaultValue
+}
 
 // GET /api/partners - List partners with contacts and statistics
 export async function GET(request: Request) {
@@ -30,7 +38,7 @@ export async function GET(request: Request) {
     const offset = parseInt(searchParams.get('offset') || '0')
     const includeStats = searchParams.get('includeStats') === 'true'
 
-    // Build query
+    // Build query - use SELECT * to be robust against schema changes
     let query = supabase
       .from('companies')
       .select('*', { count: 'exact' })
@@ -54,67 +62,93 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Fetch contacts count for each company
+    // Fetch contacts count for each company - wrapped in try/catch for robustness
     const companyIds = companies?.map(c => c.id) || []
-
     let contactsCounts: Record<string, number> = {}
-    if (companyIds.length > 0) {
-      const { data: contactsData } = await supabase
-        .from('company_contacts')
-        .select('company_id')
-        .in('company_id', companyIds)
-        .is('deleted_at', null)
 
-      if (contactsData) {
-        contactsData.forEach(c => {
-          contactsCounts[c.company_id] = (contactsCounts[c.company_id] || 0) + 1
-        })
+    if (companyIds.length > 0) {
+      try {
+        const { data: contactsData, error: contactsError } = await supabase
+          .from('company_contacts')
+          .select('company_id')
+          .in('company_id', companyIds)
+          .is('deleted_at', null)
+
+        if (!contactsError && contactsData) {
+          contactsData.forEach(c => {
+            contactsCounts[c.company_id] = (contactsCounts[c.company_id] || 0) + 1
+          })
+        }
+      } catch (e) {
+        // company_contacts table might not exist yet - ignore error
+        console.warn('Could not fetch contacts (table may not exist):', e)
       }
     }
 
-    // Optionally fetch statistics
+    // Optionally fetch statistics - also wrapped for robustness
     let stats: Record<string, { invoices: number; projects: number; quotes: number }> = {}
     if (includeStats && companyIds.length > 0) {
-      // Count invoices
-      const { data: invoicesData } = await supabase
-        .from('invoices')
-        .select('company_id')
-        .in('company_id', companyIds)
-        .is('deleted_at', null)
-
-      // Count projects
-      const { data: projectsData } = await supabase
-        .from('projects')
-        .select('client_id')
-        .in('client_id', companyIds)
-        .is('deleted_at', null)
-
+      // Initialize all stats to 0
       companyIds.forEach(id => {
-        stats[id] = {
-          invoices: invoicesData?.filter(i => i.company_id === id).length || 0,
-          projects: projectsData?.filter(p => p.client_id === id).length || 0,
-          quotes: 0, // Will be added when quotes table exists
-        }
+        stats[id] = { invoices: 0, projects: 0, quotes: 0 }
       })
+
+      // Count invoices - wrapped
+      try {
+        const { data: invoicesData, error: invError } = await supabase
+          .from('invoices')
+          .select('company_id')
+          .in('company_id', companyIds)
+          .is('deleted_at', null)
+
+        if (!invError && invoicesData) {
+          invoicesData.forEach(i => {
+            if (stats[i.company_id]) {
+              stats[i.company_id].invoices++
+            }
+          })
+        }
+      } catch (e) {
+        console.warn('Could not fetch invoices:', e)
+      }
+
+      // Count projects - wrapped
+      try {
+        const { data: projectsData, error: projError } = await supabase
+          .from('projects')
+          .select('client_id')
+          .in('client_id', companyIds)
+          .is('deleted_at', null)
+
+        if (!projError && projectsData) {
+          projectsData.forEach(p => {
+            if (stats[p.client_id]) {
+              stats[p.client_id].projects++
+            }
+          })
+        }
+      } catch (e) {
+        console.warn('Could not fetch projects:', e)
+      }
     }
 
-    // Transform response
+    // Transform response with safe field access
     const partners = companies?.map(company => ({
       id: company.id,
-      registryCode: company.registry_code,
-      vatNumber: company.vat_number,
-      name: company.name,
-      type: company.type,
-      email: company.email,
-      phone: company.phone,
-      address: company.address,
-      city: company.city,
-      country: company.country,
-      bankAccount: company.bank_account,
-      paymentTermDays: company.payment_term_days,
-      creditLimit: company.credit_limit,
-      notes: company.notes,
-      metadata: company.metadata,
+      registryCode: safeGet(company, 'registry_code', null),
+      vatNumber: safeGet(company, 'vat_number', null),
+      name: safeGet(company, 'name', 'Nimetu'),
+      type: safeGet(company, 'type', 'client'),
+      email: safeGet(company, 'email', null),
+      phone: safeGet(company, 'phone', null),
+      address: safeGet(company, 'address', null),
+      city: safeGet(company, 'city', null),
+      country: safeGet(company, 'country', 'Estonia'),
+      bankAccount: safeGet(company, 'bank_account', null),
+      paymentTermDays: safeGet(company, 'payment_term_days', 14),
+      creditLimit: safeGet(company, 'credit_limit', null),
+      notes: safeGet(company, 'notes', null),
+      metadata: safeGet(company, 'metadata', {}),
       contactsCount: contactsCounts[company.id] || 0,
       stats: stats[company.id] || null,
       createdAt: company.created_at,
@@ -179,6 +213,13 @@ export async function POST(request: Request) {
         address: body.address || null,
         city: body.city || null,
         country: body.country || 'Estonia',
+        zip_code: body.zipCode || null,
+        registry_url: body.registryUrl || null,
+        historical_names: body.historicalNames || null,
+        company_status: body.companyStatus || 'R',
+        e_invoice_capable: body.eInvoiceCapable || false,
+        e_invoice_operator: body.eInvoiceOperator || null,
+        e_invoice_address: body.eInvoiceAddress || null,
         bank_account: body.bankAccount || null,
         payment_term_days: body.paymentTermDays || 14,
         credit_limit: body.creditLimit || null,
