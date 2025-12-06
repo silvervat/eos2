@@ -142,6 +142,7 @@ export default function PartnersPage() {
   const [showRegistryDropdown, setShowRegistryDropdown] = useState(false)
   const [isSearchingRegistry, setIsSearchingRegistry] = useState(false)
   const registrySearchRef = useRef<HTMLDivElement>(null)
+  const registrySelectedRef = useRef(false) // Track if user just selected a result
 
   // Address autocomplete state
   const [addressResults, setAddressResults] = useState<{ address: string }[]>([])
@@ -263,6 +264,11 @@ export default function PartnersPage() {
   // Debounced registry search
   useEffect(() => {
     const timer = setTimeout(() => {
+      // Skip search if user just selected a result
+      if (registrySelectedRef.current) {
+        registrySelectedRef.current = false
+        return
+      }
       if (formData.name.length >= 2 && showAddModal) {
         searchRegistry(formData.name)
       }
@@ -351,6 +357,9 @@ export default function PartnersPage() {
   }
 
   const selectRegistryResult = async (result: RegistryResult) => {
+    // Mark that user selected a result to prevent re-triggering search
+    registrySelectedRef.current = true
+
     // Fill in all available fields from registry
     setFormData(prev => ({
       ...prev,
@@ -428,6 +437,7 @@ export default function PartnersPage() {
       setFormData({ name: '', registryCode: '', vatNumber: '', type: 'client', email: '', phone: '', address: '', zipCode: '', country: 'Eesti', registryUrl: '', eInvoiceCapable: false, eInvoiceOperator: '' })
       setVatValidation(null)
       setEInvoiceInfo(null)
+      registrySelectedRef.current = false
       fetchPartners()
     } catch (err) {
       alert((err as Error).message)
@@ -1486,6 +1496,7 @@ export default function PartnersPage() {
                     setVatValidation(null)
                     setEInvoiceInfo(null)
                     setFormErrors({})
+                    registrySelectedRef.current = false
                   }}
                   disabled={isSubmitting}
                   className="flex-1"
