@@ -46,8 +46,6 @@ interface Partner {
   creditLimit?: number
   notes?: string
   registryUrl?: string
-  eInvoiceCapable?: boolean
-  eInvoiceOperator?: string
 }
 
 interface Contact {
@@ -323,11 +321,7 @@ export default function PartnerDetailPage() {
     setRegistryRefreshResult(null)
 
     try {
-      // Fetch company details and e-invoice info in parallel
-      const [companyResponse, eInvoiceResponse] = await Promise.all([
-        fetch(`/api/registry/company?code=${partner.registryCode}`),
-        fetch(`/api/registry/einvoice?code=${partner.registryCode}`),
-      ])
+      const companyResponse = await fetch(`/api/registry/company?code=${partner.registryCode}`)
 
       const updates: Record<string, unknown> = {}
       let updatedFields: string[] = []
@@ -351,19 +345,6 @@ export default function PartnerDetailPage() {
         if (companyData.phone && companyData.phone !== partner.phone) {
           updates.phone = companyData.phone
           updatedFields.push('telefon')
-        }
-      }
-
-      // Process e-invoice data
-      if (eInvoiceResponse.ok) {
-        const eInvoiceData = await eInvoiceResponse.json()
-
-        if (eInvoiceData.eInvoiceCapable !== partner.eInvoiceCapable) {
-          updates.eInvoiceCapable = eInvoiceData.eInvoiceCapable
-          updatedFields.push('e-arve')
-        }
-        if (eInvoiceData.operators?.[0]?.name && eInvoiceData.operators[0].name !== partner.eInvoiceOperator) {
-          updates.eInvoiceOperator = eInvoiceData.operators[0].name
         }
       }
 
@@ -486,11 +467,6 @@ export default function PartnerDetailPage() {
               <span className="px-2 py-1 rounded text-sm font-medium bg-blue-100 text-blue-700">
                 {typeLabels[partner.type] || partner.type}
               </span>
-              {partner.eInvoiceCapable && (
-                <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">
-                  E-arve
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-3 mt-1 text-sm text-slate-500">
               {partner.registryCode && <span>Reg: {partner.registryCode}</span>}
@@ -657,14 +633,6 @@ export default function PartnerDetailPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Krediidilimiit</span>
                   <span className="text-slate-900">{formatCurrency(partner.creditLimit)}</span>
-                </div>
-              )}
-              {partner.eInvoiceCapable && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">E-arve</span>
-                  <span className="text-green-600">
-                    Jah{partner.eInvoiceOperator && ` (${partner.eInvoiceOperator})`}
-                  </span>
                 </div>
               )}
             </div>

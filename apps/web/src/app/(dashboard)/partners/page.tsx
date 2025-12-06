@@ -154,10 +154,6 @@ export default function PartnersPage() {
   const [vatValidation, setVatValidation] = useState<{ valid: boolean; name?: string; address?: string } | null>(null)
   const [isValidatingVat, setIsValidatingVat] = useState(false)
 
-  // E-invoice check state
-  const [eInvoiceInfo, setEInvoiceInfo] = useState<{ capable: boolean; operator?: string } | null>(null)
-  const [isCheckingEInvoice, setIsCheckingEInvoice] = useState(false)
-
   // Form state (for modal)
   const [formData, setFormData] = useState({
     name: '',
@@ -170,8 +166,6 @@ export default function PartnersPage() {
     zipCode: '',
     country: 'Eesti',
     registryUrl: '',
-    eInvoiceCapable: false,
-    eInvoiceOperator: '',
   })
   const [formErrors, setFormErrors] = useState<{ email?: string; phone?: string }>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -372,17 +366,11 @@ export default function PartnersPage() {
     setShowRegistryDropdown(false)
     setRegistryResults([])
 
-    // Fetch detailed company info and e-invoice capability in parallel
+    // Fetch detailed company info (VAT number, address)
     if (result.registryCode) {
-      setIsCheckingEInvoice(true)
       try {
-        // Fetch both endpoints in parallel
-        const [companyResponse, eInvoiceResponse] = await Promise.all([
-          fetch(`/api/registry/company?code=${result.registryCode}`),
-          fetch(`/api/registry/einvoice?code=${result.registryCode}`),
-        ])
+        const companyResponse = await fetch(`/api/registry/company?code=${result.registryCode}`)
 
-        // Process company details
         if (companyResponse.ok) {
           const companyData = await companyResponse.json()
           setFormData(prev => ({
@@ -399,24 +387,8 @@ export default function PartnersPage() {
             setVatValidation({ valid: true, name: companyData.name })
           }
         }
-
-        // Process e-invoice data
-        if (eInvoiceResponse.ok) {
-          const eInvoiceData = await eInvoiceResponse.json()
-          setEInvoiceInfo({
-            capable: eInvoiceData.eInvoiceCapable || false,
-            operator: eInvoiceData.operators?.[0]?.name || undefined,
-          })
-          setFormData(prev => ({
-            ...prev,
-            eInvoiceCapable: eInvoiceData.eInvoiceCapable || false,
-            eInvoiceOperator: eInvoiceData.operators?.[0]?.name || '',
-          }))
-        }
       } catch (err) {
         console.error('Registry fetch error:', err)
-      } finally {
-        setIsCheckingEInvoice(false)
       }
     }
   }
@@ -458,9 +430,8 @@ export default function PartnersPage() {
       }
 
       setShowAddModal(false)
-      setFormData({ name: '', registryCode: '', vatNumber: '', type: 'client', email: '', phone: '', address: '', zipCode: '', country: 'Eesti', registryUrl: '', eInvoiceCapable: false, eInvoiceOperator: '' })
+      setFormData({ name: '', registryCode: '', vatNumber: '', type: 'client', email: '', phone: '', address: '', zipCode: '', country: 'Eesti', registryUrl: '' })
       setVatValidation(null)
-      setEInvoiceInfo(null)
       registrySelectedRef.current = false
       fetchPartners()
     } catch (err) {
@@ -1350,28 +1321,6 @@ export default function PartnersPage() {
                     </div>
                   </div>
 
-                  {/* E-invoice indicator */}
-                  {(isCheckingEInvoice || eInvoiceInfo) && (
-                    <div className={`p-2 rounded-lg text-sm flex items-center gap-2 ${eInvoiceInfo?.capable ? 'bg-green-50 text-green-700' : 'bg-slate-50 text-slate-600'}`}>
-                      {isCheckingEInvoice ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Kontrollin e-arve võimekust...</span>
-                        </>
-                      ) : eInvoiceInfo?.capable ? (
-                        <>
-                          <CheckCircle className="w-4 h-4" />
-                          <span>E-arve vastuvõtja{eInvoiceInfo.operator && ` (${eInvoiceInfo.operator})`}</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="w-4 h-4" />
-                          <span>E-arvet ei saa saata</span>
-                        </>
-                      )}
-                    </div>
-                  )}
-
                   {/* KMKR with validation */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1518,7 +1467,6 @@ export default function PartnersPage() {
                   onClick={() => {
                     setShowAddModal(false)
                     setVatValidation(null)
-                    setEInvoiceInfo(null)
                     setFormErrors({})
                     registrySelectedRef.current = false
                   }}
