@@ -239,6 +239,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/admin/cms', label: 'CMS', icon: Database },
     { href: '/admin/templates', label: 'Mallid', icon: FileType },
     { href: '/admin/tables', label: 'Tabelid', icon: Table },
+    { href: '/admin/personnel-categories', label: 'Personali kat.', icon: UsersRound },
     { href: '/admin/integrations', label: 'Integratsioonid', icon: Zap },
     { href: '/admin/cache', label: 'Vahemälu', icon: HardDrive },
     { href: '/trash', label: 'Prügi', icon: Trash2 },
