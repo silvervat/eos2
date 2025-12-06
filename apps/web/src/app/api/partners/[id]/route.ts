@@ -214,6 +214,7 @@ export async function PATCH(
 
     const updateData: Record<string, unknown> = {}
 
+    // Only include fields that exist in the database schema
     if (body.name !== undefined) updateData.name = body.name
     if (body.registryCode !== undefined) updateData.registry_code = body.registryCode
     if (body.vatNumber !== undefined) updateData.vat_number = body.vatNumber
@@ -223,10 +224,8 @@ export async function PATCH(
     if (body.address !== undefined) updateData.address = body.address
     if (body.city !== undefined) updateData.city = body.city
     if (body.country !== undefined) updateData.country = body.country
-    if (body.bankAccount !== undefined) updateData.bank_account = body.bankAccount
-    if (body.paymentTermDays !== undefined) updateData.payment_term_days = body.paymentTermDays
-    if (body.creditLimit !== undefined) updateData.credit_limit = body.creditLimit
     if (body.notes !== undefined) updateData.notes = body.notes
+    // Note: bank_account, payment_term_days, credit_limit, zip_code columns don't exist in schema
 
     const { data, error } = await supabase
       .from('companies')

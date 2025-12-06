@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Users,
   Plus,
@@ -18,9 +18,16 @@ import {
   Edit,
   Trash2,
   X,
+  Check,
 } from 'lucide-react'
-import { Button, Input, Card } from '@rivest/ui'
+import { Button, Input, Card, Label } from '@rivest/ui'
 import Link from 'next/link'
+
+interface Company {
+  id: string
+  name: string
+  type: string
+}
 
 interface Contact {
   id: string
@@ -53,6 +60,29 @@ export default function ContactsPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [rowDensity, setRowDensity] = useState<'compact' | 'normal'>('compact')
 
+  // Add modal state
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formData, setFormData] = useState({
+    companyId: '',
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    mobile: '',
+    position: '',
+    department: '',
+    isPrimary: false,
+    isBillingContact: false,
+  })
+
+  // Company search state
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [companySearch, setCompanySearch] = useState('')
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false)
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false)
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
+
   useEffect(() => {
     const saved = localStorage.getItem('contacts-row-density')
     if (saved === 'normal' || saved === 'compact') {
@@ -84,6 +114,106 @@ export default function ContactsPage() {
       setError((err as Error).message)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  // Fetch companies for dropdown
+  const fetchCompanies = useCallback(async (search: string) => {
+    setIsLoadingCompanies(true)
+    try {
+      const params = new URLSearchParams()
+      if (search) params.set('search', search)
+      params.set('limit', '20')
+      const response = await fetch(`/api/partners?${params.toString()}`)
+      const data = await response.json()
+      if (response.ok) {
+        setCompanies(data.partners || [])
+      }
+    } catch (err) {
+      console.error('Error fetching companies:', err)
+    } finally {
+      setIsLoadingCompanies(false)
+    }
+  }, [])
+
+  // Debounced company search
+  useEffect(() => {
+    if (!showAddModal) return
+    const timer = setTimeout(() => {
+      fetchCompanies(companySearch)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [companySearch, showAddModal, fetchCompanies])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.company-dropdown-container')) {
+        setShowCompanyDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const selectCompany = (company: Company) => {
+    setSelectedCompany(company)
+    setFormData(prev => ({ ...prev, companyId: company.id }))
+    setCompanySearch(company.name)
+    setShowCompanyDropdown(false)
+  }
+
+  const handleAddContact = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.companyId || !formData.firstName || !formData.lastName) {
+      alert('Ettevõte, eesnimi ja perenimi on kohustuslikud')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch(`/api/partners/${formData.companyId}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email || null,
+          phone: formData.phone || null,
+          mobile: formData.mobile || null,
+          position: formData.position || null,
+          department: formData.department || null,
+          isPrimary: formData.isPrimary,
+          isBillingContact: formData.isBillingContact,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Kontakti lisamine ebaõnnestus')
+      }
+
+      // Reset and close
+      setShowAddModal(false)
+      setFormData({
+        companyId: '',
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        mobile: '',
+        position: '',
+        department: '',
+        isPrimary: false,
+        isBillingContact: false,
+      })
+      setSelectedCompany(null)
+      setCompanySearch('')
+      fetchContacts()
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -176,7 +306,7 @@ export default function ContactsPage() {
               ▦
             </button>
           </div>
-          <Button size="sm" className="gap-1.5" style={{ backgroundColor: '#279989' }}>
+          <Button size="sm" className="gap-1.5" style={{ backgroundColor: '#279989' }} onClick={() => setShowAddModal(true)}>
             <Plus className="w-4 h-4" />
             Lisa
           </Button>
@@ -329,6 +459,217 @@ export default function ContactsPage() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Add Contact Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddModal(false)} />
+          <Card className="relative w-full max-w-lg p-0 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 rounded-t-xl">
+              <h2 className="text-lg font-semibold text-slate-900">Lisa uus kontakt</h2>
+              <button onClick={() => setShowAddModal(false)} className="p-1 rounded hover:bg-slate-200">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <form onSubmit={handleAddContact} className="p-4 space-y-4">
+              {/* Company selector */}
+              <div>
+                <Label htmlFor="company" className="text-sm font-medium text-slate-700">
+                  Ettevõte <span className="text-red-500">*</span>
+                </Label>
+                <div className="relative mt-1 company-dropdown-container">
+                  <div className="relative">
+                    <Input
+                      id="company"
+                      value={companySearch}
+                      onChange={(e) => {
+                        setCompanySearch(e.target.value)
+                        setShowCompanyDropdown(true)
+                        if (selectedCompany && e.target.value !== selectedCompany.name) {
+                          setSelectedCompany(null)
+                          setFormData(prev => ({ ...prev, companyId: '' }))
+                        }
+                      }}
+                      onFocus={() => setShowCompanyDropdown(true)}
+                      placeholder="Otsi ettevõtet..."
+                      className="pr-8"
+                    />
+                    {isLoadingCompanies && (
+                      <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-slate-400" />
+                    )}
+                    {selectedCompany && (
+                      <Check className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-green-500" />
+                    )}
+                  </div>
+                  {showCompanyDropdown && companies.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 max-h-48 overflow-y-auto">
+                      {companies.map((company) => (
+                        <button
+                          key={company.id}
+                          type="button"
+                          onClick={() => selectCompany(company)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between"
+                        >
+                          <span className="font-medium">{company.name}</span>
+                          <span className="text-xs text-slate-500">{company.type}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Name fields */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="firstName" className="text-sm font-medium text-slate-700">
+                    Eesnimi <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="firstName"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                    placeholder="Eesnimi"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="lastName" className="text-sm font-medium text-slate-700">
+                    Perenimi <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="lastName"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                    placeholder="Perenimi"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              {/* Position and department */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="position" className="text-sm font-medium text-slate-700">
+                    Ametikoht
+                  </Label>
+                  <Input
+                    id="position"
+                    value={formData.position}
+                    onChange={(e) => setFormData(prev => ({ ...prev, position: e.target.value }))}
+                    placeholder="Ametikoht"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="department" className="text-sm font-medium text-slate-700">
+                    Osakond
+                  </Label>
+                  <Input
+                    id="department"
+                    value={formData.department}
+                    onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                    placeholder="Osakond"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              {/* Contact info */}
+              <div>
+                <Label htmlFor="email" className="text-sm font-medium text-slate-700">
+                  E-post
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="email@example.com"
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="phone" className="text-sm font-medium text-slate-700">
+                    Telefon
+                  </Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="+372 ..."
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="mobile" className="text-sm font-medium text-slate-700">
+                    Mobiil
+                  </Label>
+                  <Input
+                    id="mobile"
+                    type="tel"
+                    value={formData.mobile}
+                    onChange={(e) => setFormData(prev => ({ ...prev, mobile: e.target.value }))}
+                    placeholder="+372 ..."
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              {/* Roles */}
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isPrimary}
+                    onChange={(e) => setFormData(prev => ({ ...prev, isPrimary: e.target.checked }))}
+                    className="w-4 h-4 rounded border-slate-300 text-[#279989] focus:ring-[#279989]"
+                  />
+                  <span className="text-sm text-slate-700">Põhikontakt</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isBillingContact}
+                    onChange={(e) => setFormData(prev => ({ ...prev, isBillingContact: e.target.checked }))}
+                    className="w-4 h-4 rounded border-slate-300 text-[#279989] focus:ring-[#279989]"
+                  />
+                  <span className="text-sm text-slate-700">Arvete kontakt</span>
+                </label>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3 pt-3 border-t border-slate-200">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowAddModal(false)}
+                  disabled={isSubmitting}
+                  className="flex-1"
+                >
+                  Tühista
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || !formData.companyId || !formData.firstName || !formData.lastName}
+                  className="flex-1"
+                  style={{ backgroundColor: '#279989' }}
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Plus className="w-4 h-4 mr-2" />
+                  )}
+                  Lisa kontakt
+                </Button>
+              </div>
+            </form>
+          </Card>
         </div>
       )}
     </div>

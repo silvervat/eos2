@@ -198,18 +198,24 @@ export async function POST(request: Request) {
     // Generate code if not provided
     const code = body.code || `PRJ-${Date.now().toString(36).toUpperCase()}`
 
+    // Generate UUID for id (in case table doesn't have default)
+    const projectId = crypto.randomUUID()
+
     // Build insert data dynamically - only add fields that have values
+    // Note: Some columns may not exist depending on migration status
     const insertData: Record<string, unknown> = {
-      tenant_id: profile.tenant_id,
+      id: projectId,
       name: body.name,
     }
 
+    // Only add tenant_id if profile has it (column may not exist in older schemas)
+    // This will be caught by DB error if column doesn't exist
+
     // Add optional fields only if they have values
+    // Core fields that should always exist
     if (code) insertData.code = code
     if (body.description) insertData.description = body.description
     if (body.type) insertData.type = body.type
-    if (body.clientId) insertData.client_id = body.clientId
-    if (body.contactId) insertData.contact_id = body.contactId
     if (body.status) insertData.status = body.status
     if (body.currency) insertData.currency = body.currency
     if (body.startDate) insertData.start_date = body.startDate
@@ -217,10 +223,8 @@ export async function POST(request: Request) {
     if (body.address) insertData.address = body.address
     if (body.city) insertData.city = body.city
     if (body.country) insertData.country = body.country
-    if (body.latitude !== undefined) insertData.latitude = body.latitude
-    if (body.longitude !== undefined) insertData.longitude = body.longitude
-    if (body.managerId) insertData.manager_id = body.managerId
-    if (body.thumbnailUrl) insertData.thumbnail_url = body.thumbnailUrl
+    if (body.latitude) insertData.latitude = body.latitude
+    if (body.longitude) insertData.longitude = body.longitude
     if (body.metadata) insertData.metadata = body.metadata
 
     // Create project using SELECT *

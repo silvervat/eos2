@@ -26,6 +26,7 @@ import {
   Check,
   ExternalLink,
   Star,
+  RefreshCw,
 } from 'lucide-react'
 import { Button, Card, Input } from '@rivest/ui'
 
@@ -45,8 +46,6 @@ interface Partner {
   creditLimit?: number
   notes?: string
   registryUrl?: string
-  eInvoiceCapable?: boolean
-  eInvoiceOperator?: string
 }
 
 interface Contact {
@@ -145,6 +144,28 @@ export default function PartnerDetailPage() {
   // Delete confirmation
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null)
   const [isDeletingContact, setIsDeletingContact] = useState(false)
+
+  // Registry refresh state
+  const [isRefreshingFromRegistry, setIsRefreshingFromRegistry] = useState(false)
+  const [registryRefreshResult, setRegistryRefreshResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  // Partner edit modal state
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editPartnerForm, setEditPartnerForm] = useState({
+    name: '',
+    registryCode: '',
+    vatNumber: '',
+    type: 'client',
+    email: '',
+    phone: '',
+    address: '',
+    country: '',
+    bankAccount: '',
+    paymentTermDays: 14,
+    creditLimit: 0,
+    notes: '',
+  })
+  const [isSubmittingPartner, setIsSubmittingPartner] = useState(false)
 
   // Table existence state
   const [contactsTableExists, setContactsTableExists] = useState(true)
@@ -289,6 +310,130 @@ export default function PartnerDetailPage() {
     }
   }
 
+  // Refresh partner data from Estonian Business Registry
+  const handleRefreshFromRegistry = async () => {
+    if (!partner?.registryCode) {
+      setRegistryRefreshResult({ success: false, message: 'Registrikood puudub' })
+      return
+    }
+
+    setIsRefreshingFromRegistry(true)
+    setRegistryRefreshResult(null)
+
+    try {
+      const companyResponse = await fetch(`/api/registry/company?code=${partner.registryCode}`)
+
+      const updates: Record<string, unknown> = {}
+      let updatedFields: string[] = []
+
+      // Process company details
+      if (companyResponse.ok) {
+        const companyData = await companyResponse.json()
+
+        if (companyData.vatNumber && companyData.vatNumber !== partner.vatNumber) {
+          updates.vatNumber = companyData.vatNumber
+          updatedFields.push('KMKR')
+        }
+        if (companyData.legalAddress && companyData.legalAddress !== partner.address) {
+          updates.address = companyData.legalAddress
+          updatedFields.push('aadress')
+        }
+        if (companyData.email && companyData.email !== partner.email) {
+          updates.email = companyData.email
+          updatedFields.push('e-post')
+        }
+        if (companyData.phone && companyData.phone !== partner.phone) {
+          updates.phone = companyData.phone
+          updatedFields.push('telefon')
+        }
+      }
+
+      // If there are updates, save them
+      if (Object.keys(updates).length > 0) {
+        const saveResponse = await fetch(`/api/partners/${partnerId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        })
+
+        if (!saveResponse.ok) {
+          throw new Error('Andmete salvestamine ebaõnnestus')
+        }
+
+        setRegistryRefreshResult({
+          success: true,
+          message: `Uuendatud: ${updatedFields.join(', ')}`,
+        })
+
+        // Refresh the page data
+        fetchPartner()
+      } else {
+        setRegistryRefreshResult({
+          success: true,
+          message: 'Kõik andmed on juba ajakohased',
+        })
+      }
+    } catch (err) {
+      console.error('Registry refresh error:', err)
+      setRegistryRefreshResult({
+        success: false,
+        message: 'Äriregistri päring ebaõnnestus',
+      })
+    } finally {
+      setIsRefreshingFromRegistry(false)
+
+      // Clear the result message after 5 seconds
+      setTimeout(() => setRegistryRefreshResult(null), 5000)
+    }
+  }
+
+  // Open partner edit modal
+  const openEditPartner = () => {
+    if (!partner) return
+    setEditPartnerForm({
+      name: partner.name || '',
+      registryCode: partner.registryCode || '',
+      vatNumber: partner.vatNumber || '',
+      type: partner.type || 'client',
+      email: partner.email || '',
+      phone: partner.phone || '',
+      address: partner.address || '',
+      country: partner.country || 'Eesti',
+      bankAccount: partner.bankAccount || '',
+      paymentTermDays: partner.paymentTermDays || 14,
+      creditLimit: partner.creditLimit || 0,
+      notes: partner.notes || '',
+    })
+    setShowEditModal(true)
+  }
+
+  // Save partner changes
+  const handleSavePartner = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmittingPartner(true)
+
+    try {
+      const response = await fetch(`/api/partners/${partnerId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editPartnerForm),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update partner')
+      }
+
+      setShowEditModal(false)
+      fetchPartner()
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setIsSubmittingPartner(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -322,11 +467,6 @@ export default function PartnerDetailPage() {
               <span className="px-2 py-1 rounded text-sm font-medium bg-blue-100 text-blue-700">
                 {typeLabels[partner.type] || partner.type}
               </span>
-              {partner.eInvoiceCapable && (
-                <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">
-                  E-arve
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-3 mt-1 text-sm text-slate-500">
               {partner.registryCode && <span>Reg: {partner.registryCode}</span>}
@@ -345,8 +485,27 @@ export default function PartnerDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="icon">
+        <div className="flex items-center gap-2">
+          {/* Registry refresh result message */}
+          {registryRefreshResult && (
+            <span className={`text-sm px-2 py-1 rounded ${registryRefreshResult.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {registryRefreshResult.message}
+            </span>
+          )}
+          {partner.registryCode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshFromRegistry}
+              disabled={isRefreshingFromRegistry}
+              className="gap-1.5"
+              title="Värskenda andmeid Äriregistrist"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshingFromRegistry ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Äriregister</span>
+            </Button>
+          )}
+          <Button variant="outline" size="icon" onClick={openEditPartner} title="Muuda andmeid">
             <Edit className="w-4 h-4" />
           </Button>
           <Button variant="outline" size="icon" className="text-red-600 hover:text-red-700">
@@ -474,14 +633,6 @@ export default function PartnerDetailPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Krediidilimiit</span>
                   <span className="text-slate-900">{formatCurrency(partner.creditLimit)}</span>
-                </div>
-              )}
-              {partner.eInvoiceCapable && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">E-arve</span>
-                  <span className="text-green-600">
-                    Jah{partner.eInvoiceOperator && ` (${partner.eInvoiceOperator})`}
-                  </span>
                 </div>
               )}
             </div>
@@ -823,6 +974,161 @@ export default function PartnerDetailPage() {
                 {isDeletingContact ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Kustuta'}
               </Button>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit Partner Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <Card className="w-full max-w-lg bg-white rounded-xl shadow-xl my-4">
+            <form onSubmit={handleSavePartner}>
+              <div className="p-6">
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">Muuda ettevõtte andmeid</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Ettevõtte nimi *</label>
+                    <Input
+                      value={editPartnerForm.name}
+                      onChange={(e) => setEditPartnerForm({ ...editPartnerForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Registrikood</label>
+                      <Input
+                        value={editPartnerForm.registryCode}
+                        onChange={(e) => setEditPartnerForm({ ...editPartnerForm, registryCode: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Tüüp</label>
+                      <select
+                        value={editPartnerForm.type}
+                        onChange={(e) => setEditPartnerForm({ ...editPartnerForm, type: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#279989]/20"
+                      >
+                        <option value="client">Klient</option>
+                        <option value="supplier">Tarnija</option>
+                        <option value="subcontractor">Alltöövõtja</option>
+                        <option value="partner">Partner</option>
+                        <option value="manufacturer">Tootja</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">KMKR number</label>
+                    <Input
+                      value={editPartnerForm.vatNumber}
+                      onChange={(e) => setEditPartnerForm({ ...editPartnerForm, vatNumber: e.target.value })}
+                      placeholder="EE123456789"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">E-post</label>
+                      <Input
+                        type="email"
+                        value={editPartnerForm.email}
+                        onChange={(e) => setEditPartnerForm({ ...editPartnerForm, email: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Telefon</label>
+                      <Input
+                        value={editPartnerForm.phone}
+                        onChange={(e) => setEditPartnerForm({ ...editPartnerForm, phone: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Aadress</label>
+                      <Input
+                        value={editPartnerForm.address}
+                        onChange={(e) => setEditPartnerForm({ ...editPartnerForm, address: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Riik</label>
+                      <Input
+                        value={editPartnerForm.country}
+                        onChange={(e) => setEditPartnerForm({ ...editPartnerForm, country: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Pangakonto (IBAN)</label>
+                    <Input
+                      value={editPartnerForm.bankAccount}
+                      onChange={(e) => setEditPartnerForm({ ...editPartnerForm, bankAccount: e.target.value })}
+                      placeholder="EE..."
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Maksetähtaeg (päeva)</label>
+                      <Input
+                        type="number"
+                        value={editPartnerForm.paymentTermDays}
+                        onChange={(e) => setEditPartnerForm({ ...editPartnerForm, paymentTermDays: parseInt(e.target.value) || 14 })}
+                        min={0}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Krediidilimiit (€)</label>
+                      <Input
+                        type="number"
+                        value={editPartnerForm.creditLimit}
+                        onChange={(e) => setEditPartnerForm({ ...editPartnerForm, creditLimit: parseFloat(e.target.value) || 0 })}
+                        min={0}
+                        step={100}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Märkmed</label>
+                    <textarea
+                      value={editPartnerForm.notes}
+                      onChange={(e) => setEditPartnerForm({ ...editPartnerForm, notes: e.target.value })}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#279989]/20 resize-none"
+                      placeholder="Sisemised märkmed..."
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1"
+                  disabled={isSubmittingPartner}
+                >
+                  Tühista
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!editPartnerForm.name || isSubmittingPartner}
+                  className="flex-1 bg-[#279989] hover:bg-[#1e7a6d] text-white"
+                >
+                  {isSubmittingPartner ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Salvesta'
+                  )}
+                </Button>
+              </div>
+            </form>
           </Card>
         </div>
       )}

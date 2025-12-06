@@ -87,19 +87,66 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
   const [showMapPicker, setShowMapPicker] = useState(false)
   const [geocoding, setGeocoding] = useState(false)
 
+  // Address autocomplete state
+  const [addressResults, setAddressResults] = useState<{ address: string; lat?: number; lon?: number }[]>([])
+  const [showAddressDropdown, setShowAddressDropdown] = useState(false)
+  const [isSearchingAddress, setIsSearchingAddress] = useState(false)
+  const addressInputRef = useRef<HTMLDivElement>(null)
+
   const createProject = useCreateProject()
 
   // Click outside handlers
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (e: MouseEvent) => {
       setShowCompanyDropdown(false)
       setShowContactDropdown(false)
+      if (addressInputRef.current && !addressInputRef.current.contains(e.target as Node)) {
+        setShowAddressDropdown(false)
+      }
     }
-    if (showCompanyDropdown || showContactDropdown) {
+    if (showCompanyDropdown || showContactDropdown || showAddressDropdown) {
       document.addEventListener('click', handleClickOutside)
       return () => document.removeEventListener('click', handleClickOutside)
     }
-  }, [showCompanyDropdown, showContactDropdown])
+  }, [showCompanyDropdown, showContactDropdown, showAddressDropdown])
+
+  // Debounced address search (Nominatim - global)
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (formData.address && formData.address.length >= 3) {
+        setIsSearchingAddress(true)
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(formData.address)}&limit=8&addressdetails=1`,
+            {
+              headers: {
+                'User-Agent': 'EOS2-ERP/1.0',
+              },
+            }
+          )
+          if (response.ok) {
+            const data = await response.json()
+            setAddressResults(
+              data.map((item: { display_name: string; lat: string; lon: string }) => ({
+                address: item.display_name,
+                lat: parseFloat(item.lat),
+                lon: parseFloat(item.lon),
+              }))
+            )
+            setShowAddressDropdown(true)
+          }
+        } catch (err) {
+          console.error('Address search error:', err)
+        } finally {
+          setIsSearchingAddress(false)
+        }
+      } else {
+        setAddressResults([])
+        setShowAddressDropdown(false)
+      }
+    }, 400) // Slightly longer delay for external API
+    return () => clearTimeout(timer)
+  }, [formData.address])
 
   // Fetch companies - Fixed to use 'partners' from response
   const fetchCompanies = useCallback(async (search: string) => {
@@ -680,14 +727,47 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
               <div className="space-y-1.5">
                 <Label htmlFor="address">Aadress</Label>
                 <div className="flex gap-2">
-                  <Input
-                    id="address"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    placeholder="Täisaadress (nt. Pärnu mnt 15, Tallinn)"
-                    className="flex-1"
-                  />
+                  <div ref={addressInputRef} className="relative flex-1" onClick={(e) => e.stopPropagation()}>
+                    <Input
+                      id="address"
+                      name="address"
+                      value={formData.address}
+                      onChange={handleChange}
+                      placeholder="Täisaadress (nt. Pärnu mnt 15, Tallinn)"
+                      className="w-full"
+                    />
+                    {isSearchingAddress && (
+                      <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-slate-400" />
+                    )}
+                    {/* Address autocomplete dropdown */}
+                    {showAddressDropdown && addressResults.length > 0 && (
+                      <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 max-h-48 overflow-y-auto">
+                        <div className="px-3 py-1.5 text-xs text-slate-500 bg-slate-50 border-b">
+                          OpenStreetMap
+                        </div>
+                        {addressResults.map((result, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                address: result.address,
+                                latitude: result.lat,
+                                longitude: result.lon,
+                              }))
+                              setShowAddressDropdown(false)
+                              setAddressResults([])
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                            <span className="truncate">{result.address}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <Button
                     type="button"
                     variant="outline"

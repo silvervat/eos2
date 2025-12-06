@@ -257,6 +257,7 @@ export default function FileVaultPage() {
   const [vault, setVault] = useState<Vault | null>(null)
   const [files, setFiles] = useState<FileItem[]>([])
   const [folders, setFolders] = useState<FolderItem[]>([])
+  const [allFolders, setAllFolders] = useState<FolderItem[]>([]) // All folders for breadcrumb building
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [breadcrumbs, setBreadcrumbs] = useState<Array<{ id: string | null; name: string }>>([
     { id: null, name: 'Failid' },
@@ -416,7 +417,7 @@ export default function FileVaultPage() {
     }
   }, [vault])
 
-  // Fetch folders (always fetches all folders in current directory)
+  // Fetch folders for current directory display
   const fetchFolders = useCallback(async (vaultId: string, folderId: string | null) => {
     try {
       const foldersParams = new URLSearchParams({
@@ -431,6 +432,23 @@ export default function FileVaultPage() {
       }
     } catch (err) {
       console.error('Error fetching folders:', err)
+    }
+  }, [])
+
+  // Fetch ALL folders (for breadcrumb building)
+  const fetchAllFolders = useCallback(async (vaultId: string) => {
+    try {
+      const foldersParams = new URLSearchParams({
+        vaultId,
+        flat: 'true',
+      })
+      const foldersResponse = await fetch(`/api/file-vault/folders?${foldersParams}`)
+      if (foldersResponse.ok) {
+        const foldersData = await foldersResponse.json()
+        setAllFolders(foldersData.folders || [])
+      }
+    } catch (err) {
+      console.error('Error fetching all folders:', err)
     }
   }, [])
 
@@ -728,6 +746,7 @@ export default function FileVaultPage() {
       if (vaultId) {
         await Promise.all([
           fetchFolders(vaultId, null),
+          fetchAllFolders(vaultId), // Fetch all folders for breadcrumb building
           fetchFiles(vaultId, null, 0, false)
         ])
       }
@@ -752,8 +771,11 @@ export default function FileVaultPage() {
       setHasMoreFiles(true)
 
       const filter = activeTab === 'my-files' ? 'my-files' : 'all'
-      // Only fetch files for the new folder, don't refetch folders (tree is already loaded)
-      await fetchFiles(vaultIdRef.current!, currentFolderId, 0, false, filter)
+      // Fetch both folders and files for the new folder
+      await Promise.all([
+        fetchFolders(vaultIdRef.current!, currentFolderId),
+        fetchFiles(vaultIdRef.current!, currentFolderId, 0, false, filter)
+      ])
       setIsLoadingFolderFiles(false)
     }
     loadFolderData()
@@ -794,6 +816,7 @@ export default function FileVaultPage() {
 
     await Promise.all([
       fetchFolders(vault.id, currentFolderId),
+      fetchAllFolders(vault.id), // Refresh allFolders for breadcrumbs
       fetchFiles(vault.id, currentFolderId, 0, false)
     ])
     setIsRefreshing(false)
@@ -809,7 +832,7 @@ export default function FileVaultPage() {
     } else {
       setCurrentFolderId(folder.id)
 
-      // Build full breadcrumb path by traversing parent chain
+      // Build full breadcrumb path by traversing parent chain using allFolders
       const buildBreadcrumbPath = (targetFolder: FolderItem): Array<{ id: string | null; name: string }> => {
         const path: Array<{ id: string | null; name: string }> = [{ id: null, name: 'Failid' }]
 
@@ -820,7 +843,8 @@ export default function FileVaultPage() {
         while (currentFolder) {
           parentChain.unshift(currentFolder)
           if (currentFolder.parentId) {
-            currentFolder = folders.find(f => f.id === currentFolder!.parentId)
+            // Use allFolders to find parent folders (since folders only contains current directory)
+            currentFolder = allFolders.find(f => f.id === currentFolder!.parentId)
           } else {
             break
           }
@@ -838,7 +862,7 @@ export default function FileVaultPage() {
     }
 
     setSelectedItems([])
-  }, [folders])
+  }, [allFolders])
 
   // State for new folder parent (for creating subfolders from tree)
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null)
@@ -872,8 +896,11 @@ export default function FileVaultPage() {
       setShowNewFolderDialog(false)
       setNewFolderParentId(null)
 
-      // Refresh both the folder list and the file tree
-      await fetchFolders(vault.id, currentFolderId)
+      // Refresh folders, allFolders (for breadcrumbs), and the file tree
+      await Promise.all([
+        fetchFolders(vault.id, currentFolderId),
+        fetchAllFolders(vault.id)
+      ])
       fileTreeRef.current?.refresh()
     } catch (err) {
       console.error('Error creating folder:', err)
@@ -929,9 +956,12 @@ export default function FileVaultPage() {
         throw new Error(data.error || 'Kausta ümbernimetamine ebaõnnestus')
       }
 
-      // Refresh folder lists
+      // Refresh folder lists including allFolders for breadcrumbs
       if (vault) {
-        await fetchFolders(vault.id, currentFolderId)
+        await Promise.all([
+          fetchFolders(vault.id, currentFolderId),
+          fetchAllFolders(vault.id)
+        ])
       }
       fileTreeRef.current?.refresh()
 
@@ -1536,7 +1566,7 @@ export default function FileVaultPage() {
       >
         {/* Top Bar with Tabs */}
         <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
-          <div className="flex items-center justify-between px-6 py-3">
+          <div className="flex items-center justify-between px-2 sm:px-4 md:px-6 py-3">
             {/* Left: Toggle sidebar + Tabs */}
             <div className="flex items-center gap-4">
               {/* Toggle file tree button */}
@@ -1685,7 +1715,7 @@ export default function FileVaultPage() {
 
           {/* Vault info bar */}
           {vault && (
-            <div className="flex items-center justify-between px-6 py-2 bg-slate-50 border-t border-slate-100 text-sm">
+            <div className="flex items-center justify-between px-2 sm:px-4 md:px-6 py-2 bg-slate-50 border-t border-slate-100 text-sm">
               <span className="text-slate-600">
                 {vault.name} - {formatFileSize(Number(vault.usedBytes))} / {formatFileSize(Number(vault.quotaBytes))} kasutatud
                 {totalFiles > 0 && <span className="ml-2 text-slate-400">({totalFiles} faili)</span>}
@@ -1704,7 +1734,7 @@ export default function FileVaultPage() {
         </div>
 
         {/* Content area with padding */}
-        <div className="p-6 space-y-6">
+        <div className="p-2 sm:p-4 md:p-6 space-y-4 md:space-y-6">
 
       {/* Statistics Tab */}
       {activeTab === 'statistics' && (
@@ -2277,7 +2307,7 @@ export default function FileVaultPage() {
       {!isLoading && !error && (
         <>
           {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 min-[1920px]:grid-cols-10 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 min-[1920px]:grid-cols-10 gap-2 sm:gap-3 md:gap-4">
               {allItems.map((item) => {
                 const isFolder = item.type === 'folder'
                 const Icon = isFolder ? Folder : getFileIcon((item as FileItem).mimeType)

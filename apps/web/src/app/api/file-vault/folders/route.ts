@@ -314,7 +314,6 @@ export async function POST(request: Request) {
         path: folderPath,
         color: color || null,
         icon: icon || null,
-        visibility: visibility,
         is_public: visibility === 'public',
         owner_id: user.id,
         created_by: user.id,
@@ -389,7 +388,7 @@ export async function POST(request: Request) {
       path: newFolder.path,
       color: newFolder.color,
       icon: newFolder.icon,
-      visibility: newFolder.visibility,
+      isPublic: newFolder.is_public,
       parentId: newFolder.parent_id,
       createdAt: newFolder.created_at,
     }, { status: 201 })

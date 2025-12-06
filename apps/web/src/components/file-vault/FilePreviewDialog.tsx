@@ -341,7 +341,7 @@ export function FilePreviewDialog({
     if (!showSidebar || !file) return null
 
     return (
-      <div className="w-80 border-l border-slate-200 flex flex-col bg-white">
+      <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-200 flex flex-col bg-white max-h-[40vh] md:max-h-none overflow-auto md:overflow-hidden">
         {/* Tabs */}
         <div className="flex border-b border-slate-200">
           <button
@@ -524,29 +524,36 @@ export function FilePreviewDialog({
         }
       }}
     >
-      <div className={`${getModalClasses()} h-auto max-h-[95vh] m-4 flex bg-white rounded-xl shadow-2xl overflow-hidden`}>
+      <div className={`${getModalClasses()} h-auto max-h-[95vh] m-4 flex flex-col md:flex-row bg-white rounded-xl shadow-2xl overflow-hidden`}>
         {/* Main content */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 min-h-[50vh] md:min-h-0">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
+          <div className="flex flex-col md:flex-row md:items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 gap-2">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                <FileIcon className="w-5 h-5 text-slate-500" />
+              <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <FileIcon className="w-4 h-4 md:w-5 md:h-5 text-slate-500" />
               </div>
-              <div className="min-w-0">
-                <h2 className="text-lg font-semibold text-slate-900 truncate">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm md:text-lg font-semibold text-slate-900 truncate">
                   {file?.name || 'Laadin...'}
                 </h2>
                 {file && (
-                  <p className="text-sm text-slate-500">
+                  <p className="text-xs md:text-sm text-slate-500">
                     {formatFileSize(file.sizeBytes)}
                     {file.width && file.height && ` • ${file.width}×${file.height}`}
                     {file.version && file.version > 1 && ` • v${file.version}`}
                   </p>
                 )}
               </div>
+              {/* Close button - mobile only, top right */}
+              <button
+                onClick={() => onOpenChange(false)}
+                className="md:hidden p-2 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 flex-shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {onShare && (
                 <Button
                   variant="outline"
@@ -555,7 +562,7 @@ export function FilePreviewDialog({
                   className="gap-1"
                 >
                   <Share2 className="w-4 h-4" />
-                  Jaga
+                  <span className="hidden sm:inline">Jaga</span>
                 </Button>
               )}
               <Button
@@ -570,7 +577,7 @@ export function FilePreviewDialog({
                 ) : (
                   <Download className="w-4 h-4" />
                 )}
-                Laadi alla
+                <span className="hidden sm:inline">Laadi alla</span>
               </Button>
               <button
                 onClick={() => setShowSidebar(!showSidebar)}
@@ -579,9 +586,10 @@ export function FilePreviewDialog({
               >
                 <Info className="w-5 h-5" />
               </button>
+              {/* Close button - desktop only */}
               <button
                 onClick={() => onOpenChange(false)}
-                className="p-2 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600"
+                className="hidden md:block p-2 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600"
               >
                 <X className="w-5 h-5" />
               </button>

@@ -200,9 +200,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Ettevõtte nimi on kohustuslik' }, { status: 400 })
     }
 
+    // Generate UUID for id (in case table doesn't have default)
+    const companyId = crypto.randomUUID()
+
     const { data, error } = await supabase
       .from('companies')
       .insert({
+        id: companyId,
         tenant_id: profile.tenant_id,
         registry_code: body.registryCode || null,
         vat_number: body.vatNumber || null,
@@ -213,18 +217,9 @@ export async function POST(request: Request) {
         address: body.address || null,
         city: body.city || null,
         country: body.country || 'Estonia',
-        zip_code: body.zipCode || null,
-        registry_url: body.registryUrl || null,
-        historical_names: body.historicalNames || null,
-        company_status: body.companyStatus || 'R',
-        e_invoice_capable: body.eInvoiceCapable || false,
-        e_invoice_operator: body.eInvoiceOperator || null,
-        e_invoice_address: body.eInvoiceAddress || null,
-        bank_account: body.bankAccount || null,
-        payment_term_days: body.paymentTermDays || 14,
-        credit_limit: body.creditLimit || null,
         notes: body.notes || null,
         metadata: body.metadata || {},
+        // Note: zip_code, bank_account, payment_term_days, credit_limit columns don't exist in schema
       })
       .select('*')
       .single()

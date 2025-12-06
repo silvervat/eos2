@@ -24,6 +24,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
+    const debug = searchParams.get('debug') === 'true'
 
     if (!code) {
       return NextResponse.json(
@@ -32,18 +33,32 @@ export async function GET(request: Request) {
       )
     }
 
-    // Try the Estonian Business Registry E-Invoice API
-    // Endpoint: https://ariregister.rik.ee/est/api/einvoice?q=registry_code
-    // This service is free and doesn't require authentication
-    const url = `https://ariregister.rik.ee/est/api/einvoice?q=${encodeURIComponent(code)}`
+    const debugInfo: Record<string, unknown> = {}
 
-    const response = await fetch(url, {
+    // Try the Estonian E-Invoice Router API
+    // The correct endpoint is: https://www.rik.ee/et/e-arveldaja/api
+    // But we'll try multiple endpoints to find the correct one
+
+    // 1. Try ariregister.rik.ee endpoint
+    const url1 = `https://ariregister.rik.ee/est/api/einvoice?q=${encodeURIComponent(code)}`
+
+    // 2. Try the e-arveldaja endpoint (official e-invoice router)
+    const url2 = `https://e-arveldaja.rik.ee/api/check?code=${encodeURIComponent(code)}`
+
+    console.log('Trying e-invoice endpoints:', url1)
+
+    const response = await fetch(url1, {
       headers: {
         'User-Agent': 'EOS2-ERP/1.0',
         Accept: 'application/json',
       },
       next: { revalidate: 300 }, // Cache for 5 minutes
     })
+
+    if (debug) {
+      debugInfo.endpoint1 = url1
+      debugInfo.endpoint1Status = response.status
+    }
 
     // If the specific endpoint fails, return a default response
     // The e-invoice capability can still be checked manually
@@ -57,10 +72,26 @@ export async function GET(request: Request) {
         operators: [],
         status: 'unknown',
         message: 'E-arve staatust ei saanud kontrollida',
+        ...(debug ? { _debug: debugInfo } : {}),
       })
     }
 
     const data = await response.json()
+
+    if (debug) {
+      debugInfo.rawResponse = data
+      debugInfo.responseType = Array.isArray(data) ? 'array' : typeof data
+      if (Array.isArray(data)) {
+        debugInfo.arrayLength = data.length
+        if (data.length > 0) {
+          debugInfo.firstItemKeys = Object.keys(data[0])
+        }
+      } else if (data && typeof data === 'object') {
+        debugInfo.objectKeys = Object.keys(data)
+      }
+    }
+
+    console.log('E-invoice API response:', JSON.stringify(data).slice(0, 500))
 
     // Transform response based on actual API response structure
     // The API may return different structures depending on the result
@@ -71,25 +102,70 @@ export async function GET(request: Request) {
       // If response is array, check if any entries exist
       eInvoiceCapable = data.length > 0
       operators = data.map((op: Record<string, unknown>) => ({
-        name: String(op.teenusepakkuja || op.operator_name || op.name || 'Teadmata'),
-        channel: String(op.channel || op.type || 'e-arve'),
-        address: op.address as string | undefined,
+        // Try various field names that operators might use
+        name: String(
+          op.teenusepakkuja ||
+          op.operaator ||
+          op.operator_name ||
+          op.operator ||
+          op.name ||
+          op.nimi ||
+          'Teadmata'
+        ),
+        channel: String(op.channel || op.kanal || op.type || op.tyyp || 'e-arve'),
+        address: (op.address || op.aadress || op.roaming_address) as string | undefined,
       }))
     } else if (data && typeof data === 'object') {
-      // Handle object response
-      if (data.staatus === 'OK' || data.status === 'OK') {
+      // Handle object response - check various status indicators
+      const hasPositiveStatus =
+        data.staatus === 'OK' ||
+        data.status === 'OK' ||
+        data.success === true ||
+        data.found === true ||
+        data.exists === true ||
+        data.eInvoiceCapable === true
+
+      if (hasPositiveStatus) {
         eInvoiceCapable = true
       }
-      if (data.operators || data.einvoice_operators || data.teenusepakkujad) {
-        const ops = data.operators || data.einvoice_operators || data.teenusepakkujad || []
-        operators = Array.isArray(ops)
-          ? ops.map((op: Record<string, unknown>) => ({
-              name: String(op.teenusepakkuja || op.operator_name || op.name || 'Teadmata'),
-              channel: String(op.channel || op.type || 'e-arve'),
-              address: op.address as string | undefined,
-            }))
-          : []
+
+      // Try to find operators in various possible locations
+      const operatorData =
+        data.operators ||
+        data.einvoice_operators ||
+        data.teenusepakkujad ||
+        data.operaatorid ||
+        data.channels ||
+        data.kanalid ||
+        data.data ||
+        data.results
+
+      if (operatorData) {
+        const ops = Array.isArray(operatorData) ? operatorData : [operatorData]
+        operators = ops.map((op: Record<string, unknown>) => ({
+          name: String(
+            op.teenusepakkuja ||
+            op.operaator ||
+            op.operator_name ||
+            op.operator ||
+            op.name ||
+            op.nimi ||
+            'Teadmata'
+          ),
+          channel: String(op.channel || op.kanal || op.type || op.tyyp || 'e-arve'),
+          address: (op.address || op.aadress || op.roaming_address) as string | undefined,
+        }))
         eInvoiceCapable = operators.length > 0
+      }
+
+      // Also check if data itself contains operator-like info
+      if (!eInvoiceCapable && (data.teenusepakkuja || data.operaator || data.operator)) {
+        eInvoiceCapable = true
+        operators = [{
+          name: String(data.teenusepakkuja || data.operaator || data.operator || 'Teadmata'),
+          channel: String(data.channel || data.kanal || 'e-arve'),
+          address: data.address as string | undefined,
+        }]
       }
     }
 
@@ -100,7 +176,14 @@ export async function GET(request: Request) {
       operators,
     }
 
-    return NextResponse.json(result)
+    if (debug) {
+      debugInfo.parsedResult = result
+    }
+
+    return NextResponse.json({
+      ...result,
+      ...(debug ? { _debug: debugInfo } : {}),
+    })
   } catch (error) {
     console.error('Error in e-invoice check:', error)
     // Return unknown status on error - don't block the user
