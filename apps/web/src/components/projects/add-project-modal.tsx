@@ -113,7 +113,7 @@ export function AddProjectModal({ open, onOpenChange, defaultType }: AddProjectM
   // Debounced address search (Nominatim - global)
   useEffect(() => {
     const timer = setTimeout(async () => {
-      if (formData.address.length >= 3) {
+      if (formData.address && formData.address.length >= 3) {
         setIsSearchingAddress(true)
         try {
           const response = await fetch(
