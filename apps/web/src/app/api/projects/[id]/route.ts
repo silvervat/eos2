@@ -128,12 +128,11 @@ export async function PATCH(
     // Build update object (only include provided fields)
     const updateData: Record<string, unknown> = {}
 
+    // Only include fields that exist in the database schema
     if (body.code !== undefined) updateData.code = body.code
     if (body.name !== undefined) updateData.name = body.name
     if (body.description !== undefined) updateData.description = body.description
     if (body.type !== undefined) updateData.type = body.type
-    if (body.clientId !== undefined) updateData.client_id = body.clientId
-    if (body.contactId !== undefined) updateData.contact_id = body.contactId
     if (body.status !== undefined) updateData.status = body.status
     if (body.currency !== undefined) updateData.currency = body.currency
     if (body.startDate !== undefined) updateData.start_date = body.startDate
@@ -143,9 +142,8 @@ export async function PATCH(
     if (body.country !== undefined) updateData.country = body.country
     if (body.latitude !== undefined) updateData.latitude = body.latitude
     if (body.longitude !== undefined) updateData.longitude = body.longitude
-    if (body.managerId !== undefined) updateData.manager_id = body.managerId
-    if (body.thumbnailUrl !== undefined) updateData.thumbnail_url = body.thumbnailUrl
     if (body.metadata !== undefined) updateData.metadata = body.metadata
+    // Note: client_id, contact_id, manager_id, thumbnail_url columns don't exist in schema
 
     // Update project using SELECT *
     const { data, error } = await supabase

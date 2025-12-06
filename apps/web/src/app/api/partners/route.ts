@@ -217,12 +217,9 @@ export async function POST(request: Request) {
         address: body.address || null,
         city: body.city || null,
         country: body.country || 'Estonia',
-        zip_code: body.zipCode || null,
-        bank_account: body.bankAccount || null,
-        payment_term_days: body.paymentTermDays || 14,
-        credit_limit: body.creditLimit || null,
         notes: body.notes || null,
         metadata: body.metadata || {},
+        // Note: zip_code, bank_account, payment_term_days, credit_limit columns don't exist in schema
       })
       .select('*')
       .single()
