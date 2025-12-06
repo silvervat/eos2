@@ -257,6 +257,7 @@ export default function FileVaultPage() {
   const [vault, setVault] = useState<Vault | null>(null)
   const [files, setFiles] = useState<FileItem[]>([])
   const [folders, setFolders] = useState<FolderItem[]>([])
+  const [allFolders, setAllFolders] = useState<FolderItem[]>([]) // All folders for breadcrumb building
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [breadcrumbs, setBreadcrumbs] = useState<Array<{ id: string | null; name: string }>>([
     { id: null, name: 'Failid' },
@@ -416,7 +417,7 @@ export default function FileVaultPage() {
     }
   }, [vault])
 
-  // Fetch folders (always fetches all folders in current directory)
+  // Fetch folders for current directory display
   const fetchFolders = useCallback(async (vaultId: string, folderId: string | null) => {
     try {
       const foldersParams = new URLSearchParams({
@@ -431,6 +432,23 @@ export default function FileVaultPage() {
       }
     } catch (err) {
       console.error('Error fetching folders:', err)
+    }
+  }, [])
+
+  // Fetch ALL folders (for breadcrumb building)
+  const fetchAllFolders = useCallback(async (vaultId: string) => {
+    try {
+      const foldersParams = new URLSearchParams({
+        vaultId,
+        flat: 'true',
+      })
+      const foldersResponse = await fetch(`/api/file-vault/folders?${foldersParams}`)
+      if (foldersResponse.ok) {
+        const foldersData = await foldersResponse.json()
+        setAllFolders(foldersData.folders || [])
+      }
+    } catch (err) {
+      console.error('Error fetching all folders:', err)
     }
   }, [])
 
@@ -728,6 +746,7 @@ export default function FileVaultPage() {
       if (vaultId) {
         await Promise.all([
           fetchFolders(vaultId, null),
+          fetchAllFolders(vaultId), // Fetch all folders for breadcrumb building
           fetchFiles(vaultId, null, 0, false)
         ])
       }
@@ -797,6 +816,7 @@ export default function FileVaultPage() {
 
     await Promise.all([
       fetchFolders(vault.id, currentFolderId),
+      fetchAllFolders(vault.id), // Refresh allFolders for breadcrumbs
       fetchFiles(vault.id, currentFolderId, 0, false)
     ])
     setIsRefreshing(false)
@@ -812,7 +832,7 @@ export default function FileVaultPage() {
     } else {
       setCurrentFolderId(folder.id)
 
-      // Build full breadcrumb path by traversing parent chain
+      // Build full breadcrumb path by traversing parent chain using allFolders
       const buildBreadcrumbPath = (targetFolder: FolderItem): Array<{ id: string | null; name: string }> => {
         const path: Array<{ id: string | null; name: string }> = [{ id: null, name: 'Failid' }]
 
@@ -823,7 +843,8 @@ export default function FileVaultPage() {
         while (currentFolder) {
           parentChain.unshift(currentFolder)
           if (currentFolder.parentId) {
-            currentFolder = folders.find(f => f.id === currentFolder!.parentId)
+            // Use allFolders to find parent folders (since folders only contains current directory)
+            currentFolder = allFolders.find(f => f.id === currentFolder!.parentId)
           } else {
             break
           }
@@ -841,7 +862,7 @@ export default function FileVaultPage() {
     }
 
     setSelectedItems([])
-  }, [folders])
+  }, [allFolders])
 
   // State for new folder parent (for creating subfolders from tree)
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null)
@@ -875,8 +896,11 @@ export default function FileVaultPage() {
       setShowNewFolderDialog(false)
       setNewFolderParentId(null)
 
-      // Refresh both the folder list and the file tree
-      await fetchFolders(vault.id, currentFolderId)
+      // Refresh folders, allFolders (for breadcrumbs), and the file tree
+      await Promise.all([
+        fetchFolders(vault.id, currentFolderId),
+        fetchAllFolders(vault.id)
+      ])
       fileTreeRef.current?.refresh()
     } catch (err) {
       console.error('Error creating folder:', err)
@@ -932,9 +956,12 @@ export default function FileVaultPage() {
         throw new Error(data.error || 'Kausta ümbernimetamine ebaõnnestus')
       }
 
-      // Refresh folder lists
+      // Refresh folder lists including allFolders for breadcrumbs
       if (vault) {
-        await fetchFolders(vault.id, currentFolderId)
+        await Promise.all([
+          fetchFolders(vault.id, currentFolderId),
+          fetchAllFolders(vault.id)
+        ])
       }
       fileTreeRef.current?.refresh()
 
