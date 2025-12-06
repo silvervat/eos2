@@ -3,22 +3,19 @@
 /**
  * OCR Scanner Component
  * Uses AI to extract data from images and PDFs
- * Supports admin-configurable API keys (OpenAI, Google Vision, etc.)
+ * Can work with externally provided file or handle its own upload
  */
 
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
 import {
   Scan,
-  Upload,
   Loader2,
   CheckCircle2,
   AlertCircle,
-  X,
-  FileText,
-  Image as ImageIcon,
   Sparkles,
   Copy,
   Check,
+  X,
 } from 'lucide-react'
 
 interface ExtractedField {
@@ -29,12 +26,11 @@ interface ExtractedField {
 
 interface OcrScannerProps {
   onDataExtracted: (data: Record<string, string>) => void
+  file?: File | null
   fieldMapping?: {
-    // Maps expected document fields to form fields
     [documentField: string]: string
   }
   documentType?: 'certificate' | 'id_card' | 'license' | 'generic'
-  className?: string
 }
 
 // Simulated OCR extraction based on document type
@@ -75,79 +71,34 @@ const simulateOcrExtraction = (documentType: string): ExtractedField[] => {
 
 export function OcrScanner({
   onDataExtracted,
+  file,
   fieldMapping = {},
   documentType = 'generic',
-  className = '',
 }: OcrScannerProps) {
   const [isScanning, setIsScanning] = useState(false)
   const [scanComplete, setScanComplete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [extractedData, setExtractedData] = useState<ExtractedField[]>([])
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    // Validate file type
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
-    if (!validTypes.includes(file.type)) {
-      setError('Lubatud on ainult JPG, PNG, WebP ja PDF failid')
-      return
-    }
-
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Faili suurus peab olema alla 10MB')
-      return
-    }
-
-    setSelectedFile(file)
-    setError(null)
-    setScanComplete(false)
-    setExtractedData([])
-
-    // Create preview for images
-    if (file.type.startsWith('image/')) {
-      const url = URL.createObjectURL(file)
-      setPreviewUrl(url)
-    } else {
-      setPreviewUrl(null)
-    }
-  }, [])
 
   const handleScan = useCallback(async () => {
-    if (!selectedFile) return
-
     setIsScanning(true)
     setError(null)
+    setScanComplete(false)
 
     try {
       // In production, this would call an API endpoint that uses the configured OCR service
-      // For now, we simulate the extraction
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500))
 
-      // Simulate extraction
       const extracted = simulateOcrExtraction(documentType)
       setExtractedData(extracted)
       setScanComplete(true)
-
-      // Map extracted data to form fields
-      const mappedData: Record<string, string> = {}
-      extracted.forEach(item => {
-        const formField = fieldMapping[item.field] || item.field
-        mappedData[formField] = item.value
-      })
-
     } catch (err) {
       setError('Skaneerimine ebaõnnestus. Palun proovige uuesti.')
     } finally {
       setIsScanning(false)
     }
-  }, [selectedFile, documentType, fieldMapping])
+  }, [documentType])
 
   const handleApplyData = useCallback(() => {
     const mappedData: Record<string, string> = {}
@@ -156,6 +107,8 @@ export function OcrScanner({
       mappedData[formField] = item.value
     })
     onDataExtracted(mappedData)
+    setScanComplete(false)
+    setExtractedData([])
   }, [extractedData, fieldMapping, onDataExtracted])
 
   const handleCopyValue = async (field: string, value: string) => {
@@ -168,15 +121,10 @@ export function OcrScanner({
     }
   }
 
-  const handleReset = () => {
-    setSelectedFile(null)
-    setPreviewUrl(null)
+  const handleClose = () => {
     setScanComplete(false)
     setExtractedData([])
     setError(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
   }
 
   const getConfidenceColor = (confidence: number) => {
@@ -185,164 +133,99 @@ export function OcrScanner({
     return 'text-red-600'
   }
 
-  return (
-    <div className={`space-y-4 ${className}`}>
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <Sparkles className="w-5 h-5 text-purple-600" />
-        <h3 className="font-medium text-gray-900">AI dokumendiskanner</h3>
-        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">Beta</span>
-      </div>
-
-      {/* File upload area */}
-      {!selectedFile ? (
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-colors"
-        >
-          <div className="flex justify-center gap-2 mb-3">
-            <ImageIcon className="w-8 h-8 text-gray-400" />
-            <FileText className="w-8 h-8 text-gray-400" />
+  // Show results modal if scan is complete
+  if (scanComplete && extractedData.length > 0) {
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl max-w-md w-full max-h-[80vh] overflow-y-auto">
+          <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              <h3 className="font-semibold">AI skaneeringu tulemused</h3>
+            </div>
+            <button onClick={handleClose} className="p-1 hover:bg-gray-100 rounded">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <p className="text-sm text-gray-600 mb-1">
-            Laadi üles pilt või PDF dokument
-          </p>
-          <p className="text-xs text-gray-400">
-            AI loeb andmed automaatselt välja
-          </p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-        </div>
-      ) : (
-        <div className="border rounded-lg overflow-hidden">
-          {/* Preview */}
-          <div className="p-4 bg-gray-50 border-b">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {previewUrl ? (
-                  <img
-                    src={previewUrl}
-                    alt="Preview"
-                    className="w-16 h-16 object-cover rounded"
-                  />
-                ) : (
-                  <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">
-                    <FileText className="w-8 h-8 text-gray-400" />
+          <div className="p-4 space-y-4">
+            <div className="flex items-center gap-2 text-green-700 bg-green-50 p-3 rounded-lg">
+              <CheckCircle2 className="w-5 h-5" />
+              <span className="font-medium">Andmed loetud dokumendist!</span>
+            </div>
+
+            <div className="space-y-1">
+              {extractedData.map((item, idx) => (
+                <div key={idx} className="p-2 bg-gray-50 rounded flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-500">{item.field}</p>
+                    <p className="text-sm font-medium text-gray-900 truncate">{item.value}</p>
                   </div>
-                )}
-                <div>
-                  <p className="font-medium text-gray-900 text-sm">{selectedFile.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
+                  <div className="flex items-center gap-2 ml-2">
+                    <span className={`text-xs ${getConfidenceColor(item.confidence)}`}>
+                      {Math.round(item.confidence * 100)}%
+                    </span>
+                    <button
+                      onClick={() => handleCopyValue(item.field, item.value)}
+                      className="p-1 hover:bg-gray-200 rounded"
+                    >
+                      {copiedField === item.field ? (
+                        <Check className="w-3 h-3 text-green-600" />
+                      ) : (
+                        <Copy className="w-3 h-3 text-gray-400" />
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <button
-                onClick={handleReset}
-                className="p-1 hover:bg-gray-200 rounded"
-              >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
+              ))}
             </div>
           </div>
-
-          {/* Scan button or results */}
-          <div className="p-4">
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700">
-                <AlertCircle className="w-4 h-4" />
-                {error}
-              </div>
-            )}
-
-            {!scanComplete ? (
-              <button
-                onClick={handleScan}
-                disabled={isScanning}
-                className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isScanning ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Skaneerin dokumenti...
-                  </>
-                ) : (
-                  <>
-                    <Scan className="w-5 h-5" />
-                    Skaneeri ja loe andmed välja
-                  </>
-                )}
-              </button>
-            ) : (
-              <div className="space-y-4">
-                {/* Success message */}
-                <div className="flex items-center gap-2 text-green-700 bg-green-50 p-3 rounded-lg">
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span className="font-medium">Andmed loetud!</span>
-                </div>
-
-                {/* Extracted data */}
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Leitud andmed:</p>
-                  <div className="bg-gray-50 rounded-lg divide-y">
-                    {extractedData.map((item, idx) => (
-                      <div key={idx} className="p-2 flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-500">{item.field}</p>
-                          <p className="text-sm font-medium text-gray-900 truncate">{item.value}</p>
-                        </div>
-                        <div className="flex items-center gap-2 ml-2">
-                          <span className={`text-xs ${getConfidenceColor(item.confidence)}`}>
-                            {Math.round(item.confidence * 100)}%
-                          </span>
-                          <button
-                            onClick={() => handleCopyValue(item.field, item.value)}
-                            className="p-1 hover:bg-gray-200 rounded"
-                          >
-                            {copiedField === item.field ? (
-                              <Check className="w-3 h-3 text-green-600" />
-                            ) : (
-                              <Copy className="w-3 h-3 text-gray-400" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleReset}
-                    className="flex-1 px-4 py-2 border rounded-lg text-sm hover:bg-gray-50"
-                  >
-                    Skaneeri uuesti
-                  </button>
-                  <button
-                    onClick={handleApplyData}
-                    className="flex-1 px-4 py-2 bg-[#279989] text-white rounded-lg text-sm hover:bg-[#1f7a6d]"
-                  >
-                    Kasuta andmeid
-                  </button>
-                </div>
-              </div>
-            )}
+          <div className="p-4 border-t bg-gray-50 flex gap-2">
+            <button
+              onClick={handleClose}
+              className="flex-1 px-4 py-2 border rounded-lg text-sm hover:bg-gray-100"
+            >
+              Tühista
+            </button>
+            <button
+              onClick={handleApplyData}
+              className="flex-1 px-4 py-2 bg-[#279989] text-white rounded-lg text-sm hover:bg-[#1f7a6d]"
+            >
+              Täida vormivälju
+            </button>
           </div>
         </div>
-      )}
+      </div>
+    )
+  }
 
-      {/* Info */}
-      <p className="text-xs text-gray-500 text-center">
-        AI tuvastab automaatselt dokumendi tüübi ja loeb välja asjakohased andmed.
-        Kontrolli alati tulemust enne kasutamist.
-      </p>
-    </div>
+  // Inline scan button
+  return (
+    <>
+      {error && (
+        <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700 flex items-center gap-2">
+          <AlertCircle className="w-3 h-3" />
+          {error}
+        </div>
+      )}
+      <button
+        onClick={handleScan}
+        disabled={isScanning || (!file)}
+        className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        title={!file ? 'Esmalt laadi fail üles' : 'Skaneeri dokument AI-ga'}
+      >
+        {isScanning ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Skaneerin...
+          </>
+        ) : (
+          <>
+            <Sparkles className="w-4 h-4" />
+            AI skanner
+          </>
+        )}
+      </button>
+    </>
   )
 }
 

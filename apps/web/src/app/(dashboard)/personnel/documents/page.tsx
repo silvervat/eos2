@@ -29,7 +29,6 @@ import {
   Clock,
   Filter,
   FolderOpen,
-  Scan,
 } from 'lucide-react'
 import { OcrScanner } from '@/components/shared/OcrScanner'
 
@@ -216,6 +215,18 @@ export default function EmployeeDocumentsPage() {
   const [showShareModal, setShowShareModal] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [groupBy, setGroupBy] = useState<'employee' | 'type'>('employee')
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setUploadedFile(file)
+    }
+  }
+
+  const clearUploadedFile = () => {
+    setUploadedFile(null)
+  }
 
   // Stats
   const stats = useMemo(() => {
@@ -712,36 +723,66 @@ export default function EmployeeDocumentsPage() {
                 />
                 <p className="text-xs text-gray-500 mt-1">Valikuline - kui dokument aegub</p>
               </div>
-              {/* OCR Scanner Section */}
-              <div className="border-t pt-4">
-                <OcrScanner
-                  documentType="id_card"
-                  fieldMapping={{
-                    document_number: 'documentNumber',
-                    holder_name: 'holderName',
-                    personal_code: 'personalCode',
-                    expiry_date: 'expiryDate',
-                  }}
-                  onDataExtracted={(data) => {
-                    // In production, this would update form state
-                    console.log('Extracted data:', data)
-                    alert('Andmed loetud! Vaata konsool logist.')
-                  }}
-                />
-              </div>
-
               <div className="border-t pt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Dokumendi fail (manuaalne üleslaadimine)
+                  Dokumendi fail
                 </label>
-                <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                  <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600">
-                    Lohista fail siia või{' '}
-                    <button className="text-[#279989] hover:underline">vali fail</button>
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">PDF, JPG või PNG kuni 10MB</p>
-                </div>
+                {uploadedFile ? (
+                  <div className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-8 h-8 text-blue-500" />
+                        <div>
+                          <p className="font-medium text-gray-900">{uploadedFile.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={clearUploadedFile}
+                        className="p-1 hover:bg-gray-100 rounded"
+                      >
+                        <X className="w-4 h-4 text-gray-400" />
+                      </button>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <OcrScanner
+                        file={uploadedFile}
+                        documentType="id_card"
+                        fieldMapping={{
+                          document_number: 'documentNumber',
+                          holder_name: 'holderName',
+                          personal_code: 'personalCode',
+                          expiry_date: 'expiryDate',
+                        }}
+                        onDataExtracted={(data) => {
+                          // In production, this would update form state
+                          console.log('Extracted data:', data)
+                          alert('Andmed loetud! Vaata konsool logist.')
+                        }}
+                      />
+                      <span className="text-xs text-gray-500">Loe andmeid automaatselt</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600">
+                      Lohista fail siia või{' '}
+                      <label className="text-[#279989] hover:underline cursor-pointer">
+                        vali fail
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                      </label>
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">PDF, JPG või PNG kuni 10MB</p>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
