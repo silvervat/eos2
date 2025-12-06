@@ -198,9 +198,13 @@ export async function POST(request: Request) {
     // Generate code if not provided
     const code = body.code || `PRJ-${Date.now().toString(36).toUpperCase()}`
 
+    // Generate UUID for id (in case table doesn't have default)
+    const projectId = crypto.randomUUID()
+
     // Build insert data dynamically - only add fields that have values
     // Note: Some columns may not exist depending on migration status
     const insertData: Record<string, unknown> = {
+      id: projectId,
       name: body.name,
     }
 
